@@ -7,6 +7,7 @@ import type { ChatMessage } from '../shared/types.js';
 
 const activePollers = new Set<string>();
 const pollerTimeouts = new Map<string, NodeJS.Timeout>();
+const discoveryTimeouts = new Map<string, NodeJS.Timeout>();
 
 function escapeHtml(unsafe: string) {
   return unsafe
@@ -63,6 +64,14 @@ export async function startYouTubePoller(accountId: string) {
     if (statusCode === 401) {
       broadcastAuthError();
     }
+  } finally {
+    const existing = discoveryTimeouts.get(accountId);
+    if (existing) clearTimeout(existing);
+    
+    discoveryTimeouts.set(
+      accountId,
+      setTimeout(() => startYouTubePoller(accountId), 60000)
+    );
   }
 }
 
@@ -115,8 +124,16 @@ export async function pollLiveChat(accountId: string, youtube: any, liveChatId: 
     
     const statusCode = error.code || error.status;
     
-    // Non-retriable errors
-    if (statusCode === 401 || statusCode === 403 || statusCode === 404) {
+    let isFatal = statusCode === 401 || statusCode === 404;
+    
+    if (statusCode === 403) {
+      const reason = error.errors?.[0]?.reason || '';
+      if (reason === 'liveChatEnded' || reason === 'forbidden') {
+        isFatal = true;
+      }
+    }
+    
+    if (isFatal) {
       console.error(`Fatal error ${statusCode}. Stopping poller for chat ${pollerKey}.`);
       activePollers.delete(pollerKey);
       pollerTimeouts.delete(pollerKey);
@@ -127,7 +144,7 @@ export async function pollLiveChat(accountId: string, youtube: any, liveChatId: 
     }
     
     let retryWait = 5000;
-    if (statusCode === 429 || statusCode === 500) {
+    if (statusCode === 429 || statusCode === 403 || statusCode === 500) {
       console.log('Rate limit or server error. Waiting 10 seconds before retrying...');
       retryWait = 10000;
     }
@@ -150,11 +167,22 @@ export function stopYouTubePoller(accountId?: string) {
         pollerTimeouts.delete(key);
       }
     }
+    
+    const discTimeout = discoveryTimeouts.get(accountId);
+    if (discTimeout) {
+      clearTimeout(discTimeout);
+      discoveryTimeouts.delete(accountId);
+    }
   } else {
     activePollers.clear();
     for (const timeout of pollerTimeouts.values()) {
       clearTimeout(timeout);
     }
     pollerTimeouts.clear();
+    
+    for (const timeout of discoveryTimeouts.values()) {
+      clearTimeout(timeout);
+    }
+    discoveryTimeouts.clear();
   }
 }

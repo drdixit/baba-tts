@@ -62,7 +62,7 @@ describe('pollLiveChat', () => {
 
     const youtubeMock = {
       liveChatMessages: {
-        list: vi.fn().mockRejectedValue({ status: 403 })
+        list: vi.fn().mockRejectedValue({ status: 403, errors: [{ reason: 'liveChatEnded' }] })
       }
     };
 
