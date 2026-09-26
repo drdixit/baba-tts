@@ -8,38 +8,37 @@ import { db } from './db.js';
 
 const authRouter = new Hono();
 
-let oauth2Client: any = null;
+let cachedCreds: { client_id: string; client_secret: string; redirect_uris?: string[] } | null = null;
 
 function getOAuth2Client() {
-  if (oauth2Client) return oauth2Client;
-  
-  const files = readdirSync(process.cwd()).filter(f => f.startsWith('client_secret_') && f.endsWith('.json'));
-  if (files.length === 0) {
-    throw new Error('No client_secret_*.json found in project root');
+  if (!cachedCreds) {
+    const files = readdirSync(process.cwd()).filter(f => f.startsWith('client_secret_') && f.endsWith('.json'));
+    if (files.length === 0) {
+      throw new Error('No client_secret_*.json found in project root');
+    }
+    
+    const filePath = join(process.cwd(), files[0]);
+    const content = JSON.parse(readFileSync(filePath, 'utf-8'));
+    
+    // Handle both "web" and "installed" types of OAuth credentials
+    cachedCreds = content.web || content.installed;
+    if (!cachedCreds) {
+      throw new Error('Invalid client secret format');
+    }
   }
   
-  const filePath = join(process.cwd(), files[0]);
-  const content = JSON.parse(readFileSync(filePath, 'utf-8'));
-  
-  // Handle both "web" and "installed" types of OAuth credentials
-  const creds = content.web || content.installed;
-  if (!creds) {
-    throw new Error('Invalid client secret format');
-  }
-  
-  oauth2Client = new google.auth.OAuth2(
-    creds.client_id,
-    creds.client_secret,
-    creds.redirect_uris?.[0] || 'http://localhost:7060/auth/google/callback'
+  return new google.auth.OAuth2(
+    cachedCreds.client_id,
+    cachedCreds.client_secret,
+    cachedCreds.redirect_uris?.[0] || 'http://localhost:7060/auth/google/callback'
   );
-  
-  return oauth2Client;
 }
 
 authRouter.get('/google', (c) => {
   const client = getOAuth2Client();
   const url = client.generateAuthUrl({
     access_type: 'offline',
+    prompt: 'consent',
     scope: [
       'https://www.googleapis.com/auth/youtube.readonly',
       'https://www.googleapis.com/auth/youtube.force-ssl'
