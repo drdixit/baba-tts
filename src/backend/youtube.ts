@@ -18,12 +18,10 @@ function escapeHtml(unsafe: string) {
 }
 
 export function _testSetActivePoller(accountId: string) {
-  activePollers.add(accountId);
+  activePollers.add(`${accountId}:chat-123`);
 }
 
 export async function startYouTubePoller(accountId: string) {
-  if (activePollers.has(accountId)) return;
-  
   const row = db.prepare('SELECT refresh_token FROM oauth_accounts WHERE id = ?').get(accountId) as { refresh_token: string } | undefined;
   if (!row || !row.refresh_token) {
     console.error('No refresh token found for account:', accountId);
@@ -48,14 +46,16 @@ export async function startYouTubePoller(accountId: string) {
       return;
     }
     
-    const liveChatId = items[0].snippet?.liveChatId;
-    if (!liveChatId) {
-      console.log('No live chat ID found for the broadcast.');
-      return;
+    for (const item of items) {
+      const liveChatId = item.snippet?.liveChatId;
+      if (!liveChatId) continue;
+      
+      const pollerKey = `${accountId}:${liveChatId}`;
+      if (activePollers.has(pollerKey)) continue;
+
+      activePollers.add(pollerKey);
+      pollLiveChat(accountId, youtube, liveChatId, '');
     }
-    
-    activePollers.add(accountId);
-    pollLiveChat(accountId, youtube, liveChatId, '');
     
   } catch (error: any) {
     console.error(`Error starting YouTube poller for account ${accountId}:`, error);
@@ -68,7 +68,8 @@ export async function startYouTubePoller(accountId: string) {
 
 
 export async function pollLiveChat(accountId: string, youtube: any, liveChatId: string, pageToken: string) {
-  if (!activePollers.has(accountId)) return;
+  const pollerKey = `${accountId}:${liveChatId}`;
+  if (!activePollers.has(pollerKey)) return;
   
   try {
     const chatRes = await youtube.liveChatMessages.list({
@@ -107,7 +108,7 @@ export async function pollLiveChat(accountId: string, youtube: any, liveChatId: 
     }
     
     const timeout = setTimeout(() => pollLiveChat(accountId, youtube, liveChatId, nextToken), pollingInterval);
-    pollerTimeouts.set(accountId, timeout);
+    pollerTimeouts.set(pollerKey, timeout);
     
   } catch (error: any) {
     console.error(`Error polling live chat for account ${accountId}:`, error.message || error);
@@ -116,9 +117,9 @@ export async function pollLiveChat(accountId: string, youtube: any, liveChatId: 
     
     // Non-retriable errors
     if (statusCode === 401 || statusCode === 403 || statusCode === 404) {
-      console.error(`Fatal error ${statusCode}. Stopping poller for account ${accountId}.`);
-      activePollers.delete(accountId);
-      pollerTimeouts.delete(accountId);
+      console.error(`Fatal error ${statusCode}. Stopping poller for chat ${pollerKey}.`);
+      activePollers.delete(pollerKey);
+      pollerTimeouts.delete(pollerKey);
       if (statusCode === 401 || statusCode === 403) {
         broadcastAuthError();
       }
@@ -133,17 +134,21 @@ export async function pollLiveChat(accountId: string, youtube: any, liveChatId: 
     
     // Retry with the same pageToken
     const timeout = setTimeout(() => pollLiveChat(accountId, youtube, liveChatId, pageToken), retryWait);
-    pollerTimeouts.set(accountId, timeout);
+    pollerTimeouts.set(pollerKey, timeout);
   }
 }
 
 export function stopYouTubePoller(accountId?: string) {
   if (accountId) {
-    activePollers.delete(accountId);
-    const timeout = pollerTimeouts.get(accountId);
-    if (timeout) {
-      clearTimeout(timeout);
-      pollerTimeouts.delete(accountId);
+    const prefix = `${accountId}:`;
+    for (const key of activePollers) {
+      if (key.startsWith(prefix)) activePollers.delete(key);
+    }
+    for (const [key, timeout] of pollerTimeouts.entries()) {
+      if (key.startsWith(prefix)) {
+        clearTimeout(timeout);
+        pollerTimeouts.delete(key);
+      }
     }
   } else {
     activePollers.clear();

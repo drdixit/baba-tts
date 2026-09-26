@@ -112,7 +112,7 @@ authRouter.get('/google/callback', async (c) => {
   
   startYouTubePoller(accountId);
   
-  return c.text('Authentication successful! You can close this window.');
+  return c.redirect('http://localhost:7061/');
 });
 
 export { authRouter };

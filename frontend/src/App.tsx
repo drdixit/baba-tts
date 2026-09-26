@@ -60,8 +60,14 @@ function App() {
 
   return (
     <div className="h-screen bg-gray-900 text-gray-100 flex flex-col p-4 overflow-hidden">
-      <header className="mb-4 shrink-0">
+      <header className="mb-4 shrink-0 flex items-center justify-between">
         <h1 className="text-xl font-bold text-gray-200">Baba TTS Chat</h1>
+        <a 
+          href="/auth/google"
+          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm font-medium transition-colors"
+        >
+          Connect YouTube
+        </a>
       </header>
       
       <main className="flex-1 overflow-y-auto flex flex-col bg-gray-950 rounded border border-gray-800 shadow-inner p-4">
