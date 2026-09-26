@@ -24,6 +24,15 @@ const server = serve({
 
 initWebSocketServer(server as any);
 
+// Clean slate on startup (YAGNI principle)
+try {
+  db.prepare('DELETE FROM messages').run();
+  db.prepare('DELETE FROM sessions').run();
+  console.log('Cleared old messages and sessions for a fresh start.');
+} catch (err) {
+  console.error('Failed to clear old data:', err);
+}
+
 // Resume polling for existing accounts
 const accounts = db.prepare('SELECT id FROM oauth_accounts').all() as { id: string }[];
 for (const acc of accounts) {
