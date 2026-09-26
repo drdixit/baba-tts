@@ -16,13 +16,15 @@ export function initWebSocketServer(server: Server) {
   });
 }
 
-export function broadcastMessage(msg: ChatMessage) {
+export function broadcastMessages(msgs: ChatMessage[]) {
   if (!wss) {
     console.warn('WebSocket server not initialized');
     return;
   }
   
-  const data = JSON.stringify(msg);
+  if (msgs.length === 0) return;
+  
+  const data = JSON.stringify(msgs);
   wss.clients.forEach((client) => {
     if (client.readyState === WebSocket.OPEN) {
       client.send(data);

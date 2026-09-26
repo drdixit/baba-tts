@@ -1,14 +1,27 @@
 import { google } from 'googleapis';
 import { db } from './db.js';
 import { getOAuth2Client } from './auth.js';
-import { broadcastMessage } from './ws.js';
+import { broadcastMessages } from './ws.js';
 import type { ChatMessage } from '../shared/types.js';
 
-let isPolling = false;
-let currentTimeout: NodeJS.Timeout | null = null;
+const activePollers = new Set<string>();
+const pollerTimeouts = new Map<string, NodeJS.Timeout>();
+
+function escapeHtml(unsafe: string) {
+  return unsafe
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+export function _testSetActivePoller(accountId: string) {
+  activePollers.add(accountId);
+}
 
 export async function startYouTubePoller(accountId: string) {
-  if (isPolling) return;
+  if (activePollers.has(accountId)) return;
   
   const row = db.prepare('SELECT refresh_token FROM oauth_accounts WHERE id = ?').get(accountId) as { refresh_token: string } | undefined;
   if (!row || !row.refresh_token) {
@@ -40,16 +53,16 @@ export async function startYouTubePoller(accountId: string) {
       return;
     }
     
-    isPolling = true;
-    pollLiveChat(youtube, liveChatId, '');
+    activePollers.add(accountId);
+    pollLiveChat(accountId, youtube, liveChatId, '');
     
   } catch (error) {
-    console.error('Error starting YouTube poller:', error);
+    console.error(`Error starting YouTube poller for account ${accountId}:`, error);
   }
 }
 
-async function pollLiveChat(youtube: any, liveChatId: string, pageToken: string) {
-  if (!isPolling) return;
+export async function pollLiveChat(accountId: string, youtube: any, liveChatId: string, pageToken: string) {
+  if (!activePollers.has(accountId)) return;
   
   try {
     const chatRes = await youtube.liveChatMessages.list({
@@ -61,38 +74,59 @@ async function pollLiveChat(youtube: any, liveChatId: string, pageToken: string)
     const nextToken = chatRes.data.nextPageToken || '';
     const pollingInterval = chatRes.data.pollingIntervalMillis || 5000;
     
-    const messages = chatRes.data.items || [];
-    for (const item of messages) {
-      const msg: ChatMessage = {
-        messageId: item.id || '',
-        authorName: item.authorDetails?.displayName || 'Unknown',
-        text: item.snippet?.displayMessage || '',
-        status: 'default'
-      };
-      
-      broadcastMessage(msg);
+    const items = chatRes.data.items || [];
+    const messages: ChatMessage[] = items.map((item: any) => ({
+      messageId: item.id || '',
+      authorName: escapeHtml(item.authorDetails?.displayName || 'Unknown'),
+      text: escapeHtml(item.snippet?.displayMessage || ''),
+      status: 'default'
+    }));
+    
+    if (messages.length > 0) {
+      broadcastMessages(messages);
     }
     
-    currentTimeout = setTimeout(() => pollLiveChat(youtube, liveChatId, nextToken), pollingInterval);
+    const timeout = setTimeout(() => pollLiveChat(accountId, youtube, liveChatId, nextToken), pollingInterval);
+    pollerTimeouts.set(accountId, timeout);
     
   } catch (error: any) {
-    console.error('Error polling live chat:', error.message || error);
+    console.error(`Error polling live chat for account ${accountId}:`, error.message || error);
+    
+    const statusCode = error.code || error.status;
+    
+    // Non-retriable errors
+    if (statusCode === 401 || statusCode === 403 || statusCode === 404) {
+      console.error(`Fatal error ${statusCode}. Stopping poller for account ${accountId}.`);
+      activePollers.delete(accountId);
+      pollerTimeouts.delete(accountId);
+      return;
+    }
     
     let retryWait = 5000;
-    if (error.code === 429 || error.code === 500 || error.status === 429 || error.status === 500) {
+    if (statusCode === 429 || statusCode === 500) {
       console.log('Rate limit or server error. Waiting 10 seconds before retrying...');
       retryWait = 10000;
     }
     
     // Retry with the same pageToken
-    currentTimeout = setTimeout(() => pollLiveChat(youtube, liveChatId, pageToken), retryWait);
+    const timeout = setTimeout(() => pollLiveChat(accountId, youtube, liveChatId, pageToken), retryWait);
+    pollerTimeouts.set(accountId, timeout);
   }
 }
 
-export function stopYouTubePoller() {
-  isPolling = false;
-  if (currentTimeout) {
-    clearTimeout(currentTimeout);
-    currentTimeout = null;
+export function stopYouTubePoller(accountId?: string) {
+  if (accountId) {
+    activePollers.delete(accountId);
+    const timeout = pollerTimeouts.get(accountId);
+    if (timeout) {
+      clearTimeout(timeout);
+      pollerTimeouts.delete(accountId);
+    }
+  } else {
+    activePollers.clear();
+    for (const timeout of pollerTimeouts.values()) {
+      clearTimeout(timeout);
+    }
+    pollerTimeouts.clear();
   }
 }
