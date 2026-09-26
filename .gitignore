@@ -1,0 +1,34 @@
+# Dependencies
+node_modules/
+frontend/node_modules/
+
+# Build outputs
+dist/
+frontend/dist/
+
+# SQLite databases
+*.db
+*.sqlite
+*.sqlite3
+
+# Environment & credentials
+.env
+.env.*
+!.env.example
+client_secret_*.json
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# OS / Editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Agent tooling
+.agents/
+skills-lock.json
