@@ -8,10 +8,14 @@ app.route('/auth', authRouter);
 
 app.get('/', (c) => c.text('Baba TTS Server Running'));
 
+import { initWebSocketServer } from './ws.js';
+
 const port = 7060;
 console.log(`Server is running on port ${port}`);
 
-serve({
+const server = serve({
   fetch: app.fetch,
   port
 });
+
+initWebSocketServer(server as any);

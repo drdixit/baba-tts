@@ -5,12 +5,13 @@ import { readdirSync, readFileSync } from 'fs';
 import { join } from 'path';
 import { randomUUID } from 'crypto';
 import { db } from './db.js';
+import { startYouTubePoller } from './youtube.js';
 
 const authRouter = new Hono();
 
 let cachedCreds: { client_id: string; client_secret: string; redirect_uris?: string[] } | null = null;
 
-function getOAuth2Client() {
+export function getOAuth2Client() {
   if (!cachedCreds) {
     const files = readdirSync(process.cwd()).filter(f => f.startsWith('client_secret_') && f.endsWith('.json'));
     if (files.length === 0) {
@@ -108,6 +109,8 @@ authRouter.get('/google/callback', async (c) => {
     sameSite: 'Lax',
     maxAge: 60 * 60 * 24 * 7
   });
+  
+  startYouTubePoller(accountId);
   
   return c.text('Authentication successful! You can close this window.');
 });
