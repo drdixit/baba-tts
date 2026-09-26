@@ -8,10 +8,7 @@ import { broadcastMessageDelete } from './ws.js';
 
 export const moderationRouter = new Hono();
 
-const ModerationBodySchema = z.object({
-  messageId: z.string(),
-  action: z.enum(['delete', 'timeout', 'ban']),
-});
+import { ModerationActionSchema } from '../shared/types.js';
 
 moderationRouter.post('/moderate', async (c) => {
   const sessionId = getCookie(c, 'session');
@@ -33,7 +30,7 @@ moderationRouter.post('/moderate', async (c) => {
   let body;
   try {
     const rawBody = await c.req.json();
-    body = ModerationBodySchema.parse(rawBody);
+    body = ModerationActionSchema.parse(rawBody);
   } catch (error) {
     return c.json({ error: 'Invalid request body' }, 400);
   }

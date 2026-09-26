@@ -45,3 +45,17 @@ export function broadcastMessageDelete(messageId: string) {
     }
   });
 }
+
+export function broadcastAuthError() {
+  if (!wss) {
+    console.warn('WebSocket server not initialized');
+    return;
+  }
+  
+  const data = JSON.stringify({ type: 'auth_error' });
+  wss.clients.forEach((client) => {
+    if (client.readyState === WebSocket.OPEN) {
+      client.send(data);
+    }
+  });
+}

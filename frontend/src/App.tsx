@@ -30,7 +30,10 @@ function App() {
     ws.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
-        if (data.type === 'delete' && data.messageId) {
+        if (data.type === 'auth_error') {
+          alert('YouTube authentication error. Redirecting to login...');
+          window.location.href = '/auth/google';
+        } else if (data.type === 'delete' && data.messageId) {
           useStore.getState().removeMessage(data.messageId);
         } else if (Array.isArray(data)) {
           addMessages(data);

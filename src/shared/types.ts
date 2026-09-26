@@ -11,7 +11,7 @@ export type ChatMessage = z.infer<typeof ChatMessageSchema>;
 
 export const ModerationActionSchema = z.object({
   messageId: z.string(),
-  action: z.enum(['approve', 'reject']),
+  action: z.enum(['delete', 'timeout', 'ban']),
 });
 
 export type ModerationAction = z.infer<typeof ModerationActionSchema>;

@@ -4,6 +4,9 @@ import { serve } from '@hono/node-server';
 import { authRouter } from './auth.js';
 import { moderationRouter } from './moderation.js';
 
+import { db } from './db.js';
+import { startYouTubePoller } from './youtube.js';
+
 const app = new Hono();
 
 app.route('/auth', authRouter);
@@ -20,3 +23,12 @@ const server = serve({
 });
 
 initWebSocketServer(server as any);
+
+// Resume polling for existing accounts
+const accounts = db.prepare('SELECT id FROM oauth_accounts').all() as { id: string }[];
+for (const acc of accounts) {
+  console.log(`Resuming poller for account: ${acc.id}`);
+  startYouTubePoller(acc.id).catch(err => {
+    console.error(`Failed to resume poller for ${acc.id}:`, err);
+  });
+}

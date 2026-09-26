@@ -1,7 +1,7 @@
 import { google } from 'googleapis';
 import { db } from './db.js';
 import { getOAuth2Client } from './auth.js';
-import { broadcastMessages } from './ws.js';
+import { broadcastMessages, broadcastAuthError } from './ws.js';
 import { enqueueMessageForTTS } from './tts.js';
 import type { ChatMessage } from '../shared/types.js';
 
@@ -57,8 +57,12 @@ export async function startYouTubePoller(accountId: string) {
     activePollers.add(accountId);
     pollLiveChat(accountId, youtube, liveChatId, '');
     
-  } catch (error) {
+  } catch (error: any) {
     console.error(`Error starting YouTube poller for account ${accountId}:`, error);
+    const statusCode = error.code || error.status;
+    if (statusCode === 401 || statusCode === 403) {
+      broadcastAuthError();
+    }
   }
 }
 
@@ -115,6 +119,9 @@ export async function pollLiveChat(accountId: string, youtube: any, liveChatId: 
       console.error(`Fatal error ${statusCode}. Stopping poller for account ${accountId}.`);
       activePollers.delete(accountId);
       pollerTimeouts.delete(accountId);
+      if (statusCode === 401 || statusCode === 403) {
+        broadcastAuthError();
+      }
       return;
     }
     

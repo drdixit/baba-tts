@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import type { ChatMessage as ChatMessageType } from '../../../src/shared/types';
+import type { ChatMessage as ChatMessageType, ModerationAction } from '../../../src/shared/types';
 import { MoreVertical } from 'lucide-react';
 
 interface ChatMessageProps {
@@ -17,7 +17,7 @@ const statusColors: Record<ChatMessageType['status'], string> = {
 const ChatMessage: React.FC<ChatMessageProps> = React.memo(({ message }) => {
   const [showMenu, setShowMenu] = useState(false);
 
-  const handleAction = async (action: 'delete' | 'timeout' | 'ban') => {
+  const handleAction = async (action: ModerationAction['action']) => {
     setShowMenu(false);
     try {
       const res = await fetch('/api/moderate', {
