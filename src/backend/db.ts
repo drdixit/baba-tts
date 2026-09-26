@@ -26,6 +26,15 @@ export function initDb() {
       FOREIGN KEY(account_id) REFERENCES oauth_accounts(id)
     );
   `);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS messages (
+      id TEXT PRIMARY KEY,
+      live_chat_id TEXT NOT NULL,
+      author_channel_id TEXT NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
 }
 
 // Automatically initialize tables

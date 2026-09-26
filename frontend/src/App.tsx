@@ -30,7 +30,9 @@ function App() {
     ws.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
-        if (Array.isArray(data)) {
+        if (data.type === 'delete' && data.messageId) {
+          useStore.getState().removeMessage(data.messageId);
+        } else if (Array.isArray(data)) {
           addMessages(data);
         } else {
           addMessages([data]);

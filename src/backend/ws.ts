@@ -31,3 +31,17 @@ export function broadcastMessages(msgs: ChatMessage[]) {
     }
   });
 }
+
+export function broadcastMessageDelete(messageId: string) {
+  if (!wss) {
+    console.warn('WebSocket server not initialized');
+    return;
+  }
+  
+  const data = JSON.stringify({ type: 'delete', messageId });
+  wss.clients.forEach((client) => {
+    if (client.readyState === WebSocket.OPEN) {
+      client.send(data);
+    }
+  });
+}

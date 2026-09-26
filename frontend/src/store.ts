@@ -5,6 +5,7 @@ interface StoreState {
   messages: ChatMessage[];
   addMessages: (newMessages: ChatMessage[]) => void;
   updateMessageStatus: (messageId: string, status: ChatMessage['status']) => void;
+  removeMessage: (messageId: string) => void;
 }
 
 export const useStore = create<StoreState>((set) => ({
@@ -23,5 +24,9 @@ export const useStore = create<StoreState>((set) => ({
       messages: state.messages.map((msg) =>
         msg.messageId === messageId ? { ...msg, status } : msg
       ),
+    })),
+  removeMessage: (messageId) =>
+    set((state) => ({
+      messages: state.messages.filter((msg) => msg.messageId !== messageId),
     })),
 }));

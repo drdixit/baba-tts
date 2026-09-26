@@ -2,6 +2,7 @@ import { google } from 'googleapis';
 import { db } from './db.js';
 import { getOAuth2Client } from './auth.js';
 import { broadcastMessages } from './ws.js';
+import { enqueueMessageForTTS } from './tts.js';
 import type { ChatMessage } from '../shared/types.js';
 
 const activePollers = new Set<string>();
@@ -61,6 +62,7 @@ export async function startYouTubePoller(accountId: string) {
   }
 }
 
+
 export async function pollLiveChat(accountId: string, youtube: any, liveChatId: string, pageToken: string) {
   if (!activePollers.has(accountId)) return;
   
@@ -75,15 +77,29 @@ export async function pollLiveChat(accountId: string, youtube: any, liveChatId: 
     const pollingInterval = chatRes.data.pollingIntervalMillis || 5000;
     
     const items = chatRes.data.items || [];
-    const messages: ChatMessage[] = items.map((item: any) => ({
-      messageId: item.id || '',
-      authorName: escapeHtml(item.authorDetails?.displayName || 'Unknown'),
-      text: escapeHtml(item.snippet?.displayMessage || ''),
-      status: 'default'
-    }));
+    const messages: ChatMessage[] = items.map((item: any) => {
+      const msgId = item.id || '';
+      if (msgId) {
+        try {
+          db.prepare(`
+            INSERT OR IGNORE INTO messages (id, live_chat_id, author_channel_id)
+            VALUES (?, ?, ?)
+          `).run(msgId, liveChatId, item.snippet?.authorChannelId || '');
+        } catch (err) {
+          console.error('Failed to store message metadata:', err);
+        }
+      }
+      return {
+        messageId: msgId,
+        authorName: escapeHtml(item.authorDetails?.displayName || 'Unknown'),
+        text: escapeHtml(item.snippet?.displayMessage || ''),
+        status: 'default'
+      };
+    });
     
     if (messages.length > 0) {
       broadcastMessages(messages);
+      messages.forEach(msg => enqueueMessageForTTS(msg));
     }
     
     const timeout = setTimeout(() => pollLiveChat(accountId, youtube, liveChatId, nextToken), pollingInterval);

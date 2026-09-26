@@ -2,10 +2,12 @@ import { initWebSocketServer } from './ws.js';
 import { Hono } from 'hono';
 import { serve } from '@hono/node-server';
 import { authRouter } from './auth.js';
+import { moderationRouter } from './moderation.js';
 
 const app = new Hono();
 
 app.route('/auth', authRouter);
+app.route('/api', moderationRouter);
 
 app.get('/', (c) => c.text('Baba TTS Server Running'));
 
