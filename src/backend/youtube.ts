@@ -60,7 +60,7 @@ export async function startYouTubePoller(accountId: string) {
   } catch (error: any) {
     console.error(`Error starting YouTube poller for account ${accountId}:`, error);
     const statusCode = error.code || error.status;
-    if (statusCode === 401 || statusCode === 403) {
+    if (statusCode === 401) {
       broadcastAuthError();
     }
   }
@@ -120,7 +120,7 @@ export async function pollLiveChat(accountId: string, youtube: any, liveChatId: 
       console.error(`Fatal error ${statusCode}. Stopping poller for chat ${pollerKey}.`);
       activePollers.delete(pollerKey);
       pollerTimeouts.delete(pollerKey);
-      if (statusCode === 401 || statusCode === 403) {
+      if (statusCode === 401) {
         broadcastAuthError();
       }
       return;
