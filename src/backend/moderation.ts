@@ -35,7 +35,7 @@ moderationRouter.post('/moderate', async (c) => {
     return c.json({ error: 'Invalid request body' }, 400);
   }
 
-  const { messageId, action } = body;
+  const { messageId, action, durationSeconds } = body;
   
   const cached = db.prepare('SELECT live_chat_id, author_channel_id FROM messages WHERE id = ?').get(messageId) as { live_chat_id: string; author_channel_id: string } | undefined;
 
@@ -54,7 +54,7 @@ moderationRouter.post('/moderate', async (c) => {
       await youtube.liveChatMessages.delete({ id: messageId });
     } else if (action === 'timeout' || action === 'ban') {
       const type = action === 'timeout' ? 'temporary' : 'permanent';
-      const banDurationSeconds = action === 'timeout' ? 300 : undefined; // 5 minutes
+      const banDurationSeconds = action === 'timeout' ? (durationSeconds || 300) : undefined;
 
       await youtube.liveChatBans.insert({
         part: ['snippet'],

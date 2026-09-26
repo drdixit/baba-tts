@@ -12,6 +12,7 @@ export type ChatMessage = z.infer<typeof ChatMessageSchema>;
 export const ModerationActionSchema = z.object({
   messageId: z.string(),
   action: z.enum(['delete', 'timeout', 'ban']),
+  durationSeconds: z.number().optional(),
 });
 
 export type ModerationAction = z.infer<typeof ModerationActionSchema>;

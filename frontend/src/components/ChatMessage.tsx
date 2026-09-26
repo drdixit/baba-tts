@@ -17,13 +17,13 @@ const statusColors: Record<ChatMessageType['status'], string> = {
 const ChatMessage: React.FC<ChatMessageProps> = React.memo(({ message }) => {
   const [showMenu, setShowMenu] = useState(false);
 
-  const handleAction = async (action: ModerationAction['action']) => {
+  const handleAction = async (action: ModerationAction['action'], durationSeconds?: number) => {
     setShowMenu(false);
     try {
       const res = await fetch('/api/moderate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messageId: message.messageId, action })
+        body: JSON.stringify({ messageId: message.messageId, action, durationSeconds })
       });
       
       if (!res.ok) {
@@ -71,10 +71,34 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({ message }) => {
                   Delete
                 </button>
                 <button 
-                  onClick={() => handleAction('timeout')}
+                  onClick={() => handleAction('timeout', 30)}
+                  className="w-full text-left px-3 py-2 text-sm text-gray-200 hover:bg-gray-800"
+                >
+                  Timeout (30s)
+                </button>
+                <button 
+                  onClick={() => handleAction('timeout', 60)}
+                  className="w-full text-left px-3 py-2 text-sm text-gray-200 hover:bg-gray-800"
+                >
+                  Timeout (1m)
+                </button>
+                <button 
+                  onClick={() => handleAction('timeout', 300)}
                   className="w-full text-left px-3 py-2 text-sm text-gray-200 hover:bg-gray-800"
                 >
                   Timeout (5m)
+                </button>
+                <button 
+                  onClick={() => handleAction('timeout', 1800)}
+                  className="w-full text-left px-3 py-2 text-sm text-gray-200 hover:bg-gray-800"
+                >
+                  Timeout (30m)
+                </button>
+                <button 
+                  onClick={() => handleAction('timeout', 3600)}
+                  className="w-full text-left px-3 py-2 text-sm text-gray-200 hover:bg-gray-800"
+                >
+                  Timeout (1h)
                 </button>
                 <button 
                   onClick={() => handleAction('ban')}
