@@ -34,8 +34,18 @@ export async function generateSpeech(text: string, voiceName: string): Promise<s
     return null;
   }
 
-  const ssml = `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="en-US">
-    <voice name="${voiceName}">${text}</voice>
+  const escapedText = text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+
+  const langMatch = voiceName.match(/^([a-zA-Z]+-[a-zA-Z]+)/);
+  const lang = langMatch ? langMatch[1] : 'en-US';
+
+  const ssml = `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="${lang}">
+    <voice name="${voiceName}">${escapedText}</voice>
   </speak>`;
 
   try {

@@ -98,4 +98,32 @@ describe('generateSpeech', () => {
     expect(result).toBeNull();
     expect(consoleSpy).toHaveBeenCalledWith('Failed to generate speech:', expect.any(Error));
   });
+  it('should escape XML characters in text and use dynamic xml:lang', async () => {
+    process.env.AZURE_SPEECH_KEY = 'test-key';
+    process.env.AZURE_SPEECH_REGION = 'eastus';
+
+    const mockBuffer = new ArrayBuffer(4);
+    new Uint8Array(mockBuffer).set([1, 2, 3, 4]);
+
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      arrayBuffer: async () => mockBuffer
+    });
+
+    const result = await generateSpeech('Tom & Jerry <3 "cats" & \'dogs\'', 'hi-IN-SwaraNeural');
+    expect(result).toBe('data:audio/wav;base64,AQIDBA==');
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      'https://eastus.tts.speech.microsoft.com/cognitiveservices/v1',
+      expect.objectContaining({
+        body: expect.stringMatching(/xml:lang="hi-IN"/)
+      })
+    );
+    expect(global.fetch).toHaveBeenCalledWith(
+      'https://eastus.tts.speech.microsoft.com/cognitiveservices/v1',
+      expect.objectContaining({
+        body: expect.stringMatching(/Tom &amp; Jerry &lt;3 &quot;cats&quot; &amp; &apos;dogs&apos;/)
+      })
+    );
+  });
 });
