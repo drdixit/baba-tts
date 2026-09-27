@@ -20,9 +20,13 @@ The application is designed to run locally and be embedded inside an OBS Custom 
 ### High-Level Flow
 1. User authenticates via Google OAuth through the local backend.
 2. Backend identifies the active YouTube livestream and retrieves the `liveChatId`.
-3. Backend polls the YouTube API (`liveChatMessages.list`) and pushes new messages to the React frontend via WebSocket.
-4. React frontend displays the chat in an OBS-friendly dark-themed UI.
-5. User moderates chat via the UI; frontend calls backend HTTP API, backend securely calls YouTube API.
+3. Backend polls the YouTube API (`liveChatMessages.list`).
+4. **Processing Pipeline:**
+   - **Spam Detection:** Happens *instantly* the moment a message arrives. If flagged, it is immediately skipped/dropped.
+   - **TTS Queue:** If valid, the message enters a sequential queue. TTS audio is generated and spoken strictly one at a time.
+5. Backend pushes message state updates to the React frontend via WebSocket.
+6. React frontend displays the chat in an OBS-friendly dark-themed UI.
+7. User moderates chat via the UI; frontend calls backend HTTP API, backend securely calls YouTube API.
 
 ## 2. Backend Design (Node.js + Hono)
 
@@ -42,6 +46,7 @@ Minimal schema to store persistent data:
 ### YouTube API Integration
 - Backend maintains a polling loop honoring YouTube's `pollingIntervalMillis`.
 - Secrets (`client_secret_*.json`) and refresh tokens remain strictly on the backend.
+- **Avatar Resolution:** YouTube defaults to returning 88x88 profile pictures (`=s88-c-k-c0x00ffffff-no-rj`). The backend will automatically replace `s88` with `s256` or `s720` in the URL string to fetch high-resolution avatars for the UI.
 
 ## 3. Frontend Design (React + Vite)
 

@@ -18,23 +18,6 @@ export function initDb() {
       channel_id TEXT
     );
   `);
-
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS sessions (
-      id TEXT PRIMARY KEY,
-      account_id TEXT NOT NULL,
-      FOREIGN KEY(account_id) REFERENCES oauth_accounts(id)
-    );
-  `);
-
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS messages (
-      id TEXT PRIMARY KEY,
-      live_chat_id TEXT NOT NULL,
-      author_channel_id TEXT NOT NULL,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-  `);
 }
 
 // Automatically initialize tables

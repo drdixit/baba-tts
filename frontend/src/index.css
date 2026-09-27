@@ -1,1 +1,126 @@
 @import "tailwindcss";
+
+@layer utilities {
+  .animate-spotlight {
+    animation: spotlight 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+  
+  .animate-waveform {
+    animation: waveform 1s ease-in-out infinite;
+  }
+  .animate-waveform:nth-child(2) { animation-delay: 0.2s; }
+  .animate-waveform:nth-child(3) { animation-delay: 0.4s; }
+  .animate-waveform:nth-child(4) { animation-delay: 0.1s; }
+
+  .animate-neon-yellow {
+    animation: neonYellow 2s ease-in-out infinite;
+  }
+
+  .animate-neon-green {
+    animation: neonGreen 1.5s ease-in-out infinite;
+  }
+
+  .animate-sweep-text {
+    background: linear-gradient(to right, var(--author-color, #4ade80) 50%, #4b5563 50%);
+    background-size: 200% 100%;
+    background-position: 100% 0;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    animation: sweepText 5s linear forwards;
+  }
+
+  .animate-sweep-words {
+    background: linear-gradient(to right, var(--author-color, #4ade80) 50%, #4b5563 50%);
+    background-size: 200% 100%;
+    background-position: 100% 0;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    animation: sweepText 5s steps(10, end) forwards;
+  }
+
+  .animate-sweep-bg {
+    position: absolute;
+    top: 0; left: 0; bottom: 0;
+    background-color: rgba(255, 255, 255, 0.15);
+    width: 0%;
+    animation: sweepBg 5s linear forwards;
+    border-radius: inherit;
+    z-index: -1;
+  }
+
+  .animate-avatar-speak {
+    animation: avatarSpeak 0.8s ease-in-out infinite;
+  }
+  .animate-avatar-process {
+    animation: avatarProcess 1.5s ease-in-out infinite;
+  }
+
+}
+
+@keyframes avatarSpeak {
+  0%, 100% { transform: scale(1); border-color: transparent; box-shadow: 0 0 10px var(--author-color, #4ade80); }
+  50% { transform: scale(1.08); border-color: var(--author-color, #4ade80); box-shadow: 0 0 35px var(--author-color, #4ade80); }
+}
+
+@keyframes avatarProcess {
+  0%, 100% { border-color: rgba(234,179,8, 0.4); box-shadow: 0 0 10px rgba(234,179,8,0.2); }
+  50% { border-color: rgba(234,179,8, 1); box-shadow: 0 0 20px rgba(234,179,8,0.6); }
+}
+
+@keyframes sweepText {
+  to { background-position: 0 0; }
+}
+
+@keyframes sweepBg {
+  to { width: 100%; }
+}
+
+@keyframes wordHighlight {
+  0% { background-color: transparent; color: #4b5563; }
+  1% { background-color: var(--author-color, #4ade80); color: #000; border-radius: 0.25rem; }
+  99% { background-color: var(--author-color, #4ade80); color: #000; border-radius: 0.25rem; }
+  100% { background-color: transparent; color: #f0fdf4; }
+}
+
+@keyframes wordProClean {
+  0% { color: #f9fafb; transform: scale(1); text-shadow: none; }
+  1% { color: var(--author-color, #4ade80); transform: scale(1.1); text-shadow: 0 0 12px var(--author-color, #4ade80); }
+  99% { color: var(--author-color, #4ade80); transform: scale(1.1); text-shadow: 0 0 12px var(--author-color, #4ade80); }
+  100% { color: #f9fafb; transform: scale(1); text-shadow: none; }
+}
+
+@keyframes spotlight {
+  0% {
+    opacity: 0;
+    transform: translateY(300px) scale(0.8);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes waveform {
+  0%, 100% { transform: scaleY(0.3); }
+  50% { transform: scaleY(1); }
+}
+
+@keyframes neonYellow {
+  0%, 100% { box-shadow: 0 0 10px rgba(234, 179, 8, 0.5), inset 0 0 10px rgba(234, 179, 8, 0.2); border-color: rgba(234, 179, 8, 0.5); }
+  50% { box-shadow: 0 0 25px rgba(234, 179, 8, 0.8), inset 0 0 15px rgba(234, 179, 8, 0.4); border-color: rgba(234, 179, 8, 1); }
+}
+
+@keyframes neonGreen {
+  0%, 100% { box-shadow: 0 0 15px rgba(34, 197, 94, 0.6), inset 0 0 10px rgba(34, 197, 94, 0.3); border-color: rgba(34, 197, 94, 0.6); }
+  50% { box-shadow: 0 0 35px rgba(34, 197, 94, 1), inset 0 0 20px rgba(34, 197, 94, 0.6); border-color: rgba(34, 197, 94, 1); }
+}
+
+
+.animate-avatar-float {
+  animation: avatarFloat 4s ease-in-out infinite;
+}
+
+@keyframes avatarFloat {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-5px); }
+}

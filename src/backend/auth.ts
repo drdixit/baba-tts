@@ -3,9 +3,9 @@ import { setCookie } from 'hono/cookie';
 import { google } from 'googleapis';
 import { readdirSync, readFileSync } from 'fs';
 import { join } from 'path';
-import { randomUUID } from 'crypto';
+
 import { db } from './db.js';
-import { startYouTubePoller } from './youtube.js';
+import { discoverActiveBroadcasts } from './youtube.js';
 
 const authRouter = new Hono();
 
@@ -41,8 +41,7 @@ authRouter.get('/google', (c) => {
     access_type: 'offline',
     prompt: 'consent',
     scope: [
-      'https://www.googleapis.com/auth/youtube.readonly',
-      'https://www.googleapis.com/auth/youtube.force-ssl'
+      'https://www.googleapis.com/auth/youtube.readonly'
     ]
   });
   return c.redirect(url);
@@ -59,50 +58,29 @@ authRouter.get('/google/callback', async (c) => {
   
   client.setCredentials(tokens);
   
-  const youtube = google.youtube({
-    version: 'v3',
-    auth: client
-  });
-  
-  let accountId: string = randomUUID();
-  let channelId = null;
-  
-  try {
-    const channelRes = await youtube.channels.list({ part: ['id'], mine: true });
-    if (channelRes.data.items && channelRes.data.items.length > 0) {
-      channelId = channelRes.data.items[0].id;
-      if (channelId) {
-        accountId = channelId; // Use channel ID as the account ID if available
-      }
-    }
-  } catch (err) {
-    console.error('Failed to fetch youtube channel:', err);
-  }
+  // Since this is a single-user local app, we use your fixed YouTube Channel ID
+  // to avoid querying the API to figure out who you are (saving 1 quota unit).
+  const accountId = process.env.YOUTUBE_CHANNEL_ID || 'UCHEiIMMqN9LFoBHbnykg0KQ';
   
   if (tokens.refresh_token) {
-    const insertAccount = db.prepare(`
+    db.prepare('DELETE FROM oauth_accounts').run();
+    db.prepare(`
       INSERT INTO oauth_accounts (id, refresh_token, channel_id) 
       VALUES (?, ?, ?)
-      ON CONFLICT(id) DO UPDATE SET refresh_token=excluded.refresh_token, channel_id=excluded.channel_id
-    `);
-    insertAccount.run(accountId, tokens.refresh_token, channelId);
+    `).run(accountId, tokens.refresh_token, null);
   } else {
+    // If we didn't get a refresh token (e.g., already authorized), just ensure the row exists
     const exists = db.prepare('SELECT id FROM oauth_accounts WHERE id = ?').get(accountId);
     if (!exists) {
-      const insertAccount = db.prepare(`
+      db.prepare('DELETE FROM oauth_accounts').run();
+      db.prepare(`
         INSERT INTO oauth_accounts (id, refresh_token, channel_id)
         VALUES (?, ?, ?)
-      `);
-      insertAccount.run(accountId, '', channelId);
+      `).run(accountId, '', null);
     }
   }
   
-  const sessionId = randomUUID();
-  db.prepare(`
-    INSERT INTO sessions (id, account_id) VALUES (?, ?)
-  `).run(sessionId, accountId);
-  
-  setCookie(c, 'session', sessionId, {
+  setCookie(c, 'session', 'dummy-session-id', {
     httpOnly: true,
     secure: true,
     path: '/',
@@ -110,7 +88,7 @@ authRouter.get('/google/callback', async (c) => {
     maxAge: 60 * 60 * 24 * 7
   });
   
-  startYouTubePoller(accountId);
+  discoverActiveBroadcasts(accountId);
   
   return c.redirect('http://localhost:7061/');
 });
