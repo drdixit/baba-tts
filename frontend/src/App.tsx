@@ -119,16 +119,73 @@ function App() {
 
   const simulateGoodMessage = (theme: 'default' | 'waveform' | 'neon' | 'typewriter' | 'subtitle-sweep' | 'subtitle-karaoke' | 'subtitle-words' | 'pro-clean' = 'default') => {
     const id = `test-${Date.now()}`;
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-    let randomUser = '';
-    for (let i = 0; i < 15; i++) randomUser += chars.charAt(Math.floor(Math.random() * chars.length));
+    
+    const usernames = [
+      'Rahul_Gaming', 'Priya123', 'CoderBhai', 'AmanOP', 'Neha_Sharma', 
+      'RohanXD', 'DevNinja', 'TechGuru', 'Sneha_Codes', 'Vikram_YT',
+      'DesiGamer', 'CodingWaleBhaiya', 'Anita_Designs', 'Karan_Op', 'Simran_1999',
+      'NoobMaster', 'ProPlayer_99', 'IndianTechie', 'ChaiLover', 'Mumbaikar_Dev'
+    ];
+    const randomUser = usernames[Math.floor(Math.random() * usernames.length)];
 
-    const words = ['testing', 'animation', 'spotlight', 'zone', 'layout', 'obs', 'stream', 'chat', 'message', 'limits', 'wow', 'cool', 'awesome'];
-    let randomText = '';
-    while (randomText.length < 100) {
-      randomText += words[Math.floor(Math.random() * words.length)] + ' ';
-    }
-    randomText = randomText.substring(0, 100).trim();
+    const phrases = [
+      'Kya dosto 😄', 'क्या दोस्तों 😄', 'Hello bhai!', 'नमस्ते दोस्तों!',
+      'Kya haal hai sabka?', 'दोस्तों क्या हाल है?', 'Aaj kya scene hai?',
+      'आज क्या चल रहा है?', 'Nice bhai 🔥', 'बहुत बढ़िया भाई!',
+      'Kahan se dekh rahe ho sab?', 'आप लोग कहाँ से देख रहे हो?',
+      'Hello everyone 👋', 'सभी को नमस्ते 🙏', 'Aaj stream mast lag rahi hai',
+      'आज की स्ट्रीम मज़ेदार लग रही है', 'Bhai ye kaise kiya?', 'भाई ये कैसे किया?',
+      'This looks awesome!', 'यह काफी बढ़िया लग रहा है!', 'Kya dosto, sab badhiya? 😄',
+      'क्या दोस्तों, सब बढ़िया? 😄', 'Main abhi join hua hu', 'मैं अभी जुड़ा हूँ',
+      'Aaj ka topic interesting hai', 'आज का टॉपिक काफी दिलचस्प है',
+      'Ye setup kaafi clean lag raha hai', 'ये सेटअप काफी साफ और बढ़िया लग रहा है',
+      'Bro this is actually cool 😂', 'भाई ये तो गजब है 😂',
+      'Chat kaafi active hai aaj 🔥', 'आज चैट काफी एक्टिव है 🔥',
+      'What are we building today?', 'आज हम क्या बना रहे हैं?',
+      'Bhai ek baar phir dikhao', 'भाई एक बार फिर दिखाओ',
+      'Can you explain this part?', 'क्या आप ये हिस्सा समझा सकते हो?',
+      'Acha ab samajh gaya', 'अच्छा अब समझ गया', 'Yeh kaafi useful hai',
+      'यह काफी उपयोगी है', 'I just learned something new today',
+      'मैंने आज कुछ नया सीखा', 'Kya mast workflow hai 🔥',
+      'क्या शानदार तरीका है 🔥', 'Ye mujhe bhi try karna hai',
+      'मुझे भी ये आज़माना है', 'This is actually much simpler than I expected',
+      'यह तो उम्मीद से काफी आसान है', 'Bhai aaj full coding hone wali hai kya? 😄',
+      'भाई आज पूरी कोडिंग होने वाली है क्या? 😄', 'आज कितने लोग लाइव हैं?',
+      'How many people are watching right now?', 'Main chai ke saath stream dekh raha hu ☕',
+      'मैं चाय के साथ स्ट्रीम देख रहा हूँ ☕', 'Aaj ka stream kaafi productive lag raha hai',
+      'आज की स्ट्रीम काफी उपयोगी लग रही है', 'Hello chat, kya haal hai sabka? 👋',
+      'हेलो चैट, क्या हाल है सबका? 👋', 'This is exactly the kind of thing I wanted to learn',
+      'यही चीज़ मैं काफी समय से सीखना चाहता था', 'Bhai ye idea sach mein mast hai',
+      'भाई ये आइडिया सच में शानदार है', 'मुझे ये तरीका काफी पसंद आया',
+      'I really like this approach', 'Ye error mujhe bhi last time aaya tha 😂',
+      'ये एरर मुझे भी पिछली बार आया था 😂', 'Bhai thoda slow explain karna please 😅',
+      'भाई थोड़ा धीरे समझाना प्लीज़ 😅', 'Could you show that part one more time?',
+      'क्या आप उस हिस्से को एक बार फिर दिखा सकते हो?', 'Aaj first time tumhari stream dekh raha hu',
+      'आज पहली बार आपकी स्ट्रीम देख रहा हूँ', 'Welcome everyone, hope you are doing great!',
+      'आप सभी का स्वागत है, उम्मीद है सब बढ़िया होंगे!', 'Kya zabardast stream chal rahi hai 🔥',
+      'क्या ज़बरदस्त स्ट्रीम चल रही है 🔥', 'Chat mein koi aur developer bhi hai? 😂',
+      'चैट में कोई और डेवलपर भी है? 😂', 'I am working on my own project while watching this stream',
+      'मैं अपना प्रोजेक्ट बनाते हुए आपकी स्ट्रीम भी देख रहा हूँ',
+      'Bhai ye feature kab actually use karne wale ho?',
+      'भाई ये फीचर वास्तव में कब इस्तेमाल करने वाले हो?',
+      'यह फीचर काफी काम का लग रहा है',
+      'This feature looks really useful for real projects',
+      'Kya dosto, chai pi li sabne? ☕😂',
+      'दोस्तों, चाय पी ली सबने? ☕😂',
+      'आज तो माहौल बन गया है 😄🔥',
+      'Aaj toh stream dekhne mein maza aa raha hai 😄',
+      'This stream is honestly much better than I expected',
+      'यह स्ट्रीम मेरी उम्मीद से भी ज्यादा अच्छी लग रही है',
+      'Bhai pura process beginning se end tak dikhao please',
+      'भाई पूरा प्रोसेस शुरुआत से अंत तक दिखाओ प्लीज़',
+      'Mujhe lag raha hai aaj kuch interesting seekhne ko milega',
+      'मुझे लग रहा है आज कुछ अच्छा सीखने को मिलेगा',
+      'I joined a little late, but this already looks very interesting',
+      'मैं थोड़ा लेट आया हूँ, लेकिन अभी तक जो देखा काफी दिलचस्प लग रहा है',
+      'Bhai agar tum isko thoda aur detail mein samjha do, toh beginners ko bhi easily samajh aa jayega 👍',
+      'भाई ये पूरा workflow काफी साफ लग रहा है, खासकर जिस तरह तुम एक-एक step करके समझा रहे हो, उससे चीज़ें काफी आसानी से समझ आ रही हैं 🔥'
+    ];
+    const randomText = phrases[Math.floor(Math.random() * phrases.length)];
 
     const hue = Math.floor(Math.random() * 360);
     const authorColor = `hsl(${hue}, 80%, 60%)`;
@@ -138,7 +195,7 @@ function App() {
       authorName: randomUser,
       authorProfileImageUrl: `https://api.dicebear.com/7.x/avataaars/svg?seed=${randomUser}`,
       authorColor: authorColor,
-      text: randomText, // Removed [THEME] text!
+      text: randomText,
       status: 'idle',
       theme: theme
     };
