@@ -1,10 +1,21 @@
 import type { ChatMessage } from '../shared/types.js';
+import { broadcastPlayAudio, broadcastTTSState } from './ws.js';
 
-const queue: ChatMessage[] = [];
+let queue: ChatMessage[] = [];
 let isProcessing = false;
 
 export function enqueueMessageForTTS(message: ChatMessage) {
   queue.push(message);
+  processQueue();
+}
+
+export function clearTTSQueue() {
+  queue = [];
+  isProcessing = false;
+}
+
+export function markAudioFinished() {
+  isProcessing = false;
   processQueue();
 }
 
@@ -14,14 +25,29 @@ async function processQueue() {
   
   const msg = queue.shift();
   if (msg) {
-    console.log(`[TTS Stub] Processing message ${msg.messageId}: ${msg.text}`);
-    // Future TTS implementation will go here
-  }
-  
-  isProcessing = false;
-  
-  if (queue.length > 0) {
-    setTimeout(processQueue, 1000);
+    console.log(`[TTS] Processing message ${msg.messageId}: ${msg.text}`);
+    broadcastTTSState(msg.messageId, 'processing');
+    
+    // Default to a voice for now
+    const voices = [
+      "hi-IN-AnanyaNeural",
+      "en-IN-NeerjaNeural",
+      "en-IN-PrabhatNeural",
+      "hi-IN-MadhurNeural"
+    ];
+    const voiceName = voices[Math.floor(Math.random() * voices.length)];
+    const textToSpeak = `${msg.authorName} says ${msg.text}`;
+    
+    const audioData = await generateSpeech(textToSpeak, voiceName);
+    
+    if (audioData) {
+      // Send to frontend to play. We stay isProcessing=true until AUDIO_FINISHED
+      broadcastPlayAudio(msg.messageId, audioData);
+    } else {
+      // Azure failed, skip this message
+      broadcastTTSState(msg.messageId, 'skipped');
+      markAudioFinished(); // Instantly proceed
+    }
   }
 }
 

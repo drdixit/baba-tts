@@ -3,8 +3,9 @@ import ChatMessage from './components/ChatMessage';
 import { useStore } from './store';
 
 function App() {
-  const { messages, isConnected, addMessages, setConnected, updateMessageStatus } = useStore();
+  const { messages, isConnected, addMessages, setConnected}  = useStore();
   const wsRef = useRef<WebSocket | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
@@ -27,7 +28,7 @@ function App() {
       console.log('Connected to WebSocket');
     };
 
-    ws.onmessage = (event) => {
+        ws.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
         if (data.type === 'auth_error') {
@@ -35,8 +36,40 @@ function App() {
           window.location.href = '/auth/google';
         } else if (data.type === 'auth_status') {
           setConnected(data.connected);
+        } else if (data.type === 'tts_state') {
+          useStore.getState().updateMessageStatus(data.messageId, data.state);
         } else if (data.type === 'play_audio' && data.audioData) {
-          new Audio(data.audioData).play().catch(e => console.error("Audio play failed:", e));
+          useStore.getState().updateMessageStatus(data.messageId, 'speaking');
+          
+          if (audioRef.current) {
+            audioRef.current.pause();
+          }
+          
+          const audio = new Audio(data.audioData);
+          audioRef.current = audio;
+          
+          audio.onended = () => {
+            useStore.getState().updateMessageStatus(data.messageId, 'skipped'); // Or 'read' if you had it
+            if (wsRef.current?.readyState === WebSocket.OPEN) {
+              wsRef.current.send(JSON.stringify({ type: 'AUDIO_FINISHED' }));
+            }
+          };
+          
+          audio.onerror = (e) => {
+            console.error("Audio play failed:", e);
+            useStore.getState().updateMessageStatus(data.messageId, 'skipped');
+            if (wsRef.current?.readyState === WebSocket.OPEN) {
+              wsRef.current.send(JSON.stringify({ type: 'AUDIO_FINISHED' }));
+            }
+          };
+          
+          audio.play().catch(e => {
+            console.error("Audio play failed (Promise rejected):", e);
+            useStore.getState().updateMessageStatus(data.messageId, 'skipped');
+            if (wsRef.current?.readyState === WebSocket.OPEN) {
+              wsRef.current.send(JSON.stringify({ type: 'AUDIO_FINISHED' }));
+            }
+          });
         } else if (data.type === 'delete' && data.messageId) {
           useStore.getState().removeMessage(data.messageId);
         } else if (Array.isArray(data)) {
@@ -74,13 +107,10 @@ function App() {
 
   const simulateGoodMessage = (theme: 'default' | 'waveform' | 'neon' | 'typewriter' | 'subtitle-sweep' | 'subtitle-karaoke' | 'subtitle-words' | 'pro-clean' = 'default') => {
     const id = `test-${Date.now()}`;
-    
-    // Generate 30 character random username
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
     let randomUser = '';
     for (let i = 0; i < 15; i++) randomUser += chars.charAt(Math.floor(Math.random() * chars.length));
 
-    // Generate random ~200 character message
     const words = ['testing', 'animation', 'spotlight', 'zone', 'layout', 'obs', 'stream', 'chat', 'message', 'limits', 'wow', 'cool', 'awesome'];
     let randomText = '';
     while (randomText.length < 100) {
@@ -88,52 +118,47 @@ function App() {
     }
     randomText = randomText.substring(0, 100).trim();
 
-    // Generate a random vibrant hex color for testing
     const hue = Math.floor(Math.random() * 360);
     const authorColor = `hsl(${hue}, 80%, 60%)`;
 
-    addMessages([{
+    const msg = {
       messageId: id,
       authorName: randomUser,
       authorProfileImageUrl: `https://api.dicebear.com/7.x/avataaars/svg?seed=${randomUser}`,
       authorColor: authorColor,
-      text: `[${theme.toUpperCase()}] ` + randomText,
-      status: 'default',
-      theme
-    }]);
-
-    const now = Date.now();
-    // Ensure at least a 2-second gap from now so it stays in "queued" for a moment
-    const startTime = Math.max(now + 2000, (window as any).__mockQueueEnd || (now + 2000));
-    (window as any).__mockQueueEnd = startTime + 8000; // 8 seconds to process and speak
-
-    const delay = startTime - now;
-
-    setTimeout(() => updateMessageStatus(id, 'queued'), 500);
-    setTimeout(() => updateMessageStatus(id, 'processing'), delay); // Starts processing at startTime
-    setTimeout(() => updateMessageStatus(id, 'speaking'), delay + 3000); // Speaks 3s later
-    setTimeout(() => updateMessageStatus(id, 'done'), delay + 8000); // Done 5s after speaking
+      text: randomText, // Removed [THEME] text!
+      status: 'idle',
+      theme: theme
+    };
+    
+    if (wsRef.current?.readyState === 1) {
+      wsRef.current.send(JSON.stringify({ type: 'SIMULATE_MESSAGE', payload: msg }));
+    }
   };
 
   const simulateSpamMessage = () => {
     const id = `spam-${Date.now()}`;
-    
-    // Generate random 200 char spam
     let spamText = '';
     while (spamText.length < 200) {
       spamText += 'BUY FOLLOWERS SCAM.COM 😡🤬 ';
     }
     spamText = spamText.substring(0, 200).trim();
 
-    addMessages([{
+    const msg = {
       messageId: id,
       authorName: 'SpamBot9000_ExtraLongName12345',
       authorProfileImageUrl: `https://api.dicebear.com/7.x/avataaars/svg?seed=spambot`,
       text: spamText,
       status: 'default'
-    }]);
-
-    setTimeout(() => updateMessageStatus(id, 'skipped'), 800);
+    };
+    
+    // Add locally, bypass backend entirely so it doesn't speak
+    useStore.getState().addMessages([msg as any]);
+    
+    // Auto-skip (or mark deleted) after 800ms
+    setTimeout(() => {
+      useStore.getState().updateMessageStatus(id, 'skipped');
+    }, 800);
   };
 
   return (
@@ -159,12 +184,16 @@ function App() {
             <button
               onClick={() => {
                 if (wsRef.current?.readyState === WebSocket.OPEN) {
-                  wsRef.current.send(JSON.stringify({ type: 'TEST_AZURE_TTS' }));
+                  wsRef.current.send(JSON.stringify({ type: 'CLEAR_TTS_QUEUE' }));
+                }
+                if (audioRef.current) {
+                  audioRef.current.pause();
+                  audioRef.current.currentTime = 0;
                 }
               }}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded text-sm font-semibold transition-colors shadow-lg"
+              className="px-4 py-2 bg-red-600 hover:bg-red-500 rounded text-sm font-semibold transition-colors shadow-lg"
             >
-              Test Azure Voice
+              Clear TTS Queue
             </button>
           </div>
         </div>
