@@ -20,24 +20,6 @@
     animation: neonGreen 1.5s ease-in-out infinite;
   }
 
-  .animate-sweep-text {
-    background: linear-gradient(to right, var(--author-color, #4ade80) 50%, #4b5563 50%);
-    background-size: 200% 100%;
-    background-position: 100% 0;
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    animation: sweepText 5s linear forwards;
-  }
-
-  .animate-sweep-words {
-    background: linear-gradient(to right, var(--author-color, #4ade80) 50%, #4b5563 50%);
-    background-size: 200% 100%;
-    background-position: 100% 0;
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    animation: sweepText 5s steps(10, end) forwards;
-  }
-
   .animate-sweep-bg {
     position: absolute;
     top: 0; left: 0; bottom: 0;

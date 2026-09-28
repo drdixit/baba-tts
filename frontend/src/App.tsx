@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import ChatMessage from './components/ChatMessage';
 import { useStore } from './store';
 
@@ -7,6 +7,8 @@ function App() {
   const wsRef = useRef<WebSocket | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const [currentAudioTime, setCurrentAudioTime] = useState(0);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -28,7 +30,7 @@ function App() {
       console.log('Connected to WebSocket');
     };
 
-        ws.onmessage = (event) => {
+    ws.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
         if (data.type === 'auth_error') {
@@ -52,8 +54,13 @@ function App() {
           
           const audio = new Audio(data.audioData);
           audioRef.current = audio;
+
+          audio.ontimeupdate = () => {
+            setCurrentAudioTime(audio.currentTime);
+          };
           
           audio.onended = () => {
+            setCurrentAudioTime(0);
             useStore.getState().updateMessageStatus(data.messageId, 'skipped'); // Or 'read' if you had it
             if (wsRef.current?.readyState === WebSocket.OPEN) {
               wsRef.current.send(JSON.stringify({ type: 'AUDIO_FINISHED' }));
@@ -219,8 +226,12 @@ function App() {
       {/* ZONE E: SCROLLING CHAT BOX (Strictly bottom 810px, between 49px and 1389px) */}
       <main className="absolute bottom-0 left-[49px] right-[51px] h-[810px] overflow-hidden flex flex-col justify-end py-4 bg-transparent">
         <div className="flex flex-col justify-end min-h-full">
-          {messages.map((msg) => (
-            <ChatMessage key={msg.messageId} message={msg} />
+          {messages.filter(msg => msg.status !== 'error').map((msg) => (
+            <ChatMessage 
+              key={msg.messageId} 
+              message={msg} 
+              currentAudioTime={msg.status === 'speaking' ? currentAudioTime : 0} 
+            />
           ))}
           <div ref={messagesEndRef} />
         </div>

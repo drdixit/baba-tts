@@ -3,6 +3,7 @@ import type { ChatMessage as ChatMessageType } from '../../../src/shared/types';
 
 interface ChatMessageProps {
   message: ChatMessageType;
+  currentAudioTime?: number;
 }
 
 const statusBadgeStyles: Record<ChatMessageType['status'], string> = {
@@ -11,10 +12,11 @@ const statusBadgeStyles: Record<ChatMessageType['status'], string> = {
   processing: 'bg-yellow-500/90 text-black animate-pulse',
   speaking: 'bg-green-500/90 text-black animate-bounce shadow-[0_0_8px_rgba(34,197,94,0.8)]',
   skipped: 'bg-red-600/90 text-white',
+  error: 'bg-red-800/90 text-white',
   done: '', // hidden
 };
 
-const ChatMessage: React.FC<ChatMessageProps> = React.memo(({ message }) => {
+const ChatMessage: React.FC<ChatMessageProps> = React.memo(({ message, currentAudioTime }) => {
   const isSkipped = message.status === 'skipped';
   const isSpeaking = message.status === 'speaking';
   const isProcessing = message.status === 'processing';
@@ -60,35 +62,30 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({ message }) => {
               </span>
               
               <p className="text-4xl font-bold leading-tight text-white drop-shadow-[0_2px_4px_rgba(0,0,0,1)] transition-all duration-700 flex flex-wrap gap-x-3 gap-y-2">
-                {message.theme === 'subtitle-sweep' ? (
-                  <span className="text-white">{message.text}</span>
-                ) : (
-                  (() => {
-                    const words = message.text.split(' ');
-                    const totalChars = words.reduce((sum, w) => sum + w.length, 0);
-                    const totalDuration = 5; // Fixed for now
-                    const timePerChar = totalDuration / totalChars;
-                    let currentDelay = 0;
+                {(() => {
+                    const fallbackWords = message.text.split(' ');
+                    const boundaries = (message.wordBoundaries && message.wordBoundaries.length > 0)
+                      ? message.wordBoundaries
+                      : fallbackWords.map((text, i) => ({ text, audioOffset: i * 0.3, duration: 0.3 }));
 
-                    return words.map((word, i) => {
-                      const wordDuration = word.length * timePerChar;
-                      const delay = currentDelay;
-                      currentDelay += wordDuration;
+                    // We need a total duration to calculate progress for sweep-bg if we wanted, 
+                    // but we can just use word highlight logic for all of them.
+
+                    return boundaries.map((word, i) => {
+                      const isHighlighted = message.status === 'speaking' && currentAudioTime !== undefined && currentAudioTime >= word.audioOffset && currentAudioTime < (word.audioOffset + word.duration + 0.1);
+                      const isPast = message.status === 'speaking' && currentAudioTime !== undefined && currentAudioTime >= (word.audioOffset + word.duration + 0.1);
+                      const isRead = isHighlighted || isPast;
 
                       if (message.theme === 'subtitle-karaoke') {
                         return (
                           <span 
                             key={i}
-                            className={message.status === 'speaking' ? 'animate-sweep-text' : 'text-gray-600'}
+                            className={isRead ? '' : 'text-gray-600'}
                             style={{
-                              '--author-color': message.authorColor || '#ffcc00',
-                              animationDuration: message.status === 'speaking' ? `${wordDuration}s` : '0s',
-                              animationDelay: message.status === 'speaking' ? `${delay}s` : '0s',
-                              WebkitTextFillColor: message.status === 'speaking' ? undefined : 'currentColor',
-                              background: message.status === 'speaking' ? undefined : 'none'
+                              color: isRead ? (message.authorColor || '#ffcc00') : undefined,
                             } as React.CSSProperties}
                           >
-                            {word}
+                            {word.text}
                           </span>
                         );
                       }
@@ -97,14 +94,13 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({ message }) => {
                         return (
                           <span 
                             key={i}
-                            className="px-1"
+                            className={`px-1 ${isHighlighted ? 'text-black rounded' : 'text-gray-600'}`}
                             style={{
-                              '--author-color': message.authorColor || '#ffcc00',
-                              color: message.status === 'speaking' ? '#4b5563' : (message.status === 'done' ? '#f0fdf4' : '#4b5563'),
-                              animation: message.status === 'speaking' ? `wordHighlight ${wordDuration}s ${delay}s forwards` : 'none'
+                              backgroundColor: isHighlighted ? (message.authorColor || '#4ade80') : 'transparent',
+                              color: isHighlighted ? '#000' : (message.status === 'done' ? '#f0fdf4' : undefined),
                             } as React.CSSProperties}
                           >
-                            {word}
+                            {word.text}
                           </span>
                         );
                       }
@@ -113,22 +109,32 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({ message }) => {
                         return (
                           <span 
                             key={i}
-                            className="px-1"
+                            className="px-1 transition-all duration-100"
                             style={{
-                              '--author-color': message.authorColor || '#4ade80',
-                              color: '#f9fafb',
-                              animation: message.status === 'speaking' ? `wordProClean ${wordDuration}s ${delay}s forwards` : 'none'
+                              color: isHighlighted ? (message.authorColor || '#4ade80') : '#f9fafb',
+                              transform: isHighlighted ? 'scale(1.1)' : 'scale(1)',
+                              textShadow: isHighlighted ? `0 0 12px ${message.authorColor || '#4ade80'}` : 'none'
                             } as React.CSSProperties}
                           >
-                            {word}
+                            {word.text}
+                          </span>
+                        );
+                      }
+                      
+                      if (message.theme === 'subtitle-sweep') {
+                        return (
+                          <span 
+                            key={i}
+                            className={isRead ? 'text-white' : 'text-gray-500'}
+                          >
+                            {word.text}
                           </span>
                         );
                       }
 
-                      return <span key={i} className="text-white">{word}</span>;
+                      return <span key={i} className="text-white">{word.text}</span>;
                     });
-                  })()
-                )}
+                })()}
               </p>
             </div>
           </div>
