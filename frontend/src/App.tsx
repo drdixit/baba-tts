@@ -47,6 +47,19 @@ function App() {
           useStore.getState().updateMessageStatus(data.messageId, data.state);
         } else if (data.type === 'tts_error') {
           useStore.getState().updateMessageStatus(data.messageId, 'error');
+        } else if (data.type === 'KILL_AUDIO') {
+          if (audioRef.current) {
+            audioRef.current.pause();
+            audioRef.current.currentTime = 0;
+          }
+          if (rafRef.current !== null) {
+            cancelAnimationFrame(rafRef.current);
+            rafRef.current = null;
+          }
+          setCurrentAudioTime(0);
+          if (wsRef.current?.readyState === WebSocket.OPEN) {
+            wsRef.current.send(JSON.stringify({ type: 'AUDIO_FINISHED' }));
+          }
         } else if (data.type === 'play_audio' && data.audioData) {
           useStore.getState().updateMessage(data.messageId, {
             status: 'speaking',

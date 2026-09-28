@@ -1,9 +1,10 @@
 import type { ChatMessage } from '../shared/types.js';
-import { broadcastPlayAudio, broadcastTTSState } from './ws.js';
+import { broadcastPlayAudio, broadcastTTSState, broadcastKillAudio } from './ws.js';
 import * as sdk from 'microsoft-cognitiveservices-speech-sdk';
 
 let queue: ChatMessage[] = [];
 let isProcessing = false;
+let currentProcessingMessage: ChatMessage | null = null;
 
 const RECENT_MESSAGES_CACHE = new Map<string, number>();
 
@@ -34,11 +35,37 @@ export function enqueueMessageForTTS(message: ChatMessage) {
 }
 
 export function clearTTSQueue() {
+  for (const msg of queue) {
+    broadcastTTSState(msg.messageId, 'skipped');
+  }
   queue = [];
+  if (currentProcessingMessage) {
+    broadcastTTSState(currentProcessingMessage.messageId, 'skipped');
+    broadcastKillAudio();
+    currentProcessingMessage = null;
+  }
   isProcessing = false;
 }
 
+export function removeUserFromQueue(authorId: string) {
+  queue = queue.filter(msg => {
+    if (msg.authorId === authorId) {
+      broadcastTTSState(msg.messageId, 'skipped');
+      return false;
+    }
+    return true;
+  });
+  if (currentProcessingMessage && currentProcessingMessage.authorId === authorId) {
+    broadcastTTSState(currentProcessingMessage.messageId, 'skipped');
+    broadcastKillAudio();
+    currentProcessingMessage = null;
+    isProcessing = false;
+    processQueue(); // immediately process next in queue if any
+  }
+}
+
 export function markAudioFinished() {
+  currentProcessingMessage = null;
   isProcessing = false;
   processQueue();
 }
@@ -49,6 +76,7 @@ async function processQueue() {
   
   const msg = queue.shift();
   if (msg) {
+    currentProcessingMessage = msg;
     console.log(`[TTS] Processing message ${msg.messageId}: ${msg.text}`);
     broadcastTTSState(msg.messageId, 'processing');
     

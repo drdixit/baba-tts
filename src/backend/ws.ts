@@ -49,6 +49,10 @@ export function initWebSocketServer(server: Server) {
             banUser(authorId, displayName || 'Unknown', profileImageUrl);
             // Broadcast new banned list
             broadcastBannedUsers();
+            
+            // Instantly kill from TTS
+            const { removeUserFromQueue } = await import('./tts.js');
+            removeUserFromQueue(authorId);
           }
         }
         if (message.type === 'UNBAN_USER') {
@@ -157,4 +161,12 @@ export function broadcastBannedUsers() {
   } catch (err) {
     console.error('Failed to broadcast banned users:', err);
   }
+}
+
+export function broadcastKillAudio() {
+  if (!wss) return;
+  const data = JSON.stringify({ type: 'KILL_AUDIO' });
+  wss.clients.forEach((client) => {
+    if (client.readyState === WebSocket.OPEN) client.send(data);
+  });
 }
