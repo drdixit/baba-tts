@@ -137,8 +137,14 @@ function App() {
     };
 
     ws.onclose = () => {
-      console.log('WebSocket disconnected');
+      console.log('WebSocket disconnected. Attempting to reconnect in 3s...');
       setConnected(false);
+      setTimeout(() => {
+        console.log('Reconnecting...');
+        // We can't just call connectWebSocket if it's inside useEffect, so we trigger a state change or just reload.
+        // Actually, the simplest bulletproof way for a dashboard that lost connection is to reload the window.
+        window.location.reload();
+      }, 3000);
     };
 
     return () => {

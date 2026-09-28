@@ -208,14 +208,19 @@ export async function streamLiveChat(accountId: string, liveChatId: string, page
               const authorId = item.authorDetails?.channelId || '';
               const banned = isUserBanned(authorId);
               
+              const themes = ['subtitle-sweep', 'subtitle-karaoke', 'subtitle-words', 'pro-clean'];
+              const randomTheme = themes[Math.floor(Math.random() * themes.length)];
+              const profileImg = item.authorDetails?.profileImageUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${rawName}`;
+
               return {
                 messageId: item.id || '',
                 authorName: escapeHtml(rawName),
                 authorId: authorId,
-                authorProfileImageUrl: item.authorDetails?.profileImageUrl,
+                authorProfileImageUrl: profileImg,
                 authorColor: getDeterministicColor(rawName),
                 text: escapeHtml(item.snippet?.displayMessage || ''),
-                status: banned ? 'skipped' : 'queued'
+                status: banned ? 'skipped' : 'queued',
+                theme: randomTheme as any
               } as ChatMessage;
             });
             

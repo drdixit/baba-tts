@@ -84,11 +84,7 @@ export function initWebSocketServer(server: Server) {
     });
 
     ws.on('error', console.error);
-    ws.on('close', async () => {
-      console.log('Client disconnected');
-      const { markAudioFinished } = await import('./tts.js');
-      markAudioFinished();
-    });
+    ws.on('close', () => { console.log('Client disconnected'); });
   });
 }
 
