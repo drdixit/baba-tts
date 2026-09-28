@@ -2,7 +2,7 @@ import { WebSocketServer, WebSocket } from 'ws';
 import type { Server } from 'node:http';
 import type { ChatMessage } from '../shared/types.js';
 
-import { db } from './db.js';
+import { db, banUser, unbanUser, getBannedUsers } from './db.js';
 import { generateSpeech } from './tts.js';
 
 let wss: WebSocketServer | null = null;
@@ -18,6 +18,9 @@ export function initWebSocketServer(server: Server) {
       const row = db.prepare('SELECT count(*) as count FROM oauth_accounts').get() as { count: number };
       const isConnected = row.count > 0;
       ws.send(JSON.stringify({ type: 'auth_status', connected: isConnected }));
+      
+      const banned = getBannedUsers();
+      ws.send(JSON.stringify({ type: 'banned_users', users: banned }));
     } catch (err) {
       console.error('Failed to check auth status on connect', err);
     }
@@ -39,6 +42,21 @@ export function initWebSocketServer(server: Server) {
         if (message.type === 'CLEAR_TTS_QUEUE') {
           const { clearTTSQueue } = await import('./tts.js');
           clearTTSQueue();
+        }
+        if (message.type === 'BAN_USER') {
+          const { authorId, displayName, profileImageUrl } = message.payload;
+          if (authorId) {
+            banUser(authorId, displayName || 'Unknown', profileImageUrl);
+            // Broadcast new banned list
+            broadcastBannedUsers();
+          }
+        }
+        if (message.type === 'UNBAN_USER') {
+          const { authorId } = message.payload;
+          if (authorId) {
+            unbanUser(authorId);
+            broadcastBannedUsers();
+          }
         }
       } catch (err) {
         console.error('Failed to process incoming WebSocket message:', err);
@@ -124,4 +142,17 @@ export function broadcastTTSState(messageId: string, state: 'processing' | 'skip
   wss.clients.forEach((client) => {
     if (client.readyState === WebSocket.OPEN) client.send(data);
   });
+}
+
+export function broadcastBannedUsers() {
+  if (!wss) return;
+  try {
+    const banned = getBannedUsers();
+    const data = JSON.stringify({ type: 'banned_users', users: banned });
+    wss.clients.forEach((client) => {
+      if (client.readyState === WebSocket.OPEN) client.send(data);
+    });
+  } catch (err) {
+    console.error('Failed to broadcast banned users:', err);
+  }
 }

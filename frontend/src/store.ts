@@ -1,7 +1,24 @@
 import { create } from 'zustand';
 import type { ChatMessage } from '../../src/shared/types';
 
+export interface BannedUser {
+  authorId: string;
+  displayName: string;
+  profileImageUrl?: string;
+  bannedAt: string;
+}
+
+export interface ActiveUser {
+  authorId: string;
+  displayName: string;
+  profileImageUrl?: string;
+  lastSeenAt: number;
+}
+
 interface StoreState {
+  bannedUsers: BannedUser[];
+  activeUsers: ActiveUser[];
+  setBannedUsers: (users: BannedUser[]) => void;
   messages: ChatMessage[];
   isConnected: boolean;
   addMessages: (newMessages: ChatMessage[]) => void;
@@ -13,15 +30,34 @@ interface StoreState {
 }
 
 export const useStore = create<StoreState>((set) => ({
+  bannedUsers: [],
+  activeUsers: [],
+  setBannedUsers: (users) => set({ bannedUsers: users }),
   messages: [],
   isConnected: false,
   addMessages: (newMessages) =>
     set((state) => {
-      // To handle potential duplicates in case we get same message ID again, 
-      // but task just says "addMessages". Let's stick to simple append.
       const updatedMessages = [...state.messages, ...newMessages];
+      
+      // Update active users
+      const activeMap = new Map<string, ActiveUser>(state.activeUsers.map(u => [u.authorId, u]));
+      const now = Date.now();
+      newMessages.forEach(msg => {
+        if (msg.authorId) {
+          activeMap.set(msg.authorId, {
+            authorId: msg.authorId,
+            displayName: msg.authorName,
+            profileImageUrl: msg.authorProfileImageUrl,
+            lastSeenAt: now
+          });
+        }
+      });
+      // Sort active users by most recently seen
+      const updatedActiveUsers = Array.from(activeMap.values()).sort((a, b) => b.lastSeenAt - a.lastSeenAt).slice(0, 50);
+
       return {
         messages: updatedMessages.slice(-500),
+        activeUsers: updatedActiveUsers
       };
     }),
   updateMessageStatus: (messageId, status) =>

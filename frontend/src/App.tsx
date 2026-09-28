@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import ChatMessage from './components/ChatMessage';
+import ModerationPanel from './components/ModerationPanel';
 import { useStore } from './store';
 import { getDeterministicColor } from '../../src/shared/colors';
 
@@ -38,6 +39,8 @@ function App() {
         if (data.type === 'auth_error') {
           alert('YouTube authentication error. Redirecting to login...');
           window.location.href = '/auth/google';
+        } else if (data.type === 'banned_users') {
+          useStore.getState().setBannedUsers(data.users);
         } else if (data.type === 'auth_status') {
           setConnected(data.connected);
         } else if (data.type === 'tts_state') {
@@ -216,6 +219,7 @@ function App() {
     const msg = {
       messageId: id,
       authorName: randomUser,
+      authorId: `sim-user-${randomUser}`,
       authorProfileImageUrl: `https://api.dicebear.com/7.x/avataaars/svg?seed=${randomUser}`,
       authorColor: authorColor,
       text: randomText,
@@ -228,12 +232,25 @@ function App() {
     }
   };
 
+  const banUser = (authorId: string, displayName: string, profileImageUrl?: string) => {
+    if (wsRef.current?.readyState === 1) {
+      wsRef.current.send(JSON.stringify({ type: 'BAN_USER', payload: { authorId, displayName, profileImageUrl } }));
+    }
+  };
+
+  const unbanUser = (authorId: string) => {
+    if (wsRef.current?.readyState === 1) {
+      wsRef.current.send(JSON.stringify({ type: 'UNBAN_USER', payload: { authorId } }));
+    }
+  };
+
   const simulateSpamMessage = () => {
     const spamText = 'BUY FOLLOWERS SCAM.COM 😡🤬';
 
     const msg1 = {
       messageId: `spam-${Date.now()}-1`,
       authorName: 'SpamBot9000',
+      authorId: 'sim-bot-9000',
       authorColor: getDeterministicColor('SpamBot9000'),
       authorProfileImageUrl: `https://api.dicebear.com/7.x/avataaars/svg?seed=spambot1`,
       text: spamText,
@@ -243,6 +260,7 @@ function App() {
     const msg2 = {
       messageId: `spam-${Date.now()}-2`,
       authorName: 'SpamBot9001',
+      authorId: 'sim-bot-9001',
       authorColor: getDeterministicColor('SpamBot9001'),
       authorProfileImageUrl: `https://api.dicebear.com/7.x/avataaars/svg?seed=spambot2`,
       text: spamText,

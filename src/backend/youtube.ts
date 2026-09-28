@@ -1,5 +1,5 @@
 import { google } from 'googleapis';
-import { db } from './db.js';
+import { db, isUserBanned } from './db.js';
 import { getOAuth2Client } from './auth.js';
 import { broadcastMessages, broadcastAuthError, broadcastQuotaExhausted } from './ws.js';
 import { enqueueMessageForTTS } from './tts.js';
@@ -205,19 +205,27 @@ export async function streamLiveChat(accountId: string, liveChatId: string, page
             
             const messages: ChatMessage[] = data.items.map((item: any) => {
               const rawName = item.authorDetails?.displayName || 'Unknown';
+              const authorId = item.authorDetails?.channelId || '';
+              const banned = isUserBanned(authorId);
+              
               return {
                 messageId: item.id || '',
                 authorName: escapeHtml(rawName),
+                authorId: authorId,
                 authorProfileImageUrl: item.authorDetails?.profileImageUrl,
                 authorColor: getDeterministicColor(rawName),
                 text: escapeHtml(item.snippet?.displayMessage || ''),
-                status: 'queued'
-              };
+                status: banned ? 'skipped' : 'queued'
+              } as ChatMessage;
             });
             
             if (messages.length > 0) {
               broadcastMessages(messages);
-              messages.forEach(msg => enqueueMessageForTTS(msg));
+              messages.forEach(msg => {
+                if (msg.status === 'queued') {
+                  enqueueMessageForTTS(msg);
+                }
+              });
             }
           }
           

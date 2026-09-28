@@ -3,6 +3,7 @@ import { z } from 'zod';
 export const ChatMessageSchema = z.object({
   messageId: z.string(),
   authorName: z.string(),
+  authorId: z.string().optional(),
   authorProfileImageUrl: z.string().optional(),
   authorColor: z.string().optional(),
   text: z.string(),
