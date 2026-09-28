@@ -256,7 +256,7 @@ function App() {
   };
 
   const simulateSpamMessage = () => {
-    const spamText = 'BUY FOLLOWERS SCAM.COM 😡🤬';
+    const spamText = 'BUY FOLLOWERS SCAM.COM 😡🤬 ' + Math.random().toString(36).substring(7);
 
     const msg1 = {
       messageId: `spam-${Date.now()}-1`,

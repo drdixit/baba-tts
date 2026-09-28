@@ -13,7 +13,7 @@ export function enqueueMessageForTTS(message: ChatMessage) {
   
   // Cleanup old cache entries (older than 30 seconds)
   for (const [text, timestamp] of RECENT_MESSAGES_CACHE.entries()) {
-    if (now - timestamp > 30000) {
+    if (now - timestamp > 5000) {
       RECENT_MESSAGES_CACHE.delete(text);
     }
   }
