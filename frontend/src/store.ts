@@ -6,6 +6,7 @@ interface StoreState {
   isConnected: boolean;
   addMessages: (newMessages: ChatMessage[]) => void;
   updateMessageStatus: (messageId: string, status: ChatMessage['status']) => void;
+  updateMessage: (messageId: string, updates: Partial<ChatMessage>) => void;
   removeMessage: (messageId: string) => void;
   setConnected: (connected: boolean) => void;
 }
@@ -26,6 +27,12 @@ export const useStore = create<StoreState>((set) => ({
     set((state) => ({
       messages: state.messages.map((msg) =>
         msg.messageId === messageId ? { ...msg, status } : msg
+      ),
+    })),
+  updateMessage: (messageId, updates) =>
+    set((state) => ({
+      messages: state.messages.map((msg) =>
+        msg.messageId === messageId ? { ...msg, ...updates } : msg
       ),
     })),
   removeMessage: (messageId) =>

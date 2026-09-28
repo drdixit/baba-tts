@@ -38,8 +38,13 @@ function App() {
           setConnected(data.connected);
         } else if (data.type === 'tts_state') {
           useStore.getState().updateMessageStatus(data.messageId, data.state);
+        } else if (data.type === 'tts_error') {
+          useStore.getState().updateMessageStatus(data.messageId, 'error');
         } else if (data.type === 'play_audio' && data.audioData) {
-          useStore.getState().updateMessageStatus(data.messageId, 'speaking');
+          useStore.getState().updateMessage(data.messageId, {
+            status: 'speaking',
+            wordBoundaries: data.wordBoundaries
+          });
           
           if (audioRef.current) {
             audioRef.current.pause();

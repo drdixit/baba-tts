@@ -6,8 +6,13 @@ export const ChatMessageSchema = z.object({
   authorProfileImageUrl: z.string().optional(),
   authorColor: z.string().optional(),
   text: z.string(),
-  status: z.enum(['default', 'queued', 'processing', 'skipped', 'speaking', 'done']),
+  status: z.enum(['default', 'queued', 'processing', 'skipped', 'speaking', 'done', 'error']),
   theme: z.enum(['default', 'waveform', 'neon', 'typewriter', 'subtitle-sweep', 'subtitle-karaoke', 'subtitle-words', 'pro-clean']).optional(),
+  wordBoundaries: z.array(z.object({
+    text: z.string(),
+    audioOffset: z.number(),
+    duration: z.number()
+  })).optional(),
 });
 
 export type ChatMessage = z.infer<typeof ChatMessageSchema>;
