@@ -223,7 +223,7 @@ function App() {
       'Bhai agar tum isko thoda aur detail mein samjha do, toh beginners ko bhi easily samajh aa jayega 👍',
       'भाई ये पूरा workflow काफी साफ लग रहा है, खासकर जिस तरह तुम एक-एक step करके समझा रहे हो, उससे चीज़ें काफी आसानी से समझ आ रही हैं 🔥'
     ];
-    const randomText = phrases[Math.floor(Math.random() * phrases.length)];
+    const randomText = phrases[Math.floor(Math.random() * phrases.length)] + ' ' + Math.random().toString(36).substring(7);
 
     const authorColor = getDeterministicColor(randomUser);
 
