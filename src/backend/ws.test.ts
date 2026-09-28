@@ -48,5 +48,30 @@ describe('WebSocket Server', () => {
     expect(server).toBeDefined();
   });
 
+  it('should safely handle non-JSON or invalid incoming messages', async () => {
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const client = await createClient();
+
+    client.send('invalid-json');
+
+    await vi.waitFor(
+      () => {
+        expect(consoleSpy).toHaveBeenCalledWith('Failed to process incoming WebSocket message:', expect.any(Error));
+      },
+      { timeout: 1000 }
+    );
+  });
+
+  it('should ignore incoming messages with unrecognized type', async () => {
+    const generateSpeechSpy = vi.spyOn(tts, 'generateSpeech');
+
+    const client = await createClient();
+
+    client.send(JSON.stringify({ type: 'UNKNOWN_TYPE' }));
+
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(generateSpeechSpy).not.toHaveBeenCalled();
+  });
 });
 
