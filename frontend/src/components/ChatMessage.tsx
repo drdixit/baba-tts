@@ -100,7 +100,7 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({ message, currentAu
 
             <div className="flex flex-col flex-1 min-w-0 z-10">
               <span className={`block text-3xl uppercase tracking-widest drop-shadow-md mb-2 transition-all duration-200 ${isAuthorSpeaking ? 'opacity-100 scale-105 origin-left' : 'opacity-90'}`} style={{ color: message.authorColor || '#ffcc00' }}>
-                {message.authorName} {isAuthorSpeaking && <span className="text-xl text-white ml-2 normal-case opacity-80">says...</span>}
+                {message.authorName}
               </span>
               
               <p className="text-4xl font-bold leading-tight text-white drop-shadow-[0_2px_4px_rgba(0,0,0,1)] transition-all duration-700 flex flex-wrap gap-x-3 gap-y-2">
