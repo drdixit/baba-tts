@@ -38,22 +38,21 @@ export function _testSetActivePoller(accountId: string) {
 export async function discoverActiveBroadcasts(accountId: string) {
   discoveryRunning.add(accountId);
   
-  const row = db.prepare('SELECT refresh_token FROM oauth_accounts WHERE id = ?').get(accountId) as { refresh_token: string } | undefined;
-  if (!row || !row.refresh_token) {
-    console.error('No refresh token found for account:', accountId);
-    discoveryRunning.delete(accountId);
-    return;
-  }
-  
-  let youtube = youtubeClients.get(accountId);
-  if (!youtube) {
-    const client = getOAuth2Client();
-    client.setCredentials({ refresh_token: row.refresh_token });
-    youtube = google.youtube({ version: 'v3', auth: client });
-    youtubeClients.set(accountId, youtube);
-  }
-  
   try {
+    const row = db.prepare('SELECT refresh_token FROM oauth_accounts WHERE id = ?').get(accountId) as { refresh_token: string } | undefined;
+    if (!row || !row.refresh_token) {
+      console.error('No refresh token found for account:', accountId);
+      discoveryRunning.delete(accountId);
+      return;
+    }
+    
+    let youtube = youtubeClients.get(accountId);
+    if (!youtube) {
+      const client = getOAuth2Client();
+      client.setCredentials({ refresh_token: row.refresh_token });
+      youtube = google.youtube({ version: 'v3', auth: client });
+      youtubeClients.set(accountId, youtube);
+    }
     // YouTube API forbids combining 'mine: true' with 'broadcastStatus'.
     // We must fetch mine: true, include the 'status' part, and filter locally.
     const broadcastRes = await youtube.liveBroadcasts.list({
@@ -100,6 +99,8 @@ export async function discoverActiveBroadcasts(accountId: string) {
       return; // Handled below in finally
     }
   } finally {
+    discoveryRunning.delete(accountId);
+
     const row = db.prepare('SELECT count(*) as c FROM oauth_accounts WHERE id = ?').get(accountId) as { c: number };
     if (row && row.c === 0) {
       console.log('Account deleted due to auth failure, stopping discovery loop.');
@@ -107,8 +108,6 @@ export async function discoverActiveBroadcasts(accountId: string) {
     }
     const existing = discoveryTimeouts.get(accountId);
     if (existing) clearTimeout(existing);
-    
-    discoveryRunning.delete(accountId);
 
     // Only poll discovery if we don't currently have an active stream, to save quota!
     let hasActiveStream = false;
