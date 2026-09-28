@@ -149,28 +149,34 @@ function App() {
   };
 
   const simulateSpamMessage = () => {
-    const id = `spam-${Date.now()}`;
-    let spamText = '';
-    while (spamText.length < 200) {
-      spamText += 'BUY FOLLOWERS SCAM.COM 😡🤬 ';
-    }
-    spamText = spamText.substring(0, 200).trim();
+    const spamText = 'BUY FOLLOWERS SCAM.COM 😡🤬';
 
-    const msg = {
-      messageId: id,
-      authorName: 'SpamBot9000_ExtraLongName12345',
-      authorProfileImageUrl: `https://api.dicebear.com/7.x/avataaars/svg?seed=spambot`,
+    const msg1 = {
+      messageId: `spam-${Date.now()}-1`,
+      authorName: 'SpamBot9000',
+      authorProfileImageUrl: `https://api.dicebear.com/7.x/avataaars/svg?seed=spambot1`,
       text: spamText,
-      status: 'default'
+      status: 'idle'
+    };
+
+    const msg2 = {
+      messageId: `spam-${Date.now()}-2`,
+      authorName: 'SpamBot9001',
+      authorProfileImageUrl: `https://api.dicebear.com/7.x/avataaars/svg?seed=spambot2`,
+      text: spamText,
+      status: 'idle'
     };
     
-    // Add locally, bypass backend entirely so it doesn't speak
-    useStore.getState().addMessages([msg as any]);
-    
-    // Auto-skip (or mark deleted) after 800ms
-    setTimeout(() => {
-      useStore.getState().updateMessageStatus(id, 'skipped');
-    }, 800);
+    // Send both through WS to test backend deduplication
+    if (wsRef.current?.readyState === 1) {
+      wsRef.current.send(JSON.stringify({ type: 'SIMULATE_MESSAGE', payload: msg1 }));
+      // Send second one immediately after
+      setTimeout(() => {
+        if (wsRef.current?.readyState === 1) {
+          wsRef.current.send(JSON.stringify({ type: 'SIMULATE_MESSAGE', payload: msg2 }));
+        }
+      }, 50);
+    }
   };
 
   return (

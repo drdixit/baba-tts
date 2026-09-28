@@ -218,15 +218,15 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({ message, currentAu
       )}
 
       {/* ZONE E CHAT HISTORY (Always visible) */}
-      <div className={`relative px-2 py-1 flex items-start justify-between transition-all duration-300 rounded ${
+      <div className={`relative px-2 py-1 flex items-center justify-between transition-all duration-300 rounded ${
         isSkipped ? 'opacity-50' : 'opacity-100'
       } bg-transparent`}>
-        <div className="flex items-start gap-3">
+        <div className="flex items-center gap-3">
           {message.authorProfileImageUrl && (
             <img 
               src={message.authorProfileImageUrl} 
               alt="" 
-              className="w-8 h-8 rounded-full shrink-0 mt-1 border border-gray-600 bg-gray-800 shadow-md"
+              className="w-8 h-8 rounded-full shrink-0 border border-gray-600 bg-gray-800 shadow-md"
             />
           )}
           <p className={`text-[28px] break-words leading-relaxed font-semibold transition-all duration-300 origin-left drop-shadow-[1px_1px_2px_rgba(0,0,0,1)] ${
@@ -241,7 +241,7 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({ message, currentAu
         
         {showBadge && (
           <span
-            className={`shrink-0 text-[10px] px-2 py-0.5 mt-1 ml-2 rounded uppercase tracking-wider font-bold shadow-md ${
+            className={`shrink-0 text-[10px] px-2 py-0.5 ml-2 rounded uppercase tracking-wider font-bold shadow-md ${
               statusBadgeStyles[message.status]
             }`}
           >

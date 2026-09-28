@@ -5,7 +5,30 @@ import * as sdk from 'microsoft-cognitiveservices-speech-sdk';
 let queue: ChatMessage[] = [];
 let isProcessing = false;
 
+const RECENT_MESSAGES_CACHE = new Map<string, number>();
+
 export function enqueueMessageForTTS(message: ChatMessage) {
+  const now = Date.now();
+  
+  // Cleanup old cache entries (older than 30 seconds)
+  for (const [text, timestamp] of RECENT_MESSAGES_CACHE.entries()) {
+    if (now - timestamp > 30000) {
+      RECENT_MESSAGES_CACHE.delete(text);
+    }
+  }
+
+  const textLower = message.text.toLowerCase().trim();
+  
+  if (RECENT_MESSAGES_CACHE.has(textLower)) {
+    console.log(`[TTS] Skipping duplicate message: ${message.text}`);
+    // Broadcast skipped state immediately
+    broadcastTTSState(message.messageId, 'skipped');
+    return;
+  }
+  
+  // New message, add to cache
+  RECENT_MESSAGES_CACHE.set(textLower, now);
+
   queue.push(message);
   processQueue();
 }
