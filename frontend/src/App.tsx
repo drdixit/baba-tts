@@ -306,6 +306,18 @@ function App() {
           </div>
           <div className="flex gap-2">
             <button onClick={simulateSpamMessage} className="px-6 py-2 bg-red-600 hover:bg-red-500 rounded text-white font-bold transition-colors w-full">Simulate Spam</button>
+            
+            <button
+              onClick={() => {
+                if (wsRef.current?.readyState === WebSocket.OPEN) {
+                  wsRef.current.send(JSON.stringify({ type: 'BAN_CURRENT_SPEAKER' }));
+                }
+              }}
+              className="px-4 py-2 bg-orange-600 hover:bg-orange-500 rounded text-sm font-semibold transition-colors shadow-lg"
+            >
+              Ban Current Speaker
+            </button>
+
             <button
               onClick={() => {
                 if (wsRef.current?.readyState === WebSocket.OPEN) {

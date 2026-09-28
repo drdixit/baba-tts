@@ -34,6 +34,10 @@ export function enqueueMessageForTTS(message: ChatMessage) {
   processQueue();
 }
 
+export function getCurrentProcessingMessage() {
+  return currentProcessingMessage;
+}
+
 export function clearTTSQueue() {
   for (const msg of queue) {
     broadcastTTSState(msg.messageId, 'skipped');

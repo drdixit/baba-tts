@@ -43,6 +43,16 @@ export function initWebSocketServer(server: Server) {
           const { clearTTSQueue } = await import('./tts.js');
           clearTTSQueue();
         }
+        
+        if (message.type === 'BAN_CURRENT_SPEAKER') {
+          const { getCurrentProcessingMessage, removeUserFromQueue } = await import('./tts.js');
+          const currentMsg = getCurrentProcessingMessage();
+          if (currentMsg && currentMsg.authorId) {
+            banUser(currentMsg.authorId, currentMsg.authorName, currentMsg.authorProfileImageUrl);
+            broadcastBannedUsers();
+            removeUserFromQueue(currentMsg.authorId);
+          }
+        }
         if (message.type === 'BAN_USER') {
           const { authorId, displayName, profileImageUrl } = message.payload;
           if (authorId) {
