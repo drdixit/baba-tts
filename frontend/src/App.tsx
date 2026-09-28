@@ -57,9 +57,7 @@ function App() {
             rafRef.current = null;
           }
           setCurrentAudioTime(0);
-          if (wsRef.current?.readyState === WebSocket.OPEN) {
-            wsRef.current.send(JSON.stringify({ type: 'AUDIO_FINISHED' }));
-          }
+          // Backend completely manages queue transition on KILL_AUDIO, do not send AUDIO_FINISHED
         } else if (data.type === 'play_audio' && data.audioData) {
           useStore.getState().updateMessage(data.messageId, {
             status: 'speaking',
@@ -334,10 +332,7 @@ function App() {
                 setCurrentAudioTime(0);
                 
                 useStore.getState().skipAllActiveMessages();
-                
-                if (wsRef.current?.readyState === WebSocket.OPEN) {
-                  wsRef.current.send(JSON.stringify({ type: 'AUDIO_FINISHED' }));
-                }
+                // We do NOT send AUDIO_FINISHED here to prevent double-skipping. Backend handles CLEAR_TTS_QUEUE.
               }}
               className="px-4 py-2 bg-red-600 hover:bg-red-500 rounded text-sm font-semibold transition-colors shadow-lg"
             >

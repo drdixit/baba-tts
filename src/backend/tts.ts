@@ -99,6 +99,12 @@ async function processQueue() {
     
     const result = await generateSpeech(textToSpeak, voiceName);
     
+    // SAFEGUARD: Check if this message was cancelled (banned/cleared) while Azure was generating it
+    if (currentProcessingMessage?.messageId !== msg.messageId) {
+      console.log(`[TTS] Audio generation finished, but message ${msg.messageId} was cancelled during generation. Discarding.`);
+      return;
+    }
+    
     if (result) {
       // Send to frontend to play. We stay isProcessing=true until AUDIO_FINISHED
       broadcastPlayAudio(msg.messageId, result.audioData, result.wordBoundaries);
