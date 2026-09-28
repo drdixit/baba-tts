@@ -234,6 +234,7 @@ function App() {
     const msg1 = {
       messageId: `spam-${Date.now()}-1`,
       authorName: 'SpamBot9000',
+      authorColor: getDeterministicColor('SpamBot9000'),
       authorProfileImageUrl: `https://api.dicebear.com/7.x/avataaars/svg?seed=spambot1`,
       text: spamText,
       status: 'idle'
@@ -242,6 +243,7 @@ function App() {
     const msg2 = {
       messageId: `spam-${Date.now()}-2`,
       authorName: 'SpamBot9001',
+      authorColor: getDeterministicColor('SpamBot9001'),
       authorProfileImageUrl: `https://api.dicebear.com/7.x/avataaars/svg?seed=spambot2`,
       text: spamText,
       status: 'idle'
