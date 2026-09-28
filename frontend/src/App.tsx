@@ -335,7 +335,7 @@ function App() {
       </div>
       
       {/* ZONE B: Moderation Panel */}
-      <div className="absolute top-[80px] left-[300px] w-[1045px] z-40">
+      <div className="absolute top-[300px] left-0 w-[1440px] h-[1045px] z-40">
         <ModerationPanel onBanUser={banUser} onUnbanUser={unbanUser} />
       </div>
 
