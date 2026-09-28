@@ -58,7 +58,7 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({ message, currentAu
       {/* ZONE D SPOTLIGHT (Active Messages Only) */}
       {/* This sits exactly 810px from the bottom, which is right inside your Display zone (above 1750px) */}
       {isActive && (
-        (message.theme?.startsWith('subtitle-') || message.theme === 'pro-clean') ? (
+        
           <div 
             className={`fixed bottom-[810px] left-[49px] right-[51px] z-50 p-6 rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.8)] animate-spotlight flex flex-row items-center gap-8 text-left transition-all duration-500 overflow-hidden ${message.theme === 'pro-clean' ? 'border-l-[6px]' : ''}`}
             style={{ 
@@ -186,49 +186,6 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({ message, currentAu
               </p>
             </div>
           </div>
-        ) : (
-          <div className={`fixed bottom-[810px] left-[49px] right-[51px] z-50 p-6 border-2 border-transparent rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.8)] animate-spotlight flex flex-row items-center gap-6 text-left transition-all duration-500
-            ${message.theme === 'neon' && message.status === 'processing' ? 'animate-neon-yellow' : ''}
-            ${message.theme === 'neon' && message.status === 'speaking' ? 'animate-neon-green' : ''}
-          `}
-          style={{ background: `color-mix(in srgb, ${message.authorColor || '#4ade80'} 15%, #0f172a)` }}
-          >
-            {message.authorProfileImageUrl && (
-              <img 
-                src={message.authorProfileImageUrl} 
-                alt={`${message.authorName}'s avatar`} 
-                className={`w-24 h-24 rounded-full shadow-lg border-2 bg-gray-800 object-cover shrink-0 transition-all duration-300
-                  ${message.status === 'speaking' ? 'animate-avatar-speak' : ''}
-                  ${message.status === 'processing' ? 'animate-avatar-process' : ''}
-                  ${message.status !== 'speaking' && message.status !== 'processing' ? 'border-gray-700 animate-avatar-float' : ''}
-                `}
-                style={message.status === 'speaking' ? { borderColor: message.authorColor || '#4ade80', '--author-color': message.authorColor || '#4ade80' } as React.CSSProperties : undefined}
-              />
-            )}
-
-            <div className="flex flex-col flex-1 min-w-0 z-10">
-              <div className="flex items-center gap-3 mb-2">
-                <span className="block text-3xl opacity-90 uppercase tracking-widest drop-shadow-md" style={{ color: message.authorColor || '#ffcc00' }}>
-                  {message.authorName}
-                </span>
-                {message.theme === 'waveform' && message.status === 'speaking' && (
-                  <div className="flex items-center gap-1 h-6">
-                    <div className="w-1.5 h-full rounded-full animate-waveform" style={{ backgroundColor: message.authorColor || '#4ade80' }}></div>
-                    <div className="w-1.5 h-full rounded-full animate-waveform" style={{ backgroundColor: message.authorColor || '#4ade80' }}></div>
-                    <div className="w-1.5 h-full rounded-full animate-waveform" style={{ backgroundColor: message.authorColor || '#4ade80' }}></div>
-                    <div className="w-1.5 h-full rounded-full animate-waveform" style={{ backgroundColor: message.authorColor || '#4ade80' }}></div>
-                  </div>
-                )}
-              </div>
-
-              <p className={`text-4xl font-bold leading-tight drop-shadow-[0_2px_4px_rgba(0,0,0,1)] text-white transition-all duration-700
-                ${message.theme === 'typewriter' && message.status === 'processing' ? 'blur-sm opacity-50 scale-95' : 'blur-none opacity-100 scale-100'}
-              `}>
-                {message.text}
-              </p>
-            </div>
-          </div>
-        )
       )}
 
       {/* ZONE E CHAT HISTORY (Always visible) */}

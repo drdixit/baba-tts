@@ -140,7 +140,7 @@ function App() {
     }
   };
 
-  const simulateGoodMessage = (theme: 'default' | 'waveform' | 'neon' | 'typewriter' | 'subtitle-sweep' | 'subtitle-karaoke' | 'subtitle-words' | 'pro-clean' = 'default') => {
+  const simulateGoodMessage = (theme: 'subtitle-sweep' | 'subtitle-karaoke' | 'subtitle-words' | 'pro-clean' = 'subtitle-karaoke') => {
     const id = `test-${Date.now()}`;
     
     const usernames = [
@@ -265,12 +265,6 @@ function App() {
       <div className="absolute top-2 right-2 z-50 flex flex-wrap items-center justify-end gap-2">
         {/* Temporary State Testing Buttons */}
         <div className="flex flex-col gap-2 bg-gray-800/90 backdrop-blur p-2 rounded-lg border border-gray-700 shadow-xl">
-          <div className="flex gap-2">
-            <button onClick={() => simulateGoodMessage('default')} className="px-3 py-1 bg-gray-600 hover:bg-gray-500 rounded text-white font-bold transition-colors">Classic</button>
-            <button onClick={() => simulateGoodMessage('waveform')} className="px-3 py-1 bg-blue-600 hover:bg-blue-500 rounded text-white font-bold transition-colors">Waveform</button>
-            <button onClick={() => simulateGoodMessage('neon')} className="px-3 py-1 bg-purple-600 hover:bg-purple-500 rounded text-white font-bold transition-colors">Neon</button>
-            <button onClick={() => simulateGoodMessage('typewriter')} className="px-3 py-1 bg-pink-600 hover:bg-pink-500 rounded text-white font-bold transition-colors">Typewriter</button>
-          </div>
           <div className="flex gap-2">
             <button onClick={() => simulateGoodMessage('subtitle-sweep')} className="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 rounded text-white font-bold transition-colors">Subtitle Sweep</button>
             <button onClick={() => simulateGoodMessage('subtitle-karaoke')} className="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 rounded text-white font-bold transition-colors">Subtitle Karaoke</button>

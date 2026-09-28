@@ -7,7 +7,7 @@ export const ChatMessageSchema = z.object({
   authorColor: z.string().optional(),
   text: z.string(),
   status: z.enum(['default', 'queued', 'processing', 'skipped', 'speaking', 'done', 'error']),
-  theme: z.enum(['default', 'waveform', 'neon', 'typewriter', 'subtitle-sweep', 'subtitle-karaoke', 'subtitle-words', 'pro-clean']).optional(),
+  theme: z.enum(['subtitle-sweep', 'subtitle-karaoke', 'subtitle-words', 'pro-clean']).optional(),
   wordBoundaries: z.array(z.object({
     text: z.string(),
     audioOffset: z.number(),
