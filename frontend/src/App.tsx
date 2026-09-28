@@ -302,7 +302,7 @@ function App() {
           <a 
             href="/auth/google"
             onClick={handleConnectClick}
-            className={`flex-1 text-center px-8 py-4 rounded-xl text-xl font-bold tracking-wide transition-all shadow-xl ${
+            className={`flex-1 flex items-center justify-center text-center px-10 py-6 rounded-2xl text-3xl font-bold uppercase transition-all shadow-xl ${
               isConnected 
                 ? 'bg-green-600 hover:bg-green-500 text-white' 
                 : 'bg-blue-600 hover:bg-blue-500 text-white'
