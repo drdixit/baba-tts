@@ -64,8 +64,10 @@ export function initWebSocketServer(server: Server) {
     });
 
     ws.on('error', console.error);
-    ws.on('close', () => {
+    ws.on('close', async () => {
       console.log('Client disconnected');
+      const { markAudioFinished } = await import('./tts.js');
+      markAudioFinished();
     });
   });
 }
