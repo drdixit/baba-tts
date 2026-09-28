@@ -295,7 +295,7 @@ function App() {
       {/* Floating UI controls (absolute top right) */}
             
       {/* ZONE B: Moderation Panel & Toolbar */}
-      <div className="absolute top-0 left-0 w-[1440px] h-[1045px] z-40 flex flex-col bg-gray-900 border-y border-gray-700 p-4 gap-4 shadow-2xl pointer-events-auto">
+      <div className="absolute top-0 left-0 w-[1440px] h-[1045px] z-40 flex flex-col bg-gray-900 border-y border-gray-700 px-16 py-8 gap-6 shadow-2xl pointer-events-auto">
         
         {/* Full-Width Toolbar */}
         <div className="w-full flex gap-4">
