@@ -29,11 +29,17 @@ export function initWebSocketServer(server: Server) {
       try {
         const message = JSON.parse(data.toString());
         if (message.type === 'SIMULATE_MESSAGE') {
-          // It's a test message from frontend. Treat it like a real one.
           const msg = message.payload;
-          broadcastMessages([msg]);
-          const { enqueueMessageForTTS } = await import('./tts.js');
-          enqueueMessageForTTS(msg);
+          const { isUserBanned } = await import('./db.js');
+          if (isUserBanned(msg.authorId)) {
+            msg.status = 'skipped';
+            broadcastMessages([msg]);
+          } else {
+            msg.status = 'queued';
+            broadcastMessages([msg]);
+            const { enqueueMessageForTTS } = await import('./tts.js');
+            enqueueMessageForTTS(msg);
+          }
         }
         if (message.type === 'AUDIO_FINISHED') {
           const { markAudioFinished } = await import('./tts.js');

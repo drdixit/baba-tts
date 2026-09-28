@@ -33,11 +33,7 @@ const ModerationPanel: React.FC<ModerationPanelProps> = ({ onBanUser, onUnbanUse
             visibleActiveUsers.map((user) => (
               <div key={user.authorId} className="group flex items-center justify-between p-6 rounded-2xl hover:bg-gray-700/50 transition-colors">
                 <div className="flex items-center gap-8 overflow-hidden">
-                  {user.profileImageUrl ? (
-                    <img src={user.profileImageUrl} alt="" className="w-24 h-24 rounded-full shadow-sm bg-gray-800" />
-                  ) : (
-                    <div className="w-24 h-24 rounded-full shadow-sm bg-gray-700" />
-                  )}
+                  
                   <span className="text-5xl font-bold truncate text-gray-100 tracking-wide" style={{ color: getDeterministicColor(user.displayName) }}>
                     {user.displayName}
                   </span>
@@ -70,11 +66,7 @@ const ModerationPanel: React.FC<ModerationPanelProps> = ({ onBanUser, onUnbanUse
             bannedUsers.map((user) => (
               <div key={user.authorId} className="group flex items-center justify-between p-6 rounded-2xl hover:bg-red-900/30 transition-colors">
                 <div className="flex items-center gap-8 overflow-hidden">
-                  {user.profileImageUrl ? (
-                    <img src={user.profileImageUrl} alt="" className="w-24 h-24 rounded-full shadow-sm bg-gray-800 grayscale" />
-                  ) : (
-                    <div className="w-24 h-24 rounded-full shadow-sm bg-gray-700 grayscale" />
-                  )}
+                  
                   <span className="text-5xl font-bold truncate text-gray-400 tracking-wide line-through decoration-red-500/50">
                     {user.displayName}
                   </span>
