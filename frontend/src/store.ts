@@ -9,6 +9,7 @@ interface StoreState {
   updateMessage: (messageId: string, updates: Partial<ChatMessage>) => void;
   removeMessage: (messageId: string) => void;
   setConnected: (connected: boolean) => void;
+  skipAllActiveMessages: () => void;
 }
 
 export const useStore = create<StoreState>((set) => ({
@@ -42,5 +43,13 @@ export const useStore = create<StoreState>((set) => ({
   setConnected: (connected) =>
     set(() => ({
       isConnected: connected,
+    })),
+  skipAllActiveMessages: () =>
+    set((state) => ({
+      messages: state.messages.map((msg) =>
+        ['speaking', 'processing', 'queued'].includes(msg.status)
+          ? { ...msg, status: 'skipped' }
+          : msg
+      ),
     })),
 }));

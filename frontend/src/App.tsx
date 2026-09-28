@@ -84,7 +84,7 @@ function App() {
               rafRef.current = null;
             }
             setCurrentAudioTime(0);
-            useStore.getState().updateMessageStatus(data.messageId, 'skipped'); // Or 'read' if you had it
+            useStore.getState().updateMessageStatus(data.messageId, 'done');
             if (wsRef.current?.readyState === WebSocket.OPEN) {
               wsRef.current.send(JSON.stringify({ type: 'AUDIO_FINISHED' }));
             }
@@ -288,12 +288,7 @@ function App() {
                 }
                 setCurrentAudioTime(0);
                 
-                const store = useStore.getState();
-                store.messages.forEach(msg => {
-                  if (msg.status === 'speaking' || msg.status === 'processing') {
-                    store.updateMessageStatus(msg.messageId, 'skipped');
-                  }
-                });
+                useStore.getState().skipAllActiveMessages();
                 
                 if (wsRef.current?.readyState === WebSocket.OPEN) {
                   wsRef.current.send(JSON.stringify({ type: 'AUDIO_FINISHED' }));
