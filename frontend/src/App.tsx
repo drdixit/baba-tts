@@ -311,7 +311,7 @@ function App() {
                   wsRef.current.send(JSON.stringify({ type: 'BAN_CURRENT_SPEAKER' }));
                 }
               }}
-              className="px-4 py-2 bg-orange-600 hover:bg-orange-500 rounded text-sm font-semibold transition-colors shadow-lg"
+              className="px-8 py-4 bg-orange-600 hover:bg-orange-500 rounded-xl text-xl font-bold transition-all hover:scale-105 active:scale-95 shadow-xl"
             >
               Ban Current Speaker
             </button>
@@ -334,7 +334,7 @@ function App() {
                 useStore.getState().skipAllActiveMessages();
                 // We do NOT send AUDIO_FINISHED here to prevent double-skipping. Backend handles CLEAR_TTS_QUEUE.
               }}
-              className="px-4 py-2 bg-red-600 hover:bg-red-500 rounded text-sm font-semibold transition-colors shadow-lg"
+              className="px-8 py-4 bg-red-600 hover:bg-red-500 rounded-xl text-xl font-bold transition-all hover:scale-105 active:scale-95 shadow-xl"
             >
               Clear TTS Queue
             </button>

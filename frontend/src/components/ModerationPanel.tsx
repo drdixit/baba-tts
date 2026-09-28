@@ -16,11 +16,11 @@ const ModerationPanel: React.FC<ModerationPanelProps> = ({ onBanUser, onUnbanUse
   const visibleActiveUsers = activeUsers.filter(u => !bannedIds.has(u.authorId));
 
   return (
-    <div className="w-full flex flex-col md:flex-row gap-4 h-full bg-gray-900/40 backdrop-blur-md border-y border-gray-700/50 p-4">
+    <div className="w-full flex flex-col md:flex-row gap-4 h-full bg-gray-900 border-y border-gray-700 p-4">
       
       {/* Active Users Panel */}
-      <div className="flex-1 flex flex-col h-full bg-gray-800/50 rounded-xl border border-gray-600/50 overflow-hidden shadow-inner">
-        <div className="px-6 py-4 bg-gray-800/80 border-b border-gray-600/50 text-2xl font-bold text-gray-300 uppercase tracking-wider flex justify-between items-center">
+      <div className="flex-1 flex flex-col h-full bg-gray-800 rounded-xl border border-gray-600 overflow-hidden shadow-inner">
+        <div className="px-6 py-4 bg-gray-700 border-b border-gray-600 text-2xl font-bold text-gray-100 uppercase tracking-wider flex justify-between items-center">
           <span>Active Users</span>
           <span className="bg-gray-700 px-4 py-1 rounded-full text-xl">{visibleActiveUsers.length}</span>
         </div>
@@ -56,8 +56,8 @@ const ModerationPanel: React.FC<ModerationPanelProps> = ({ onBanUser, onUnbanUse
       </div>
 
       {/* Banned Users Panel */}
-      <div className="flex-1 flex flex-col h-full bg-red-900/10 rounded-xl border border-red-900/30 overflow-hidden shadow-inner">
-        <div className="px-6 py-4 bg-red-900/20 border-b border-red-900/30 text-2xl font-bold text-red-300 uppercase tracking-wider flex justify-between items-center">
+      <div className="flex-1 flex flex-col h-full bg-[#1a0a0a] rounded-xl border border-red-900/50 overflow-hidden shadow-inner">
+        <div className="px-6 py-4 bg-red-900 border-b border-red-800 text-2xl font-bold text-red-100 uppercase tracking-wider flex justify-between items-center">
           <span>Banned from TTS</span>
           <span className="bg-red-900/50 text-red-200 px-4 py-1 rounded-full text-xl">{bannedUsers.length}</span>
         </div>
