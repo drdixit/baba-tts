@@ -38,7 +38,19 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({ message, currentAu
           >
             {/* Background Sweep effect */}
             {message.theme === 'subtitle-sweep' && message.status === 'speaking' && (
-              <div className="animate-sweep-bg rounded-3xl pointer-events-none"></div>
+              <div 
+                className="absolute top-0 left-0 bottom-0 bg-white/15 rounded-3xl pointer-events-none -z-10"
+                style={{
+                  width: (() => {
+                    if (!message.wordBoundaries || message.wordBoundaries.length === 0 || currentAudioTime === undefined) return '0%';
+                    const lastWord = message.wordBoundaries[message.wordBoundaries.length - 1];
+                    const totalDuration = lastWord.audioOffset + lastWord.duration;
+                    if (totalDuration === 0) return '0%';
+                    const progress = Math.min(100, Math.max(0, (currentAudioTime / totalDuration) * 100));
+                    return `${progress}%`;
+                  })()
+                }}
+              ></div>
             )}
             
             <div className="flex flex-col items-center justify-center gap-3 shrink-0 w-36">
@@ -94,10 +106,10 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({ message, currentAu
                         return (
                           <span 
                             key={i}
-                            className={`px-1 ${isHighlighted ? 'text-black rounded' : 'text-gray-600'}`}
+                            className={`px-1 ${isHighlighted ? 'text-black rounded' : (isPast || message.status === 'done' || message.status === 'skipped' ? 'text-[#f0fdf4]' : 'text-gray-600')}`}
                             style={{
                               backgroundColor: isHighlighted ? (message.authorColor || '#4ade80') : 'transparent',
-                              color: isHighlighted ? '#000' : (message.status === 'done' ? '#f0fdf4' : undefined),
+                              color: isHighlighted ? '#000' : undefined,
                             } as React.CSSProperties}
                           >
                             {word.text}

@@ -20,15 +20,7 @@
     animation: neonGreen 1.5s ease-in-out infinite;
   }
 
-  .animate-sweep-bg {
-    position: absolute;
-    top: 0; left: 0; bottom: 0;
-    background-color: rgba(255, 255, 255, 0.15);
-    width: 0%;
-    animation: sweepBg 5s linear forwards;
-    border-radius: inherit;
-    z-index: -1;
-  }
+
 
   .animate-avatar-speak {
     animation: avatarSpeak 0.8s ease-in-out infinite;
@@ -49,27 +41,6 @@
   50% { border-color: rgba(234,179,8, 1); box-shadow: 0 0 20px rgba(234,179,8,0.6); }
 }
 
-@keyframes sweepText {
-  to { background-position: 0 0; }
-}
-
-@keyframes sweepBg {
-  to { width: 100%; }
-}
-
-@keyframes wordHighlight {
-  0% { background-color: transparent; color: #4b5563; }
-  1% { background-color: var(--author-color, #4ade80); color: #000; border-radius: 0.25rem; }
-  99% { background-color: var(--author-color, #4ade80); color: #000; border-radius: 0.25rem; }
-  100% { background-color: transparent; color: #f0fdf4; }
-}
-
-@keyframes wordProClean {
-  0% { color: #f9fafb; transform: scale(1); text-shadow: none; }
-  1% { color: var(--author-color, #4ade80); transform: scale(1.1); text-shadow: 0 0 12px var(--author-color, #4ade80); }
-  99% { color: var(--author-color, #4ade80); transform: scale(1.1); text-shadow: 0 0 12px var(--author-color, #4ade80); }
-  100% { color: #f9fafb; transform: scale(1); text-shadow: none; }
-}
 
 @keyframes spotlight {
   0% {
