@@ -292,6 +292,18 @@ function App() {
                   cancelAnimationFrame(rafRef.current);
                   rafRef.current = null;
                 }
+                setCurrentAudioTime(0);
+                
+                const store = useStore.getState();
+                store.messages.forEach(msg => {
+                  if (msg.status === 'speaking' || msg.status === 'processing') {
+                    store.updateMessageStatus(msg.messageId, 'skipped');
+                  }
+                });
+                
+                if (wsRef.current?.readyState === WebSocket.OPEN) {
+                  wsRef.current.send(JSON.stringify({ type: 'AUDIO_FINISHED' }));
+                }
               }}
               className="px-4 py-2 bg-red-600 hover:bg-red-500 rounded text-sm font-semibold transition-colors shadow-lg"
             >
