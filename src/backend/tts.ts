@@ -52,12 +52,15 @@ async function processQueue() {
     console.log(`[TTS] Processing message ${msg.messageId}: ${msg.text}`);
     broadcastTTSState(msg.messageId, 'processing');
     
-    // Default to a voice for now
+    // Use strictly hi-IN voices to properly support Devanagari text segment boundaries
     const voices = [
+      "hi-IN-ArjunNeural",
+      "hi-IN-MadhurNeural",
+      "hi-IN-SwaraNeural",
       "hi-IN-AnanyaNeural",
-      "en-IN-NeerjaNeural",
-      "en-IN-PrabhatNeural",
-      "hi-IN-MadhurNeural"
+      "hi-IN-AaravNeural",
+      "hi-IN-AartiNeural",
+      "hi-IN-KunalNeural"
     ];
     const voiceName = voices[Math.floor(Math.random() * voices.length)];
     const textToSpeak = `${msg.authorName} says ${msg.text}`;
