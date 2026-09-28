@@ -103,7 +103,13 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({ message, currentAu
             </div>
 
             <div className="flex flex-col flex-1 min-w-0 z-10">
-              <span className={`block text-3xl uppercase tracking-widest drop-shadow-md mb-2 transition-all duration-200 ${isAuthorSpeaking ? 'opacity-100 scale-105 origin-left' : 'opacity-90'}`} style={{ color: message.authorColor || '#ffcc00' }}>
+              <span 
+                className={`block text-3xl font-black uppercase tracking-widest mb-2 transition-all duration-200 ${isAuthorSpeaking ? 'opacity-100 scale-105 origin-left' : 'opacity-90'}`} 
+                style={{ 
+                  color: message.authorColor || '#ffcc00',
+                  textShadow: '0 2px 4px rgba(0,0,0,0.8), 0 0 4px rgba(0,0,0,0.9), 0 0 1px rgba(0,0,0,1)'
+                }}
+              >
                 {message.authorName}
               </span>
               
@@ -203,7 +209,10 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({ message, currentAu
           <p className={`text-[28px] break-words leading-relaxed font-semibold transition-all duration-300 origin-left drop-shadow-[1px_1px_2px_rgba(0,0,0,1)] ${
             isSkipped ? 'line-through text-gray-400' : 'text-gray-50'
           } ${isActive ? 'text-green-300' : ''}`}>
-            <span className="font-extrabold text-[#ffcc00] mr-2 drop-shadow-[1px_1px_2px_rgba(0,0,0,1)]">
+            <span 
+              className="font-extrabold mr-2 drop-shadow-[1px_1px_2px_rgba(0,0,0,1)]"
+              style={{ color: message.authorColor || '#ffcc00' }}
+            >
               {message.authorName}:
             </span>
             <span>{message.text}</span>

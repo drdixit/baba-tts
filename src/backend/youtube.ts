@@ -4,6 +4,7 @@ import { getOAuth2Client } from './auth.js';
 import { broadcastMessages, broadcastAuthError, broadcastQuotaExhausted } from './ws.js';
 import { enqueueMessageForTTS } from './tts.js';
 import type { ChatMessage } from '../shared/types.js';
+import { getDeterministicColor } from '../shared/colors.js';
 
 const activePollers = new Set<string>();
 const pollerTimeouts = new Map<string, NodeJS.Timeout>();
@@ -203,9 +204,12 @@ export async function streamLiveChat(accountId: string, liveChatId: string, page
             retryState.set(pollerKey, { errorCount: 0, gracefulEndCount: 0 });
             
             const messages: ChatMessage[] = data.items.map((item: any) => {
+              const rawName = item.authorDetails?.displayName || 'Unknown';
               return {
                 messageId: item.id || '',
-                authorName: escapeHtml(item.authorDetails?.displayName || 'Unknown'),
+                authorName: escapeHtml(rawName),
+                authorProfileImageUrl: item.authorDetails?.profileImageUrl,
+                authorColor: getDeterministicColor(rawName),
                 text: escapeHtml(item.snippet?.displayMessage || ''),
                 status: 'default'
               };

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import ChatMessage from './components/ChatMessage';
 import { useStore } from './store';
+import { getDeterministicColor } from '../../src/shared/colors';
 
 function App() {
   const { messages, isConnected, addMessages, setConnected}  = useStore();
@@ -210,8 +211,7 @@ function App() {
     ];
     const randomText = phrases[Math.floor(Math.random() * phrases.length)];
 
-    const hue = Math.floor(Math.random() * 360);
-    const authorColor = `hsl(${hue}, 80%, 60%)`;
+    const authorColor = getDeterministicColor(randomUser);
 
     const msg = {
       messageId: id,
