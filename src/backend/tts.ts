@@ -1,5 +1,6 @@
 import type { ChatMessage } from '../shared/types.js';
 import { broadcastPlayAudio, broadcastTTSState } from './ws.js';
+import * as sdk from 'microsoft-cognitiveservices-speech-sdk';
 
 let queue: ChatMessage[] = [];
 let isProcessing = false;
@@ -38,20 +39,20 @@ async function processQueue() {
     const voiceName = voices[Math.floor(Math.random() * voices.length)];
     const textToSpeak = `${msg.authorName} says ${msg.text}`;
     
-    const audioData = await generateSpeech(textToSpeak, voiceName);
+    const result = await generateSpeech(textToSpeak, voiceName);
     
-    if (audioData) {
+    if (result) {
       // Send to frontend to play. We stay isProcessing=true until AUDIO_FINISHED
-      broadcastPlayAudio(msg.messageId, audioData);
+      broadcastPlayAudio(msg.messageId, result.audioData, result.wordBoundaries);
     } else {
       // Azure failed, skip this message
-      broadcastTTSState(msg.messageId, 'skipped');
+      broadcastTTSState(msg.messageId, 'error');
       markAudioFinished(); // Instantly proceed
     }
   }
 }
 
-export async function generateSpeech(text: string, voiceName: string): Promise<string | null> {
+export async function generateSpeech(text: string, voiceName: string): Promise<{ audioData: string, wordBoundaries: { text: string, audioOffset: number, duration: number }[] } | null> {
   const key = process.env.AZURE_SPEECH_KEY;
   const region = process.env.AZURE_SPEECH_REGION;
 
@@ -60,40 +61,44 @@ export async function generateSpeech(text: string, voiceName: string): Promise<s
     return null;
   }
 
-  const escapedText = text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&apos;');
-
-  const langMatch = voiceName.match(/^([a-zA-Z]+-[a-zA-Z]+)/);
-  const lang = langMatch ? langMatch[1] : 'en-US';
-
-  const ssml = `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="${lang}">
-    <voice name="${voiceName}">${escapedText}</voice>
-  </speak>`;
-
   try {
-    const res = await fetch(`https://${region}.tts.speech.microsoft.com/cognitiveservices/v1`, {
-      method: 'POST',
-      headers: {
-        'Ocp-Apim-Subscription-Key': key,
-        'Content-Type': 'application/ssml+xml',
-        'X-Microsoft-OutputFormat': 'riff-48khz-16bit-mono-pcm',
-        'User-Agent': 'BabaTTS'
-      },
-      body: ssml
+    const speechConfig = sdk.SpeechConfig.fromSubscription(key, region);
+    speechConfig.speechSynthesisVoiceName = voiceName;
+    speechConfig.speechSynthesisOutputFormat = sdk.SpeechSynthesisOutputFormat.Riff48Khz16BitMonoPcm;
+
+    const synthesizer = new sdk.SpeechSynthesizer(speechConfig);
+
+    const wordBoundaries: { text: string, audioOffset: number, duration: number }[] = [];
+    synthesizer.wordBoundary = (s, e) => {
+      wordBoundaries.push({
+        text: e.text,
+        audioOffset: e.audioOffset / 10000000,
+        duration: e.duration / 10000000
+      });
+    };
+
+    return await new Promise((resolve) => {
+      synthesizer.speakTextAsync(
+        text,
+        (result) => {
+          if (result.reason === sdk.ResultReason.SynthesizingAudioCompleted) {
+            const buffer = Buffer.from(result.audioData);
+            const base64 = buffer.toString('base64');
+            const audioData = 'data:audio/wav;base64,' + base64;
+            resolve({ audioData, wordBoundaries });
+          } else {
+            console.error(`Speech synthesis canceled or failed: ${result.errorDetails}`);
+            resolve(null);
+          }
+          synthesizer.close();
+        },
+        (error) => {
+          console.error(`Failed to generate speech:`, error);
+          synthesizer.close();
+          resolve(null);
+        }
+      );
     });
-
-    if (!res.ok) {
-      console.error(`Error from Azure: ${res.status}`);
-      return null;
-    }
-
-    const buffer = await res.arrayBuffer();
-    const base64 = Buffer.from(buffer).toString('base64');
-    return 'data:audio/wav;base64,' + base64;
   } catch (error) {
     console.error('Failed to generate speech:', error);
     return null;
