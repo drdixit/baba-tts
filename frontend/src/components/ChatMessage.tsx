@@ -69,14 +69,18 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({ message, currentAu
             {/* Background Sweep effect */}
             {message.theme === 'subtitle-sweep' && message.status === 'speaking' && (
               <div 
-                className="absolute top-0 left-0 bottom-0 bg-white/15 rounded-3xl pointer-events-none -z-10"
+                className="absolute top-0 left-0 bottom-0 bg-white/15 rounded-3xl pointer-events-none -z-10 transition-all duration-200 ease-linear"
                 style={{
                   width: (() => {
-                    if (!message.wordBoundaries || message.wordBoundaries.length === 0 || currentAudioTime === undefined) return '0%';
-                    const lastWord = message.wordBoundaries[message.wordBoundaries.length - 1];
-                    const totalDuration = lastWord.audioOffset + lastWord.duration;
-                    if (totalDuration === 0) return '0%';
-                    const progress = Math.min(100, Math.max(0, (currentAudioTime / totalDuration) * 100));
+                    if (!messageBoundaries || messageBoundaries.length === 0 || currentAudioTime === undefined) return '0%';
+                    const messageStart = messageBoundaries[0].audioOffset;
+                    const lastWord = messageBoundaries[messageBoundaries.length - 1];
+                    const messageEnd = lastWord.audioOffset + lastWord.duration;
+                    const messageDuration = messageEnd - messageStart;
+                    if (messageDuration <= 0) return '0%';
+                    
+                    if (currentAudioTime < messageStart) return '0%';
+                    const progress = Math.min(100, Math.max(0, ((currentAudioTime - messageStart) / messageDuration) * 100));
                     return `${progress}%`;
                   })()
                 }}
