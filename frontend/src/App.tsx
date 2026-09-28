@@ -219,7 +219,7 @@ function App() {
       authorProfileImageUrl: `https://api.dicebear.com/7.x/avataaars/svg?seed=${randomUser}`,
       authorColor: authorColor,
       text: randomText,
-      status: 'idle',
+      status: 'queued' as const,
       theme: theme
     };
     
@@ -237,7 +237,7 @@ function App() {
       authorColor: getDeterministicColor('SpamBot9000'),
       authorProfileImageUrl: `https://api.dicebear.com/7.x/avataaars/svg?seed=spambot1`,
       text: spamText,
-      status: 'idle'
+      status: 'queued' as const
     };
 
     const msg2 = {
@@ -246,7 +246,7 @@ function App() {
       authorColor: getDeterministicColor('SpamBot9001'),
       authorProfileImageUrl: `https://api.dicebear.com/7.x/avataaars/svg?seed=spambot2`,
       text: spamText,
-      status: 'idle'
+      status: 'queued' as const
     };
     
     // Send both through WS to test backend deduplication

@@ -17,7 +17,7 @@ const statusBadgeStyles: Record<ChatMessageType['status'], string> = {
 };
 
 const ChatMessage: React.FC<ChatMessageProps> = React.memo(({ message, currentAudioTime }) => {
-  const isSkipped = message.status === 'skipped';
+  const isFinished = message.status === 'skipped' || message.status === 'done';
   const isSpeaking = message.status === 'speaking';
   const isProcessing = message.status === 'processing';
   const showBadge = message.status !== 'default' && message.status !== 'done';
@@ -196,7 +196,7 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({ message, currentAu
 
       {/* ZONE E CHAT HISTORY (Always visible) */}
       <div className={`relative px-2 py-1 flex items-center justify-between transition-all duration-300 rounded ${
-        isSkipped ? 'opacity-50' : 'opacity-100'
+        isFinished ? 'opacity-50' : 'opacity-100'
       } bg-transparent`}>
         <div className="flex items-center gap-3">
           {message.authorProfileImageUrl && (
@@ -207,7 +207,7 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({ message, currentAu
             />
           )}
           <p className={`text-[28px] break-words leading-relaxed font-semibold transition-all duration-300 origin-left drop-shadow-[1px_1px_2px_rgba(0,0,0,1)] ${
-            isSkipped ? 'line-through text-gray-400' : 'text-gray-50'
+            isFinished ? 'line-through text-gray-400' : 'text-gray-50'
           } ${isActive ? 'text-green-300' : ''}`}>
             <span 
               className="font-extrabold mr-2 drop-shadow-[1px_1px_2px_rgba(0,0,0,1)]"

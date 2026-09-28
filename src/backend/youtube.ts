@@ -211,7 +211,7 @@ export async function streamLiveChat(accountId: string, liveChatId: string, page
                 authorProfileImageUrl: item.authorDetails?.profileImageUrl,
                 authorColor: getDeterministicColor(rawName),
                 text: escapeHtml(item.snippet?.displayMessage || ''),
-                status: 'default'
+                status: 'queued'
               };
             });
             

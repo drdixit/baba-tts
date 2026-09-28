@@ -47,7 +47,7 @@ export const useStore = create<StoreState>((set) => ({
   skipAllActiveMessages: () =>
     set((state) => ({
       messages: state.messages.map((msg) =>
-        ['speaking', 'processing', 'queued'].includes(msg.status)
+        ['speaking', 'processing', 'queued', 'default', 'idle'].includes(msg.status)
           ? { ...msg, status: 'skipped' }
           : msg
       ),
