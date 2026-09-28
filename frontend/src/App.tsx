@@ -353,11 +353,11 @@ function App() {
 
         {/* Temporary Theme Testing Toolbar */}
         <div className="w-full flex gap-4 border-b border-gray-700 pb-4">
-          <span className="text-gray-400 font-bold self-center px-4">Test Styles:</span>
-          <button onClick={() => simulateGoodMessage('subtitle-sweep')} className="flex-1 px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg text-white font-bold transition-colors border border-gray-600">Sweep</button>
-          <button onClick={() => simulateGoodMessage('subtitle-karaoke')} className="flex-1 px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg text-white font-bold transition-colors border border-gray-600">Karaoke</button>
-          <button onClick={() => simulateGoodMessage('subtitle-words')} className="flex-1 px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg text-white font-bold transition-colors border border-gray-600">Words</button>
-          <button onClick={() => simulateGoodMessage('pro-clean')} className="flex-1 px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg text-white font-bold transition-colors border border-cyan-400">Pro Clean</button>
+          <span className="text-gray-400 text-2xl font-bold self-center px-4 uppercase tracking-wider">Test Styles:</span>
+          <button onClick={() => simulateGoodMessage('subtitle-sweep')} className="flex-1 px-6 py-4 bg-gray-800 hover:bg-gray-700 rounded-xl text-white text-2xl font-bold transition-colors border border-gray-600">Sweep</button>
+          <button onClick={() => simulateGoodMessage('subtitle-karaoke')} className="flex-1 px-6 py-4 bg-gray-800 hover:bg-gray-700 rounded-xl text-white text-2xl font-bold transition-colors border border-gray-600">Karaoke</button>
+          <button onClick={() => simulateGoodMessage('subtitle-words')} className="flex-1 px-6 py-4 bg-gray-800 hover:bg-gray-700 rounded-xl text-white text-2xl font-bold transition-colors border border-gray-600">Words</button>
+          <button onClick={() => simulateGoodMessage('pro-clean')} className="flex-1 px-6 py-4 bg-gray-800 hover:bg-gray-700 rounded-xl text-white text-2xl font-bold transition-colors border border-cyan-400 shadow-[0_0_15px_rgba(34,211,238,0.2)]">Pro Clean</button>
         </div>
 
         {/* The Moderation Panel Columns */}

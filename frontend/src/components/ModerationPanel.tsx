@@ -38,7 +38,7 @@ const ModerationPanel: React.FC<ModerationPanelProps> = ({ onBanUser, onUnbanUse
                   ) : (
                     <div className="w-24 h-24 rounded-full shadow-sm bg-gray-700" />
                   )}
-                  <span className="text-6xl font-bold truncate text-gray-100 tracking-wide" style={{ color: getDeterministicColor(user.displayName) }}>
+                  <span className="text-5xl font-bold truncate text-gray-100 tracking-wide" style={{ color: getDeterministicColor(user.displayName) }}>
                     {user.displayName}
                   </span>
                 </div>
@@ -75,7 +75,7 @@ const ModerationPanel: React.FC<ModerationPanelProps> = ({ onBanUser, onUnbanUse
                   ) : (
                     <div className="w-24 h-24 rounded-full shadow-sm bg-gray-700 grayscale" />
                   )}
-                  <span className="text-6xl font-bold truncate text-gray-400 tracking-wide line-through decoration-red-500/50">
+                  <span className="text-5xl font-bold truncate text-gray-400 tracking-wide line-through decoration-red-500/50">
                     {user.displayName}
                   </span>
                 </div>
