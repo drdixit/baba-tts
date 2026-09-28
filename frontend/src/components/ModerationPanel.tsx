@@ -16,7 +16,7 @@ const ModerationPanel: React.FC<ModerationPanelProps> = ({ onBanUser, onUnbanUse
   const visibleActiveUsers = activeUsers.filter(u => !bannedIds.has(u.authorId));
 
   return (
-    <div className="w-full flex flex-col md:flex-row gap-4 h-full bg-gray-900 border-y border-gray-700 p-4">
+    <div className="w-full flex flex-col md:flex-row gap-4 flex-1 h-full">
       
       {/* Active Users Panel */}
       <div className="flex-1 flex flex-col h-full bg-gray-800 rounded-xl border border-gray-600 overflow-hidden shadow-inner">

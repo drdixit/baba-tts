@@ -293,69 +293,74 @@ function App() {
   return (
     <div className="h-screen w-screen flex flex-col overflow-hidden bg-transparent relative">
       {/* Floating UI controls (absolute top right) */}
-      <div className="absolute top-2 right-2 z-50 flex flex-wrap items-center justify-end gap-2">
-        {/* Temporary State Testing Buttons */}
-        <div className="flex flex-col gap-2 bg-gray-800/90 backdrop-blur p-2 rounded-lg border border-gray-700 shadow-xl">
-          <div className="flex gap-2">
-            <button onClick={() => simulateGoodMessage('subtitle-sweep')} className="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 rounded text-white font-bold transition-colors">Subtitle Sweep</button>
-            <button onClick={() => simulateGoodMessage('subtitle-karaoke')} className="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 rounded text-white font-bold transition-colors">Subtitle Karaoke</button>
-            <button onClick={() => simulateGoodMessage('subtitle-words')} className="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 rounded text-white font-bold transition-colors">Subtitle Words</button>
-            <button onClick={() => simulateGoodMessage('pro-clean')} className="px-3 py-1 bg-cyan-600 hover:bg-cyan-500 rounded text-white font-bold transition-colors border border-cyan-400">Pro Clean</button>
-          </div>
-          <div className="flex gap-2">
-            <button onClick={simulateSpamMessage} className="px-6 py-2 bg-red-600 hover:bg-red-500 rounded text-white font-bold transition-colors w-full">Simulate Spam</button>
             
-            <button
-              onClick={() => {
-                if (wsRef.current?.readyState === WebSocket.OPEN) {
-                  wsRef.current.send(JSON.stringify({ type: 'BAN_CURRENT_SPEAKER' }));
-                }
-              }}
-              className="px-8 py-4 bg-orange-600 hover:bg-orange-500 rounded-xl text-xl font-bold transition-all hover:scale-105 active:scale-95 shadow-xl"
-            >
-              Ban Current Speaker
-            </button>
+      {/* ZONE B: Moderation Panel & Toolbar */}
+      <div className="absolute top-[300px] left-0 w-[1440px] h-[1045px] z-40 flex flex-col bg-gray-900 border-y border-gray-700 p-4 gap-4 shadow-2xl pointer-events-auto">
+        
+        {/* Full-Width Toolbar */}
+        <div className="w-full flex gap-4">
+          <a 
+            href="/auth/google"
+            onClick={handleConnectClick}
+            className={`flex-1 text-center px-8 py-4 rounded-xl text-xl font-bold tracking-wide transition-all shadow-xl ${
+              isConnected 
+                ? 'bg-green-600 hover:bg-green-500 text-white' 
+                : 'bg-blue-600 hover:bg-blue-500 text-white'
+            }`}
+          >
+            {isConnected ? 'YouTube Connected' : 'Connect YouTube'}
+          </a>
 
-            <button
-              onClick={() => {
-                if (wsRef.current?.readyState === WebSocket.OPEN) {
-                  wsRef.current.send(JSON.stringify({ type: 'CLEAR_TTS_QUEUE' }));
-                }
-                if (audioRef.current) {
-                  audioRef.current.pause();
-                  audioRef.current.currentTime = 0;
-                }
-                if (rafRef.current !== null) {
-                  cancelAnimationFrame(rafRef.current);
-                  rafRef.current = null;
-                }
-                setCurrentAudioTime(0);
-                
-                useStore.getState().skipAllActiveMessages();
-                // We do NOT send AUDIO_FINISHED here to prevent double-skipping. Backend handles CLEAR_TTS_QUEUE.
-              }}
-              className="px-8 py-4 bg-red-600 hover:bg-red-500 rounded-xl text-xl font-bold transition-all hover:scale-105 active:scale-95 shadow-xl"
-            >
-              Clear TTS Queue
-            </button>
-          </div>
+          <button
+            onClick={simulateSpamMessage}
+            className="flex-1 px-8 py-4 bg-purple-600 hover:bg-purple-500 rounded-xl text-xl font-bold transition-all shadow-xl text-white"
+          >
+            Simulate Spam
+          </button>
+          
+          <button
+            onClick={() => {
+              if (wsRef.current?.readyState === WebSocket.OPEN) {
+                wsRef.current.send(JSON.stringify({ type: 'BAN_CURRENT_SPEAKER' }));
+              }
+            }}
+            className="flex-1 px-8 py-4 bg-orange-600 hover:bg-orange-500 rounded-xl text-xl font-bold transition-all shadow-xl text-white uppercase"
+          >
+            Ban Current Speaker
+          </button>
+
+          <button
+            onClick={() => {
+              if (wsRef.current?.readyState === WebSocket.OPEN) {
+                wsRef.current.send(JSON.stringify({ type: 'CLEAR_TTS_QUEUE' }));
+              }
+              if (audioRef.current) {
+                audioRef.current.pause();
+                audioRef.current.currentTime = 0;
+              }
+              if (rafRef.current !== null) {
+                cancelAnimationFrame(rafRef.current);
+                rafRef.current = null;
+              }
+              setCurrentAudioTime(0);
+              useStore.getState().skipAllActiveMessages();
+            }}
+            className="flex-1 px-8 py-4 bg-red-600 hover:bg-red-500 rounded-xl text-xl font-bold transition-all shadow-xl text-white uppercase"
+          >
+            Clear TTS Queue
+          </button>
         </div>
 
-        <a 
-          href="/auth/google"
-          onClick={handleConnectClick}
-          className={`px-8 py-3 rounded-lg text-lg font-bold tracking-wide transition-colors backdrop-blur border-2 shadow-xl ${
-            isConnected 
-              ? 'bg-green-600/90 border-green-500 hover:bg-green-500 text-white' 
-              : 'bg-blue-600/90 border-blue-500 hover:bg-blue-500 text-white'
-          }`}
-        >
-          {isConnected ? 'YouTube Connected' : 'Connect YouTube'}
-        </a>
-      </div>
-      
-      {/* ZONE B: Moderation Panel */}
-      <div className="absolute top-[300px] left-0 w-[1440px] h-[1045px] z-40">
+        {/* Temporary Theme Testing Toolbar */}
+        <div className="w-full flex gap-4 border-b border-gray-700 pb-4">
+          <span className="text-gray-400 font-bold self-center px-4">Test Styles:</span>
+          <button onClick={() => simulateGoodMessage('subtitle-sweep')} className="flex-1 px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg text-white font-bold transition-colors border border-gray-600">Sweep</button>
+          <button onClick={() => simulateGoodMessage('subtitle-karaoke')} className="flex-1 px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg text-white font-bold transition-colors border border-gray-600">Karaoke</button>
+          <button onClick={() => simulateGoodMessage('subtitle-words')} className="flex-1 px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg text-white font-bold transition-colors border border-gray-600">Words</button>
+          <button onClick={() => simulateGoodMessage('pro-clean')} className="flex-1 px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg text-white font-bold transition-colors border border-cyan-400">Pro Clean</button>
+        </div>
+
+        {/* The Moderation Panel Columns */}
         <ModerationPanel onBanUser={banUser} onUnbanUser={unbanUser} />
       </div>
 
