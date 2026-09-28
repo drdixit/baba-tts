@@ -109,9 +109,19 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({ message, currentAu
               
               <p className="text-4xl font-bold leading-tight text-white drop-shadow-[0_2px_4px_rgba(0,0,0,1)] transition-all duration-700 flex flex-wrap gap-x-3 gap-y-2">
                 {(() => {
+                    let activeWordIndex = -1;
+                    if (message.status === 'speaking' && currentAudioTime !== undefined) {
+                      for (let i = messageBoundaries.length - 1; i >= 0; i--) {
+                        if (currentAudioTime >= messageBoundaries[i].audioOffset) {
+                          activeWordIndex = i;
+                          break;
+                        }
+                      }
+                    }
+
                     return messageBoundaries.map((word, i) => {
-                      const isHighlighted = message.status === 'speaking' && currentAudioTime !== undefined && currentAudioTime >= word.audioOffset && currentAudioTime < (word.audioOffset + word.duration + 0.1);
-                      const isPast = message.status === 'speaking' && currentAudioTime !== undefined && currentAudioTime >= (word.audioOffset + word.duration + 0.1);
+                      const isHighlighted = i === activeWordIndex;
+                      const isPast = i < activeWordIndex;
                       const isRead = isHighlighted || isPast;
 
                       if (message.theme === 'subtitle-karaoke') {
