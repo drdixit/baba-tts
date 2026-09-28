@@ -23,6 +23,36 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({ message, currentAu
   const showBadge = message.status !== 'default' && message.status !== 'done';
   const isActive = isSpeaking || isProcessing;
 
+  const boundaries = React.useMemo(() => {
+    return (message.wordBoundaries && message.wordBoundaries.length > 0)
+      ? message.wordBoundaries
+      : message.text.split(' ').map((text, i) => ({ text, audioOffset: i * 0.3, duration: 0.3 }));
+  }, [message.wordBoundaries, message.text]);
+
+  const numAuthorWords = React.useMemo(() => message.authorName.trim().split(/\s+/).length + 1, [message.authorName]);
+  const authorBoundaries = React.useMemo(() => 
+    message.wordBoundaries && message.wordBoundaries.length > numAuthorWords
+      ? boundaries.slice(0, numAuthorWords)
+      : [],
+    [message.wordBoundaries, numAuthorWords, boundaries]
+  );
+  
+  const messageBoundaries = React.useMemo(() => 
+    message.wordBoundaries && message.wordBoundaries.length > numAuthorWords
+      ? boundaries.slice(numAuthorWords)
+      : boundaries,
+    [message.wordBoundaries, numAuthorWords, boundaries]
+  );
+
+  const isAuthorSpeaking = React.useMemo(() => {
+    return authorBoundaries.some(word =>
+      message.status === 'speaking' &&
+      currentAudioTime !== undefined &&
+      currentAudioTime >= word.audioOffset &&
+      currentAudioTime < (word.audioOffset + word.duration + 0.1)
+    );
+  }, [authorBoundaries, message.status, currentAudioTime]);
+
   return (
     <>
       {/* ZONE D SPOTLIGHT (Active Messages Only) */}
@@ -69,21 +99,13 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({ message, currentAu
             </div>
 
             <div className="flex flex-col flex-1 min-w-0 z-10">
-              <span className="block text-3xl opacity-90 uppercase tracking-widest drop-shadow-md mb-2" style={{ color: message.authorColor || '#ffcc00' }}>
-                {message.authorName}
+              <span className={`block text-3xl uppercase tracking-widest drop-shadow-md mb-2 transition-all duration-200 ${isAuthorSpeaking ? 'opacity-100 scale-105 origin-left' : 'opacity-90'}`} style={{ color: message.authorColor || '#ffcc00' }}>
+                {message.authorName} {isAuthorSpeaking && <span className="text-xl text-white ml-2 normal-case opacity-80">says...</span>}
               </span>
               
               <p className="text-4xl font-bold leading-tight text-white drop-shadow-[0_2px_4px_rgba(0,0,0,1)] transition-all duration-700 flex flex-wrap gap-x-3 gap-y-2">
                 {(() => {
-                    const fallbackWords = message.text.split(' ');
-                    const boundaries = (message.wordBoundaries && message.wordBoundaries.length > 0)
-                      ? message.wordBoundaries
-                      : fallbackWords.map((text, i) => ({ text, audioOffset: i * 0.3, duration: 0.3 }));
-
-                    // We need a total duration to calculate progress for sweep-bg if we wanted, 
-                    // but we can just use word highlight logic for all of them.
-
-                    return boundaries.map((word, i) => {
+                    return messageBoundaries.map((word, i) => {
                       const isHighlighted = message.status === 'speaking' && currentAudioTime !== undefined && currentAudioTime >= word.audioOffset && currentAudioTime < (word.audioOffset + word.duration + 0.1);
                       const isPast = message.status === 'speaking' && currentAudioTime !== undefined && currentAudioTime >= (word.audioOffset + word.duration + 0.1);
                       const isRead = isHighlighted || isPast;
