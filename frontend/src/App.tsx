@@ -334,6 +334,11 @@ function App() {
         </a>
       </div>
       
+      {/* ZONE B: Moderation Panel */}
+      <div className="absolute top-[80px] right-2 w-[600px] z-40">
+        <ModerationPanel onBanUser={banUser} onUnbanUser={unbanUser} />
+      </div>
+
       {/* ZONE E: SCROLLING CHAT BOX (Strictly bottom 810px, between 49px and 1389px) */}
       <main className="absolute bottom-0 left-[49px] right-[51px] h-[810px] overflow-hidden flex flex-col justify-end py-4 bg-transparent">
         <div className="flex flex-col justify-end min-h-full">
