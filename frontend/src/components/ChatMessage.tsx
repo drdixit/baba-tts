@@ -132,7 +132,7 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({ message, currentAu
                         return (
                           <span 
                             key={i}
-                            className={`inline-block px-2 py-0.5 mx-0.5 rounded-lg transition-all duration-200 ${isHighlighted ? 'scale-110 font-bold shadow-lg' : (isPast || message.status === 'done' || message.status === 'skipped' ? 'text-[#f0fdf4]' : 'text-gray-500 scale-100')}`}
+                            className={`inline-block px-2 py-0.5 mx-0.5 rounded-lg transition-all ${isHighlighted ? 'duration-75 scale-110 font-bold shadow-lg' : 'duration-0 scale-100 ' + (isPast || message.status === 'done' || message.status === 'skipped' ? 'text-[#f0fdf4]' : 'text-gray-500')}`}
                             style={{
                               backgroundColor: isHighlighted ? (message.authorColor || '#4ade80') : 'transparent',
                               color: isHighlighted ? '#000' : undefined,
