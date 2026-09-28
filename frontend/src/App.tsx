@@ -22,6 +22,7 @@ function App() {
   }, [messages]);
 
   useEffect(() => {
+    let isIntentionalClose = false;
     // Determine the WebSocket URL based on the current origin
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const wsUrl = `${protocol}//${window.location.host}/ws`;
@@ -101,7 +102,7 @@ function App() {
             setCurrentAudioTime(0);
             useStore.getState().updateMessageStatus(data.messageId, 'done');
             if (wsRef.current?.readyState === WebSocket.OPEN) {
-              wsRef.current.send(JSON.stringify({ type: 'AUDIO_FINISHED' }));
+              wsRef.current.send(JSON.stringify({ type: 'AUDIO_FINISHED', messageId: data.messageId }));
             }
           };
           
@@ -109,7 +110,7 @@ function App() {
             console.error("Audio play failed:", e);
             useStore.getState().updateMessageStatus(data.messageId, 'skipped');
             if (wsRef.current?.readyState === WebSocket.OPEN) {
-              wsRef.current.send(JSON.stringify({ type: 'AUDIO_FINISHED' }));
+              wsRef.current.send(JSON.stringify({ type: 'AUDIO_FINISHED', messageId: data.messageId }));
             }
           };
           
@@ -117,7 +118,7 @@ function App() {
             console.error("Audio play failed (Promise rejected):", e);
             useStore.getState().updateMessageStatus(data.messageId, 'skipped');
             if (wsRef.current?.readyState === WebSocket.OPEN) {
-              wsRef.current.send(JSON.stringify({ type: 'AUDIO_FINISHED' }));
+              wsRef.current.send(JSON.stringify({ type: 'AUDIO_FINISHED', messageId: data.messageId }));
             }
           });
         } else if (data.type === 'delete' && data.messageId) {
@@ -137,6 +138,7 @@ function App() {
     };
 
     ws.onclose = () => {
+      if (isIntentionalClose) return;
       console.log('WebSocket disconnected. Attempting to reconnect in 3s...');
       setConnected(false);
       setTimeout(() => {
@@ -148,6 +150,7 @@ function App() {
     };
 
     return () => {
+      isIntentionalClose = true;
       ws.close();
     };
   }, [addMessages, setConnected]);

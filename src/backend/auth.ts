@@ -72,11 +72,8 @@ authRouter.get('/google/callback', async (c) => {
     // If we didn't get a refresh token (e.g., already authorized), just ensure the row exists
     const exists = db.prepare('SELECT id FROM oauth_accounts WHERE id = ?').get(accountId);
     if (!exists) {
-      db.prepare('DELETE FROM oauth_accounts').run();
-      db.prepare(`
-        INSERT INTO oauth_accounts (id, refresh_token, channel_id)
-        VALUES (?, ?, ?)
-      `).run(accountId, '', null);
+      console.error('No refresh token provided by Google and no existing account found.');
+      return c.text('Authorization failed: No refresh token provided by Google. Please try connecting again and ensure you grant full access.', 400);
     }
   }
   

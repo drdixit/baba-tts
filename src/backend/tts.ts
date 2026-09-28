@@ -13,7 +13,7 @@ export function enqueueMessageForTTS(message: ChatMessage) {
   
   // Cleanup old cache entries (older than 30 seconds)
   for (const [text, timestamp] of RECENT_MESSAGES_CACHE.entries()) {
-    if (now - timestamp > 5000) {
+    if (now - timestamp > 30000) {
       RECENT_MESSAGES_CACHE.delete(text);
     }
   }
@@ -68,7 +68,10 @@ export function removeUserFromQueue(authorId: string) {
   }
 }
 
-export function markAudioFinished() {
+export function markAudioFinished(messageId?: string) {
+  if (messageId && currentProcessingMessage?.messageId !== messageId) {
+    return; // Duplicate AUDIO_FINISHED from another client (OBS vs Chrome)
+  }
   currentProcessingMessage = null;
   isProcessing = false;
   processQueue();

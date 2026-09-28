@@ -3,7 +3,6 @@ import type { Server } from 'node:http';
 import type { ChatMessage } from '../shared/types.js';
 
 import { db, banUser, unbanUser, getBannedUsers } from './db.js';
-import { generateSpeech } from './tts.js';
 
 let wss: WebSocketServer | null = null;
 
@@ -43,7 +42,7 @@ export function initWebSocketServer(server: Server) {
         }
         if (message.type === 'AUDIO_FINISHED') {
           const { markAudioFinished } = await import('./tts.js');
-          markAudioFinished();
+          markAudioFinished(message.messageId);
         }
         if (message.type === 'CLEAR_TTS_QUEUE') {
           const { clearTTSQueue } = await import('./tts.js');
