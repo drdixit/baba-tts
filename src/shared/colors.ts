@@ -1,23 +1,18 @@
 export const CHAT_COLORS = [
-  '#FF5733', // Bright Red-Orange
-  '#FF3366', // Hot Pink
-  '#FF33A8', // Magenta
-  '#D633FF', // Purple
-  '#8A33FF', // Indigo
-  '#335BFF', // Royal Blue
-  '#33B5FF', // Cyan
-  '#33FFD6', // Aqua
-  '#33FF7A', // Spring Green
-  '#7AFF33', // Lime
-  '#D6FF33', // Yellow-Green
-  '#FFC733', // Golden Yellow
-  '#FF8A33', // Orange
-  '#FF3333', // Red
-  '#E60000', // Crimson
-  '#00E676', // Malachite
-  '#00B0FF', // Deep Sky Blue
-  '#651FFF', // Deep Purple
-  '#F50057', // Pink
+  '#f87171', // red-400
+  '#fb7185', // rose-400
+  '#f472b6', // pink-400
+  '#c084fc', // purple-400
+  '#a78bfa', // violet-400
+  '#818cf8', // indigo-400
+  '#60a5fa', // blue-400
+  '#38bdf8', // sky-400
+  '#2dd4bf', // teal-400
+  '#4ade80', // green-400
+  '#a3e635', // lime-400
+  '#facc15', // yellow-400
+  '#fbbf24', // amber-400
+  '#fb923c', // orange-400
 ];
 
 export function getDeterministicColor(username: string): string {
