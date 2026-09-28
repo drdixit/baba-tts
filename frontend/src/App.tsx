@@ -6,6 +6,7 @@ function App() {
   const { messages, isConnected, addMessages, setConnected}  = useStore();
   const wsRef = useRef<WebSocket | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const rafRef = useRef<number | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const [currentAudioTime, setCurrentAudioTime] = useState(0);
@@ -47,7 +48,11 @@ function App() {
             status: 'speaking',
             wordBoundaries: data.wordBoundaries
           });
-          
+          if (rafRef.current !== null) {
+            cancelAnimationFrame(rafRef.current);
+            rafRef.current = null;
+          }
+
           if (audioRef.current) {
             audioRef.current.pause();
           }
@@ -55,11 +60,29 @@ function App() {
           const audio = new Audio(data.audioData);
           audioRef.current = audio;
 
-          audio.ontimeupdate = () => {
-            setCurrentAudioTime(audio.currentTime);
+          const syncLoop = () => {
+            if (audioRef.current === audio && !audio.paused) {
+              setCurrentAudioTime(audio.currentTime);
+              rafRef.current = requestAnimationFrame(syncLoop);
+            }
+          };
+
+          audio.onplay = () => {
+            rafRef.current = requestAnimationFrame(syncLoop);
+          };
+
+          audio.onpause = () => {
+            if (rafRef.current !== null) {
+              cancelAnimationFrame(rafRef.current);
+              rafRef.current = null;
+            }
           };
           
           audio.onended = () => {
+            if (rafRef.current !== null) {
+              cancelAnimationFrame(rafRef.current);
+              rafRef.current = null;
+            }
             setCurrentAudioTime(0);
             useStore.getState().updateMessageStatus(data.messageId, 'skipped'); // Or 'read' if you had it
             if (wsRef.current?.readyState === WebSocket.OPEN) {
@@ -264,6 +287,10 @@ function App() {
                 if (audioRef.current) {
                   audioRef.current.pause();
                   audioRef.current.currentTime = 0;
+                }
+                if (rafRef.current !== null) {
+                  cancelAnimationFrame(rafRef.current);
+                  rafRef.current = null;
                 }
               }}
               className="px-4 py-2 bg-red-600 hover:bg-red-500 rounded text-sm font-semibold transition-colors shadow-lg"

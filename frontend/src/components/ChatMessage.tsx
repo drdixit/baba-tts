@@ -69,7 +69,7 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({ message, currentAu
             {/* Background Sweep effect */}
             {message.theme === 'subtitle-sweep' && message.status === 'speaking' && (
               <div 
-                className="absolute top-0 left-0 bottom-0 bg-white/15 rounded-3xl pointer-events-none -z-10 transition-all duration-200 ease-linear"
+                className="absolute top-0 left-0 bottom-0 bg-white/15 rounded-3xl pointer-events-none -z-10"
                 style={{
                   width: (() => {
                     if (!messageBoundaries || messageBoundaries.length === 0 || currentAudioTime === undefined) return '0%';
