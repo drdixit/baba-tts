@@ -91,7 +91,8 @@ export async function discoverActiveBroadcasts(accountId: string) {
   } catch (error: any) {
     console.error(`Error discovering active broadcasts for account ${accountId}:`, error);
     const statusCode = error.code || error.status;
-    if (statusCode === 401) {
+    const errorMsg = error.message || '';
+    if (statusCode === 401 || (statusCode === 400 && errorMsg.includes('invalid_grant'))) {
       broadcastAuthError();
       try {
         db.prepare('DELETE FROM oauth_accounts WHERE id = ?').run(accountId);
@@ -208,8 +209,8 @@ export async function streamLiveChat(accountId: string, liveChatId: string, page
     
     const state = retryState.get(pollerKey) || { errorCount: 0, gracefulEndCount: 0 };
     
-    if (statusCode === 401) {
-      console.error(`Auth error (HTTP 401) from liveChatMessages. Stopping stream.`);
+    if (statusCode === 401 || (statusCode === 400 && errorMsg.includes('invalid_grant'))) {
+      console.error(`Auth error (HTTP 401/400) from liveChatMessages. Stopping stream.`);
       activePollers.delete(pollerKey);
       retryState.delete(pollerKey);
       broadcastAuthError();
