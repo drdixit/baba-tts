@@ -1,5 +1,5 @@
 import type { ChatMessage } from '../shared/types.js';
-import { broadcastPlayAudio, broadcastTTSState, broadcastKillAudio } from './ws.js';
+import { broadcastPlayAudio, broadcastTTSState, broadcastKillAudio, broadcastMessages } from './ws.js';
 import * as sdk from 'microsoft-cognitiveservices-speech-sdk';
 
 let queue: ChatMessage[] = [];
@@ -61,16 +61,24 @@ export function skipCurrentMessage() {
   }
 }
 
+import { getDeterministicColor } from '../shared/colors.js';
+
 export function enqueuePriorityMessage(text: string): ChatMessage {
+  const themes = ['subtitle-sweep', 'subtitle-karaoke', 'subtitle-words', 'pro-clean'];
+  const randomTheme = themes[Math.floor(Math.random() * themes.length)];
+
   const msg: ChatMessage = {
     messageId: 'baba-' + Date.now(),
     authorName: 'BABA',
     authorId: 'baba-streamer',
+    authorProfileImageUrl: 'https://api.dicebear.com/7.x/avataaars/svg?seed=BABA',
+    authorColor: getDeterministicColor('BABA'),
     text,
     status: 'queued',
-    theme: 'pro-clean',
+    theme: randomTheme as any,
   };
   queue.unshift(msg); // insert at front — plays next after current
+  broadcastMessages([msg]);
   processQueue();
   return msg;
 }
