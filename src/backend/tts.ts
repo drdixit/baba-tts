@@ -153,7 +153,7 @@ async function processQueue() {
   }
 }
 
-export async function generateSpeech(text: string, voiceName: string): Promise<{ audioData: string, wordBoundaries: { text: string, audioOffset: number, duration: number }[] } | null> {
+export async function generateSpeech(text: string, voiceName: string): Promise<{ audioData: string, wordBoundaries: { text: string, audioOffset: number, duration: number, textOffset: number }[] } | null> {
   const key = process.env.AZURE_SPEECH_KEY;
   const region = process.env.AZURE_SPEECH_REGION;
 
@@ -169,12 +169,13 @@ export async function generateSpeech(text: string, voiceName: string): Promise<{
 
     const synthesizer = new sdk.SpeechSynthesizer(speechConfig);
 
-    const wordBoundaries: { text: string, audioOffset: number, duration: number }[] = [];
+    const wordBoundaries: { text: string, audioOffset: number, duration: number, textOffset: number }[] = [];
     synthesizer.wordBoundary = (s, e) => {
       wordBoundaries.push({
         text: e.text,
         audioOffset: e.audioOffset / 10000000,
-        duration: e.duration / 10000000
+        duration: e.duration / 10000000,
+        textOffset: e.textOffset
       });
     };
 

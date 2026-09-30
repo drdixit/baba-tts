@@ -26,7 +26,7 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({ message, currentAu
   const boundaries = React.useMemo(() => {
     return (message.wordBoundaries && message.wordBoundaries.length > 0)
       ? message.wordBoundaries
-      : message.text.split(' ').map((text, i) => ({ text, audioOffset: i * 0.3, duration: 0.3 }));
+      : message.text.split(' ').map((text, i) => ({ text, audioOffset: i * 0.3, duration: 0.3, textOffset: 0 }));
   }, [message.wordBoundaries, message.text]);
 
   const numAuthorWords = React.useMemo(() => message.authorName.trim().split(/\s+/).length + 1, [message.authorName]);
