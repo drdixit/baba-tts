@@ -1,5 +1,6 @@
 import type { ChatMessage } from '../shared/types.js';
 import { broadcastPlayAudio, broadcastTTSState, broadcastKillAudio, broadcastMessages } from './ws.js';
+import { getDeterministicColor } from '../shared/colors.js';
 import * as sdk from 'microsoft-cognitiveservices-speech-sdk';
 
 let queue: ChatMessage[] = [];
@@ -60,8 +61,6 @@ export function skipCurrentMessage() {
     processQueue(); // immediately process next in queue if any
   }
 }
-
-import { getDeterministicColor } from '../shared/colors.js';
 
 export function enqueuePriorityMessage(text: string): ChatMessage {
   const themes = ['subtitle-sweep', 'subtitle-karaoke', 'subtitle-words', 'pro-clean'];
