@@ -1,8 +1,9 @@
+import { LiveChat } from 'youtube-chat-next';
 import { google } from 'googleapis';
 import { db, isUserBanned } from './db.js';
 import { getOAuth2Client } from './auth.js';
 import { broadcastMessages, broadcastAuthError, broadcastQuotaExhausted } from './ws.js';
-import { enqueueMessageForTTS } from './tts.js';
+import { enqueueMessageForTTS, clearTTSQueue } from './tts.js';
 import type { ChatMessage } from '../shared/types.js';
 import { getDeterministicColor } from '../shared/colors.js';
 
@@ -35,12 +36,98 @@ export function _testSetActivePoller(accountId: string) {
   activePollers.add(`${accountId}:chat-123`);
 }
 
+
+let unofficialLiveChat: LiveChat | null = null;
+let unofficialRetryTimeout: NodeJS.Timeout | null = null;
+
+export function startUnofficialPolling() {
+  if (unofficialLiveChat) return;
+
+  const liveIdOverride = process.env.YOUTUBE_LIVE_ID;
+  if (liveIdOverride) {
+    console.log(`[Unofficial API] Starting YouTube polling for liveId override: ${liveIdOverride}...`);
+    unofficialLiveChat = new LiveChat({ liveId: liveIdOverride }, 5000, 'live');
+  } else {
+    console.log('[Unofficial API] Starting YouTube polling for @babaonpc...');
+    unofficialLiveChat = new LiveChat({ handle: '@babaonpc' }, 5000, 'live');
+  }
+
+  unofficialLiveChat.on("start", (liveId: string) => {
+    console.log(`[Unofficial API] Connected to live stream: ${liveId}`);
+    clearTTSQueue(); // Flush old backlog!
+  });
+
+  unofficialLiveChat.on("chat", (chatItem: any) => {
+    const rawName = chatItem.author.name;
+    const authorId = chatItem.author.channelId;
+    
+    if (isUserBanned(authorId)) return;
+
+    const text = chatItem.message.map((m: any) => ("text" in m ? m.text : m.emojiText)).join("");
+    if (!text.trim()) return;
+
+    const themes = ['subtitle-sweep', 'subtitle-karaoke', 'subtitle-words', 'pro-clean'];
+    const randomTheme = themes[Math.floor(Math.random() * themes.length)];
+    const profileImg = chatItem.author.thumbnail?.url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${rawName}`;
+
+    const msg: ChatMessage = {
+      messageId: chatItem.id,
+      authorName: escapeHtml(rawName),
+      authorId: authorId,
+      authorProfileImageUrl: profileImg,
+      authorColor: getDeterministicColor(rawName),
+      text: escapeHtml(text),
+      status: 'queued',
+      theme: randomTheme as any
+    };
+
+    broadcastMessages([msg]);
+    enqueueMessageForTTS(msg);
+  });
+
+  unofficialLiveChat.on("end", (reason: any) => {
+    console.log(`[Unofficial API] Stream ended: ${reason}`);
+    unofficialLiveChat = null;
+    if (unofficialRetryTimeout) clearTimeout(unofficialRetryTimeout);
+    unofficialRetryTimeout = setTimeout(() => startUnofficialPolling(), 60000);
+  });
+
+  unofficialLiveChat.on("error", (err: any) => {
+    if (err.name === 'ScrapeError') {
+      console.error('[Unofficial API] YouTube changed page structure. Stopping.');
+    } else if (err.name === 'RateLimitError') {
+      console.warn('[Unofficial API] Rate limited. Backing off...');
+    } else {
+      console.error(`[Unofficial API] Error: ${err.message}`);
+    }
+  });
+
+  unofficialLiveChat.start().then((ok: boolean) => {
+    if (!ok) {
+        console.log('[Unofficial API] Failed to start. User might not be live right now. Will retry in 60s.');
+        unofficialLiveChat = null;
+        if (unofficialRetryTimeout) clearTimeout(unofficialRetryTimeout);
+        unofficialRetryTimeout = setTimeout(() => startUnofficialPolling(), 60000);
+    }
+  }).catch((e: any) => {
+    console.error('[Unofficial API] Catch block:', e.message);
+    unofficialLiveChat = null;
+    if (unofficialRetryTimeout) clearTimeout(unofficialRetryTimeout);
+    unofficialRetryTimeout = setTimeout(() => startUnofficialPolling(), 60000);
+  });
+}
+
 export async function discoverActiveBroadcasts(accountId: string) {
+  // --- TEMPORARY UNOFFICIAL POLLING ---
+  startUnofficialPolling();
+  return;
+  // ------------------------------------
+
   discoveryRunning.add(accountId);
   
   try {
     const row = db.prepare('SELECT refresh_token FROM oauth_accounts WHERE id = ?').get(accountId) as { refresh_token: string } | undefined;
-    if (!row || !row.refresh_token) {
+    if (!(row?.refresh_token)) {
       console.error('No refresh token found for account:', accountId);
       discoveryRunning.delete(accountId);
       return;
@@ -49,7 +136,7 @@ export async function discoverActiveBroadcasts(accountId: string) {
     let youtube = youtubeClients.get(accountId);
     if (!youtube) {
       const client = getOAuth2Client();
-      client.setCredentials({ refresh_token: row.refresh_token });
+      client.setCredentials({ refresh_token: row?.refresh_token });
       youtube = google.youtube({ version: 'v3', auth: client });
       youtubeClients.set(accountId, youtube);
     }
@@ -134,7 +221,7 @@ export async function streamLiveChat(accountId: string, liveChatId: string, page
   if (!activePollers.has(pollerKey)) return;
   
   const row = db.prepare('SELECT refresh_token FROM oauth_accounts WHERE id = ?').get(accountId) as { refresh_token: string } | undefined;
-  if (!row || !row.refresh_token) {
+  if (!(row?.refresh_token)) {
     activePollers.delete(pollerKey);
     return;
   }
@@ -145,7 +232,7 @@ export async function streamLiveChat(accountId: string, liveChatId: string, page
     let youtube = youtubeClients.get(accountId);
     if (!youtube) {
       const client = getOAuth2Client();
-      client.setCredentials({ refresh_token: row.refresh_token });
+      client.setCredentials({ refresh_token: row?.refresh_token });
       youtube = google.youtube({ version: 'v3', auth: client });
       youtubeClients.set(accountId, youtube);
     }
@@ -283,6 +370,12 @@ export function resumeBroadcastDiscovery(accountId: string) {
 }
 
 export function stopBroadcastDiscovery(accountId?: string) {
+  if (unofficialLiveChat) {
+    unofficialLiveChat.stop('Stopped by backend');
+    unofficialLiveChat = null;
+  }
+  if (unofficialRetryTimeout) clearTimeout(unofficialRetryTimeout);
+
   if (accountId) {
     const prefix = `${accountId}:`;
     for (const key of activePollers) {

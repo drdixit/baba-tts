@@ -12,7 +12,8 @@ export const ChatMessageSchema = z.object({
   wordBoundaries: z.array(z.object({
     text: z.string(),
     audioOffset: z.number(),
-    duration: z.number()
+    duration: z.number(),
+    textOffset: z.number().optional()
   })).optional(),
 });
 

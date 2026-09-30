@@ -51,6 +51,30 @@ export function clearTTSQueue() {
   isProcessing = false;
 }
 
+export function skipCurrentMessage() {
+  if (currentProcessingMessage) {
+    broadcastTTSState(currentProcessingMessage.messageId, 'skipped');
+    broadcastKillAudio();
+    currentProcessingMessage = null;
+    isProcessing = false;
+    processQueue(); // immediately process next in queue if any
+  }
+}
+
+export function enqueuePriorityMessage(text: string): ChatMessage {
+  const msg: ChatMessage = {
+    messageId: 'baba-' + Date.now(),
+    authorName: 'BABA',
+    authorId: 'baba-streamer',
+    text,
+    status: 'queued',
+    theme: 'pro-clean',
+  };
+  queue.unshift(msg); // insert at front — plays next after current
+  processQueue();
+  return msg;
+}
+
 export function removeUserFromQueue(authorId: string) {
   queue = queue.filter(msg => {
     if (msg.authorId === authorId) {
@@ -100,7 +124,10 @@ async function processQueue() {
     const voiceName = voices[Math.floor(Math.random() * voices.length)];
     const textToSpeak = `${msg.authorName} says ${msg.text}`;
     
+    const azureStart = Date.now();
     const result = await generateSpeech(textToSpeak, voiceName);
+    const azureLatency = Date.now() - azureStart;
+    console.log(`[TTS] Azure latency: ${azureLatency}ms for message ${msg.messageId}`);
     
     // SAFEGUARD: Check if this message was cancelled (banned/cleared) while Azure was generating it
     if (currentProcessingMessage?.messageId !== msg.messageId) {

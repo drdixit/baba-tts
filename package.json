@@ -7,7 +7,9 @@
     "doc": "docs"
   },
   "scripts": {
-    "dev": "tsx watch src/backend/server.ts",
+    "dev": "trap 'kill 0' SIGINT; tsx watch src/backend/server.ts & cd frontend && npx vite --host & wait",
+    "dev:backend": "tsx watch src/backend/server.ts",
+    "dev:frontend": "cd frontend && npx vite --host",
     "build": "tsc",
     "test": "vitest run"
   },
@@ -23,6 +25,7 @@
     "hono": "^4.13.9",
     "microsoft-cognitiveservices-speech-sdk": "^1.51.0",
     "ws": "^8.21.3",
+    "youtube-chat-next": "^3.1.0",
     "zod": "^4.6.5"
   },
   "devDependencies": {
@@ -32,5 +35,9 @@
     "tsx": "^4.23.15",
     "typescript": "^7.0.2",
     "vitest": "^5.0.2"
+  },
+  "allowScripts": {
+    "better-sqlite3@13.0.3": true,
+    "esbuild@0.28.2": true
   }
 }

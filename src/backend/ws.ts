@@ -48,6 +48,10 @@ export function initWebSocketServer(server: Server) {
           const { clearTTSQueue } = await import('./tts.js');
           clearTTSQueue();
         }
+        if (message.type === 'SKIP_CURRENT_MESSAGE') {
+          const { skipCurrentMessage } = await import('./tts.js');
+          skipCurrentMessage();
+        }
         
         if (message.type === 'BAN_CURRENT_SPEAKER') {
           const { getCurrentProcessingMessage, removeUserFromQueue } = await import('./tts.js');

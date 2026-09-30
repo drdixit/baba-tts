@@ -341,6 +341,17 @@ function App() {
           <button
             onClick={() => {
               if (wsRef.current?.readyState === WebSocket.OPEN) {
+                wsRef.current.send(JSON.stringify({ type: 'SKIP_CURRENT_MESSAGE' }));
+              }
+            }}
+            className="flex-1 px-10 py-6 bg-yellow-600 hover:bg-yellow-500 rounded-2xl text-3xl font-bold transition-all shadow-xl text-white uppercase"
+          >
+            Skip Current
+          </button>
+
+          <button
+            onClick={() => {
+              if (wsRef.current?.readyState === WebSocket.OPEN) {
                 wsRef.current.send(JSON.stringify({ type: 'CLEAR_TTS_QUEUE' }));
               }
               if (audioRef.current) {

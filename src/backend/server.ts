@@ -12,6 +12,21 @@ const app = new Hono();
 app.route('/auth', authRouter);
 
 app.get('/', (c) => c.text('Baba TTS Server Running'));
+app.get('/api/skip-current', async (c) => {
+  const { skipCurrentMessage } = await import('./tts.js');
+  skipCurrentMessage();
+  return c.text('Skipped');
+});
+
+app.post('/api/baba-say', async (c) => {
+  const body = await c.req.json().catch(() => ({}));
+  if (!body.text || typeof body.text !== 'string') {
+    return c.json({ error: 'Missing or invalid "text" field' }, 400);
+  }
+  const { enqueuePriorityMessage } = await import('./tts.js');
+  enqueuePriorityMessage(body.text);
+  return c.json({ success: true, text: body.text });
+});
 
 const port = 7060;
 console.log(`Server is running on port ${port}`);

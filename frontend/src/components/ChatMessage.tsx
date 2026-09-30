@@ -91,7 +91,7 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({ message, currentAu
               {message.authorProfileImageUrl && (
                 <img 
                   src={message.authorProfileImageUrl} 
-                  alt={`${message.authorName}'s avatar`} 
+                  alt={`${message.authorName}'s avatar`} onError={(e) => { e.currentTarget.src = `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(message.authorName)}`; }} 
                   className={`w-24 h-24 rounded-full shadow-lg bg-gray-800 object-cover z-10 transition-all duration-300
                     ${message.status === 'speaking' ? (message.theme === 'pro-clean' ? 'scale-110 border-4' : 'animate-avatar-speak border-2') : ''}
                     ${message.status === 'processing' ? 'animate-avatar-process border-2' : ''}
@@ -125,7 +125,14 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({ message, currentAu
                       }
                     }
 
+                    const prefixLength = `${message.authorName} says `.length;
+
                     return messageBoundaries.map((word, i) => {
+                      // Hide words that are part of the "{Author} says " prefix
+                      if (word.textOffset !== undefined && word.textOffset < prefixLength) {
+                        return null;
+                      }
+
                       const isHighlighted = i === activeWordIndex;
                       const isPast = i < activeWordIndex;
                       const isRead = isHighlighted || isPast;
