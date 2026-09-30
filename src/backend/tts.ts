@@ -70,7 +70,7 @@ export function enqueuePriorityMessage(text: string): ChatMessage {
     messageId: 'baba-' + Date.now(),
     authorName: 'BABA',
     authorId: 'baba-streamer',
-    authorProfileImageUrl: 'https://api.dicebear.com/7.x/avataaars/svg?seed=BABA',
+    authorProfileImageUrl: '/baba-800x800.jpg',
     authorColor: getDeterministicColor('BABA'),
     text,
     status: 'queued',
