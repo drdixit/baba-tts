@@ -26,23 +26,27 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({ message, currentAu
   const boundaries = React.useMemo(() => {
     return (message.wordBoundaries && message.wordBoundaries.length > 0)
       ? message.wordBoundaries
-      : message.text.split(' ').map((text, i) => ({ text, audioOffset: i * 0.3, duration: 0.3, textOffset: 0 }));
+      : message.text.split(' ').map((text, i) => ({ text, audioOffset: i * 0.3, duration: 0.3, textOffset: undefined }));
   }, [message.wordBoundaries, message.text]);
 
   const numAuthorWords = React.useMemo(() => message.authorName.trim().split(/\s+/).length + 1, [message.authorName]);
-  const authorBoundaries = React.useMemo(() => 
-    message.wordBoundaries && message.wordBoundaries.length > numAuthorWords
-      ? boundaries.slice(0, numAuthorWords)
-      : [],
-    [message.wordBoundaries, numAuthorWords, boundaries]
-  );
+  const prefixLength = React.useMemo(() => `${message.authorName} says `.length, [message.authorName]);
+
+  const authorBoundaries = React.useMemo(() => {
+    if (!message.wordBoundaries || message.wordBoundaries.length === 0) return [];
+    if (message.wordBoundaries[0].textOffset === undefined) {
+      return message.wordBoundaries.length > numAuthorWords ? message.wordBoundaries.slice(0, numAuthorWords) : [];
+    }
+    return message.wordBoundaries.filter(w => w.textOffset !== undefined && w.textOffset < prefixLength);
+  }, [message.wordBoundaries, prefixLength, numAuthorWords]);
   
-  const messageBoundaries = React.useMemo(() => 
-    message.wordBoundaries && message.wordBoundaries.length > numAuthorWords
-      ? boundaries.slice(numAuthorWords)
-      : boundaries,
-    [message.wordBoundaries, numAuthorWords, boundaries]
-  );
+  const messageBoundaries = React.useMemo(() => {
+    if (!message.wordBoundaries || message.wordBoundaries.length === 0) return boundaries;
+    if (message.wordBoundaries[0].textOffset === undefined) {
+      return message.wordBoundaries.length > numAuthorWords ? message.wordBoundaries.slice(numAuthorWords) : boundaries;
+    }
+    return message.wordBoundaries.filter(w => w.textOffset === undefined || w.textOffset >= prefixLength);
+  }, [message.wordBoundaries, boundaries, prefixLength, numAuthorWords]);
 
   const isAuthorSpeaking = React.useMemo(() => {
     return authorBoundaries.some(word =>
@@ -125,14 +129,7 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({ message, currentAu
                       }
                     }
 
-                    const prefixLength = `${message.authorName} says `.length;
-
                     return messageBoundaries.map((word, i) => {
-                      // Hide words that are part of the "{Author} says " prefix
-                      if (word.textOffset !== undefined && word.textOffset < prefixLength) {
-                        return null;
-                      }
-
                       const isHighlighted = i === activeWordIndex;
                       const isPast = i < activeWordIndex;
                       const isRead = isHighlighted || isPast;

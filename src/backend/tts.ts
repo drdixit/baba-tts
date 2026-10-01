@@ -120,13 +120,9 @@ async function processQueue() {
     
     // Use strictly hi-IN voices to properly support Devanagari text segment boundaries
     const voices = [
-      "hi-IN-ArjunNeural",
+      "hi-IN-AnanyaNeural",
       "hi-IN-MadhurNeural",
       "hi-IN-SwaraNeural",
-      "hi-IN-AnanyaNeural",
-      "hi-IN-AaravNeural",
-      "hi-IN-AartiNeural",
-      "hi-IN-KunalNeural"
     ];
     const voiceName = voices[Math.floor(Math.random() * voices.length)];
     const textToSpeak = `${msg.authorName} says ${msg.text}`;
