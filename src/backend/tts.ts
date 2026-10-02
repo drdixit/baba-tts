@@ -167,7 +167,7 @@ export async function generateSpeech(text: string, voiceName: string): Promise<{
   try {
     const speechConfig = sdk.SpeechConfig.fromSubscription(key, region);
     speechConfig.speechSynthesisVoiceName = voiceName;
-    speechConfig.speechSynthesisOutputFormat = sdk.SpeechSynthesisOutputFormat.Riff48Khz16BitMonoPcm;
+    speechConfig.speechSynthesisOutputFormat = sdk.SpeechSynthesisOutputFormat.Audio48Khz96KBitRateMonoMp3;
 
     const synthesizer = new sdk.SpeechSynthesizer(speechConfig);
 
