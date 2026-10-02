@@ -127,10 +127,13 @@ async function processQueue() {
     const voiceName = voices[Math.floor(Math.random() * voices.length)];
     const textToSpeak = `${msg.authorName} says ${msg.text}`;
     
-    const azureStart = Date.now();
     const result = await generateSpeech(textToSpeak, voiceName);
-    const azureLatency = Date.now() - azureStart;
-    console.log(`[TTS] Azure latency: ${azureLatency}ms for message ${msg.messageId}`);
+    
+    if (result && result.timings) {
+      console.log(`[TTS] Metrics for message ${msg.messageId} | Processing: ${result.timings.processingMs}ms | Download: ${result.timings.downloadMs}ms | Total: ${result.timings.totalMs}ms`);
+    } else {
+      console.log(`[TTS] Failed to generate message ${msg.messageId}`);
+    }
     
     // SAFEGUARD: Check if this message was cancelled (banned/cleared) while Azure was generating it
     if (currentProcessingMessage?.messageId !== msg.messageId) {
@@ -149,7 +152,7 @@ async function processQueue() {
   }
 }
 
-export async function generateSpeech(text: string, voiceName: string): Promise<{ audioData: string, wordBoundaries: { text: string, audioOffset: number, duration: number, textOffset: number }[] } | null> {
+export async function generateSpeech(text: string, voiceName: string): Promise<{ audioData: string, wordBoundaries: { text: string, audioOffset: number, duration: number, textOffset: number }[], timings: { processingMs: number, downloadMs: number, totalMs: number } } | null> {
   const key = process.env.AZURE_SPEECH_KEY;
   const region = process.env.AZURE_SPEECH_REGION;
 
@@ -174,16 +177,28 @@ export async function generateSpeech(text: string, voiceName: string): Promise<{
         textOffset: e.textOffset
       });
     };
+    
+    const startTime = Date.now();
+    let firstByteTime = 0;
+    synthesizer.synthesisStarted = () => {
+      firstByteTime = Date.now();
+    };
 
     return await new Promise((resolve) => {
       synthesizer.speakTextAsync(
         text,
         (result) => {
+          const endTime = Date.now();
+          const firstByte = firstByteTime || endTime;
+          const processingMs = firstByte - startTime;
+          const downloadMs = endTime - firstByte;
+          const totalMs = endTime - startTime;
+
           if (result.reason === sdk.ResultReason.SynthesizingAudioCompleted) {
             const buffer = Buffer.from(result.audioData);
             const base64 = buffer.toString('base64');
             const audioData = 'data:audio/wav;base64,' + base64;
-            resolve({ audioData, wordBoundaries });
+            resolve({ audioData, wordBoundaries, timings: { processingMs, downloadMs, totalMs } });
           } else {
             console.error(`Speech synthesis canceled or failed: ${result.errorDetails}`);
             resolve(null);
