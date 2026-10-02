@@ -4,6 +4,7 @@ import { broadcastMessages } from './ws.js';
 import { enqueueMessageForTTS, clearTTSQueue } from './tts.js';
 import { ChatMessage } from '../../src/shared/types.js';
 import { getDeterministicColor } from '../../src/shared/colors.js';
+import { isSpamMessage } from './spamFilter.js';
 
 
 function escapeHtml(unsafe: string) {
@@ -41,6 +42,14 @@ export function startUnofficialPolling() {
     
     if (isUserBanned(authorId)) return;
 
+    const rawText = chatItem.message.map((m: any) => m.text).join('') || '';
+    
+    const spamCheck = isSpamMessage(authorId, rawText);
+    if (spamCheck.isSpam) {
+      console.log(`[Spam Filter] Blocked message from ${rawName}: ${spamCheck.reason}`);
+      return;
+    }
+
     const themes = ['subtitle-sweep', 'subtitle-karaoke', 'subtitle-words', 'pro-clean'];
     const randomTheme = themes[Math.floor(Math.random() * themes.length)];
 
@@ -50,7 +59,7 @@ export function startUnofficialPolling() {
       authorId: authorId,
       authorProfileImageUrl: chatItem.author.thumbnail?.url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${rawName}`,
       authorColor: getDeterministicColor(rawName),
-      text: escapeHtml(chatItem.message.map((m: any) => m.text).join('') || ''),
+      text: escapeHtml(rawText),
       status: 'queued',
       theme: randomTheme as any
     };
