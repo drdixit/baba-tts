@@ -232,7 +232,7 @@ function App() {
       'Bhai agar tum isko thoda aur detail mein samjha do, toh beginners ko bhi easily samajh aa jayega 👍',
       'भाई ये पूरा workflow काफी साफ लग रहा है, खासकर जिस तरह तुम एक-एक step करके समझा रहे हो, उससे चीज़ें काफी आसानी से समझ आ रही हैं 🔥'
     ];
-    const randomText = phrases[Math.floor(Math.random() * phrases.length)] + ' ' + Math.random().toString(36).substring(7);
+    const randomText = phrases[Math.floor(Math.random() * phrases.length)];
 
     const authorColor = getDeterministicColor(randomUser);
 
@@ -265,7 +265,7 @@ function App() {
   };
 
   const simulateSpamMessage = () => {
-    const spamText = 'BUY FOLLOWERS SCAM.COM 😡🤬 ' + Math.random().toString(36).substring(7);
+    const spamText = 'BUY FOLLOWERS SCAM.COM 😡🤬';
 
     const msg1 = {
       messageId: `spam-${Date.now()}-1`,
