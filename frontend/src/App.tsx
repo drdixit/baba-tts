@@ -5,7 +5,7 @@ import { useStore } from './store';
 import { getDeterministicColor } from '../../src/shared/colors';
 
 function App() {
-  const { messages, isConnected, addMessages, setConnected}  = useStore();
+  const { messages, addMessages } = useStore();
   const wsRef = useRef<WebSocket | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const rafRef = useRef<number | null>(null);
@@ -37,13 +37,8 @@ function App() {
     ws.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
-        if (data.type === 'auth_error') {
-          alert('YouTube authentication error. Redirecting to login...');
-          window.location.href = '/auth/google';
-        } else if (data.type === 'banned_users') {
+        if (data.type === 'banned_users') {
           useStore.getState().setBannedUsers(data.users);
-        } else if (data.type === 'auth_status') {
-          setConnected(data.connected);
         } else if (data.type === 'tts_state') {
           useStore.getState().updateMessageStatus(data.messageId, data.state);
         } else if (data.type === 'tts_error') {
@@ -140,7 +135,6 @@ function App() {
     ws.onclose = () => {
       if (isIntentionalClose) return;
       console.log('WebSocket disconnected. Attempting to reconnect in 3s...');
-      setConnected(false);
       setTimeout(() => {
         console.log('Reconnecting...');
         // We can't just call connectWebSocket if it's inside useEffect, so we trigger a state change or just reload.
@@ -153,16 +147,8 @@ function App() {
       isIntentionalClose = true;
       ws.close();
     };
-  }, [addMessages, setConnected]);
+  }, [addMessages]);
 
-  const handleConnectClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
-    if (isConnected) {
-      const confirm = window.confirm("You are already connected to YouTube. Do you want to re-authenticate?");
-      if (!confirm) {
-        e.preventDefault();
-      }
-    }
-  };
 
   const simulateGoodMessage = (theme: 'subtitle-sweep' | 'subtitle-karaoke' | 'subtitle-words' | 'pro-clean' = 'subtitle-karaoke') => {
     const id = `test-${Date.now()}`;
@@ -308,17 +294,6 @@ function App() {
         
         {/* Full-Width Toolbar */}
         <div className="w-full flex gap-4">
-          <a 
-            href="/auth/google"
-            onClick={handleConnectClick}
-            className={`flex-1 flex items-center justify-center text-center px-10 py-6 rounded-2xl text-3xl font-bold uppercase transition-all shadow-xl ${
-              isConnected 
-                ? 'bg-green-600 hover:bg-green-500 text-white' 
-                : 'bg-blue-600 hover:bg-blue-500 text-white'
-            }`}
-          >
-            {isConnected ? 'YouTube Connected' : 'Connect YouTube'}
-          </a>
 
           <button
             onClick={simulateSpamMessage}

@@ -12,16 +12,12 @@ export function initWebSocketServer(server: Server) {
   wss.on('connection', (ws) => {
     console.log('Client connected to WebSocket');
     
-    // Tell client if we are currently authenticated
+    // Send banned users list on connect
     try {
-      const row = db.prepare('SELECT count(*) as count FROM oauth_accounts').get() as { count: number };
-      const isConnected = row.count > 0;
-      ws.send(JSON.stringify({ type: 'auth_status', connected: isConnected }));
-      
       const banned = getBannedUsers();
       ws.send(JSON.stringify({ type: 'banned_users', users: banned }));
     } catch (err) {
-      console.error('Failed to check auth status on connect', err);
+      console.error('Failed to send banned users on connect', err);
     }
 
     ws.on('message', async (data) => {
@@ -114,34 +110,6 @@ export function broadcastMessageDelete(messageId: string) {
   }
   
   const data = JSON.stringify({ type: 'delete', messageId });
-  wss.clients.forEach((client) => {
-    if (client.readyState === WebSocket.OPEN) {
-      client.send(data);
-    }
-  });
-}
-
-export function broadcastAuthError() {
-  if (!wss) {
-    console.warn('WebSocket server not initialized');
-    return;
-  }
-  
-  const data = JSON.stringify({ type: 'auth_error' });
-  wss.clients.forEach((client) => {
-    if (client.readyState === WebSocket.OPEN) {
-      client.send(data);
-    }
-  });
-}
-
-export function broadcastQuotaExhausted() {
-  if (!wss) {
-    console.warn('WebSocket server not initialized');
-    return;
-  }
-  
-  const data = JSON.stringify({ type: 'quota_exhausted' });
   wss.clients.forEach((client) => {
     if (client.readyState === WebSocket.OPEN) {
       client.send(data);

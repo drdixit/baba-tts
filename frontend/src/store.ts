@@ -20,12 +20,10 @@ interface StoreState {
   activeUsers: ActiveUser[];
   setBannedUsers: (users: BannedUser[]) => void;
   messages: ChatMessage[];
-  isConnected: boolean;
   addMessages: (newMessages: ChatMessage[]) => void;
   updateMessageStatus: (messageId: string, status: ChatMessage['status']) => void;
   updateMessage: (messageId: string, updates: Partial<ChatMessage>) => void;
   removeMessage: (messageId: string) => void;
-  setConnected: (connected: boolean) => void;
   skipAllActiveMessages: () => void;
 }
 
@@ -34,7 +32,6 @@ export const useStore = create<StoreState>((set) => ({
   activeUsers: [],
   setBannedUsers: (users) => set({ bannedUsers: users }),
   messages: [],
-  isConnected: false,
   addMessages: (newMessages) =>
     set((state) => {
       const updatedMessages = [...state.messages, ...newMessages];
@@ -75,10 +72,6 @@ export const useStore = create<StoreState>((set) => ({
   removeMessage: (messageId) =>
     set((state) => ({
       messages: state.messages.filter((msg) => msg.messageId !== messageId),
-    })),
-  setConnected: (connected) =>
-    set(() => ({
-      isConnected: connected,
     })),
   skipAllActiveMessages: () =>
     set((state) => ({

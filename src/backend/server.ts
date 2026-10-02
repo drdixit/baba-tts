@@ -2,14 +2,10 @@ import 'dotenv/config';
 import { initWebSocketServer } from './ws.js';
 import { Hono } from 'hono';
 import { serve } from '@hono/node-server';
-import { authRouter } from './auth.js';
 
-import { db } from './db.js';
-import { discoverActiveBroadcasts } from './youtube.js';
+import { startUnofficialPolling } from './youtube.js';
 
 const app = new Hono();
-
-app.route('/auth', authRouter);
 
 app.get('/', (c) => c.text('Baba TTS Server Running'));
 app.get('/api/skip-current', async (c) => {
@@ -40,11 +36,9 @@ initWebSocketServer(server as any);
 
 // No startup DB cleanup needed anymore (app is 100% read-only)
 
-// Resume polling for existing accounts
-const accounts = db.prepare('SELECT id FROM oauth_accounts').all() as { id: string }[];
-for (const acc of accounts) {
-  console.log(`Resuming discovery for account: ${acc.id}`);
-  discoverActiveBroadcasts(acc.id).catch(err => {
-    console.error(`Failed to resume discovery for ${acc.id}:`, err);
-  });
+// Start Unofficial YouTube Polling directly if enabled
+if (process.env.ENABLE_YOUTUBE === 'true') {
+  startUnofficialPolling();
+} else {
+  console.log('[TTS] YouTube polling disabled via ENABLE_YOUTUBE flag.');
 }
