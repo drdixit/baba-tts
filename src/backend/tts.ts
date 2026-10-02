@@ -127,6 +127,7 @@ async function processQueue() {
     const voiceName = voices[Math.floor(Math.random() * voices.length)];
     const textToSpeak = `${msg.authorName} says ${msg.text}`;
     
+    console.log(`[TTS] Step 1: Request sent to Azure for message ${msg.messageId}...`);
     const result = await generateSpeech(textToSpeak, voiceName);
     
     if (result && result.timings) {
@@ -143,6 +144,7 @@ async function processQueue() {
     
     if (result) {
       // Send to frontend to play. We stay isProcessing=true until AUDIO_FINISHED
+      console.log(`[TTS] Step 4: Sending bundled Audio + Mapping to frontend UI for message ${msg.messageId}...`);
       broadcastPlayAudio(msg.messageId, result.audioData, result.wordBoundaries);
     } else {
       // Azure failed, skip this message
@@ -182,6 +184,7 @@ export async function generateSpeech(text: string, voiceName: string): Promise<{
     let firstByteTime = 0;
     synthesizer.synthesisStarted = () => {
       firstByteTime = Date.now();
+      console.log(`[TTS] Step 2: Receiving first byte and word mappings from Azure...`);
     };
 
     return await new Promise((resolve) => {
@@ -197,6 +200,7 @@ export async function generateSpeech(text: string, voiceName: string): Promise<{
           if (result.reason === sdk.ResultReason.SynthesizingAudioCompleted) {
             const buffer = Buffer.from(result.audioData);
             const sizeKb = (buffer.length / 1024).toFixed(2);
+            console.log(`[TTS] Step 3: Audio download completed! Size: ${sizeKb} KB`);
             const base64 = buffer.toString('base64');
             const audioData = 'data:audio/wav;base64,' + base64;
             resolve({ audioData, wordBoundaries, timings: { sizeKb, processingMs, downloadMs, totalMs } });
