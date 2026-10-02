@@ -203,7 +203,7 @@ export async function generateSpeech(text: string, voiceName: string): Promise<{
             const sizeKb = (buffer.length / 1024).toFixed(2);
             console.log(`[TTS] Step 3: Audio download completed! Size: ${sizeKb} KB (+${downloadMs}ms)`);
             const base64 = buffer.toString('base64');
-            const audioData = 'data:audio/wav;base64,' + base64;
+            const audioData = 'data:audio/mpeg;base64,' + base64;
             resolve({ audioData, wordBoundaries, timings: { sizeKb, processingMs, downloadMs, totalMs } });
           } else {
             console.error(`Speech synthesis canceled or failed: ${result.errorDetails}`);
