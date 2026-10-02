@@ -130,7 +130,7 @@ async function processQueue() {
     const result = await generateSpeech(textToSpeak, voiceName);
     
     if (result && result.timings) {
-      console.log(`[TTS] Metrics for message ${msg.messageId} | Processing: ${result.timings.processingMs}ms | Download: ${result.timings.downloadMs}ms | Total: ${result.timings.totalMs}ms`);
+      console.log(`[TTS] Metrics for message ${msg.messageId} | Size: ${result.timings.sizeKb} KB | Processing: ${result.timings.processingMs}ms | Download: ${result.timings.downloadMs}ms | Total: ${result.timings.totalMs}ms`);
     } else {
       console.log(`[TTS] Failed to generate message ${msg.messageId}`);
     }
@@ -152,7 +152,7 @@ async function processQueue() {
   }
 }
 
-export async function generateSpeech(text: string, voiceName: string): Promise<{ audioData: string, wordBoundaries: { text: string, audioOffset: number, duration: number, textOffset: number }[], timings: { processingMs: number, downloadMs: number, totalMs: number } } | null> {
+export async function generateSpeech(text: string, voiceName: string): Promise<{ audioData: string, wordBoundaries: { text: string, audioOffset: number, duration: number, textOffset: number }[], timings: { sizeKb: string, processingMs: number, downloadMs: number, totalMs: number } } | null> {
   const key = process.env.AZURE_SPEECH_KEY;
   const region = process.env.AZURE_SPEECH_REGION;
 
@@ -196,9 +196,10 @@ export async function generateSpeech(text: string, voiceName: string): Promise<{
 
           if (result.reason === sdk.ResultReason.SynthesizingAudioCompleted) {
             const buffer = Buffer.from(result.audioData);
+            const sizeKb = (buffer.length / 1024).toFixed(2);
             const base64 = buffer.toString('base64');
             const audioData = 'data:audio/wav;base64,' + base64;
-            resolve({ audioData, wordBoundaries, timings: { processingMs, downloadMs, totalMs } });
+            resolve({ audioData, wordBoundaries, timings: { sizeKb, processingMs, downloadMs, totalMs } });
           } else {
             console.error(`Speech synthesis canceled or failed: ${result.errorDetails}`);
             resolve(null);
