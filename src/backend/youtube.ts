@@ -42,7 +42,10 @@ export function startUnofficialPolling() {
     
     if (isUserBanned(authorId)) return;
 
-    const rawText = chatItem.message.map((m: any) => m.text).join('') || '';
+    const rawText = chatItem.message.map((m: any) => {
+      if ("text" in m) return m.text;
+      return m.emojiText || m.alt || '';
+    }).join('');
     
     const spamCheck = isSpamMessage(authorId, rawText);
     if (spamCheck.isSpam) {
