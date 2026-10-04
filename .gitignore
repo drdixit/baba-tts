@@ -36,3 +36,5 @@ skills-lock.json
 baba.db
 baba.db-shm
 baba.db-wal
+
+.worktrees/
