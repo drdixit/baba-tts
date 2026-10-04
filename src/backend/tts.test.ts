@@ -93,7 +93,7 @@ describe('generateSpeech', () => {
         const result = await generateSpeech('Hello', 'en-US-JennyNeural');
 
         expect(result).toBeDefined();
-        expect(result?.audioData).toBe('data:audio/wav;base64,AQIDBA==');
+        expect(result?.audioData).toBe('data:audio/mpeg;base64,AQIDBA==');
         expect(result?.wordBoundaries).toBeDefined();
         expect(close).toHaveBeenCalled();
     });

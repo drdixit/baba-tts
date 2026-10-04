@@ -25,47 +25,49 @@ export function isSpamMessage(userId: string, message: string): SpamCheckResult 
     return { isSpam: false };
   }
   
-  const compact = removeNonAlphaNumeric(msg).toLowerCase();
-  if (compact === '') {
-    return { isSpam: false };
-  }
-  
   // 1. Emoji Spam
-  if (countEmojis(msg) > 4) {
+  if (countEmojis(msg) > 3) {
     return { isSpam: true, reason: 'too_many_emojis' };
   }
-  
-  // 2. Repeated Characters
-  if (hasRepeatedCharacters(msg, MAX_REPEATED_CHARS)) {
-    return { isSpam: true, reason: 'repeated_characters' };
-  }
-  
-  // 3. Repeated Words
-  if (hasRepeatedWords(msg, MAX_REPEATED_WORDS)) {
-    return { isSpam: true, reason: 'repeated_words' };
-  }
-  
-  // 4. Repeated Pattern
-  if (hasRepeatedPattern(compact, MAX_REPEATED_PATTERNS)) {
-    return { isSpam: true, reason: 'repeated_pattern' };
-  }
-  
-  // 5. Excessive Punctuation
+
+  // 2. Excessive Punctuation
   if (countPunctuation(msg) > MAX_PUNCTUATION) {
     return { isSpam: true, reason: 'excessive_punctuation' };
   }
+
+  const compact = removeNonAlphaNumeric(msg).toLowerCase();
   
-  // 6. Gibberish
-  if (looksLikeGibberish(msg)) {
-    return { isSpam: true, reason: 'gibberish' };
+  if (compact !== '') {
+    // 3. Repeated Characters
+    if (hasRepeatedCharacters(msg, MAX_REPEATED_CHARS)) {
+      return { isSpam: true, reason: 'repeated_characters' };
+    }
+    
+    // 4. Repeated Words
+    if (hasRepeatedWords(msg, MAX_REPEATED_WORDS)) {
+      return { isSpam: true, reason: 'repeated_words' };
+    }
+    
+    // 5. Repeated Pattern
+    if (hasRepeatedPattern(compact, MAX_REPEATED_PATTERNS)) {
+      return { isSpam: true, reason: 'repeated_pattern' };
+    }
+    
+    // 6. Gibberish
+    if (looksLikeGibberish(msg)) {
+      return { isSpam: true, reason: 'gibberish' };
+    }
   }
   
   // 30-second duplicate check
   const now = Date.now();
   const duplicateWindow = 30 * 1000;
   
+  // Use raw message for dedupe if it's pure emojis/punctuation
+  const dedupeKey = compact || msg.toLowerCase();
+  
   const lastMsg = lastMessageStore.get(userId);
-  if (lastMsg && lastMsg.compact === compact && (now - lastMsg.timestamp) < duplicateWindow) {
+  if (lastMsg && lastMsg.compact === dedupeKey && (now - lastMsg.timestamp) < duplicateWindow) {
     return { isSpam: true, reason: 'duplicate_message' };
   }
   
@@ -79,7 +81,7 @@ export function isSpamMessage(userId: string, message: string): SpamCheckResult 
   }
   
   // Save accepted message
-  lastMessageStore.set(userId, { compact, timestamp: now });
+  lastMessageStore.set(userId, { compact: dedupeKey, timestamp: now });
   
   return { isSpam: false };
 }
