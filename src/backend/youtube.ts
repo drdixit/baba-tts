@@ -7,15 +7,6 @@ import { getDeterministicColor } from '../../src/shared/colors.js';
 import { isSpamMessage } from './spamFilter.js';
 
 
-function escapeHtml(unsafe: string) {
-  return unsafe
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#039;");
-}
-
 let unofficialLiveChat: LiveChat | null = null;
 let unofficialRetryTimeout: NodeJS.Timeout | null = null;
 
@@ -58,11 +49,11 @@ export function startUnofficialPolling() {
 
     const msg: ChatMessage = {
       messageId: chatItem.id || `msg-${Date.now()}-${Math.random()}`,
-      authorName: escapeHtml(rawName),
+      authorName: rawName,
       authorId: authorId,
       authorProfileImageUrl: chatItem.author.thumbnail?.url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${rawName}`,
       authorColor: getDeterministicColor(rawName),
-      text: escapeHtml(rawText),
+      text: rawText,
       status: 'queued',
       theme: randomTheme as any
     };
