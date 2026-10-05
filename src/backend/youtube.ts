@@ -10,53 +10,32 @@ import { isSpamMessage } from './spamFilter.js';
 let unofficialLiveChat: LiveChat | null = null;
 let unofficialRetryTimeout: NodeJS.Timeout | null = null;
 
-export function startUnofficialPolling() {
-  if (unofficialLiveChat) return;
+const moderationQueue: any[] = [];
+let isModerating = false;
 
-  const liveIdOverride = process.env.YOUTUBE_LIVE_ID;
-  if (liveIdOverride) {
-    console.log(`[Unofficial API] Starting YouTube polling for liveId override: ${liveIdOverride}...`);
-    unofficialLiveChat = new LiveChat({ liveId: liveIdOverride }, 5000, 'live');
-  } else {
-    console.log('[Unofficial API] Starting YouTube polling for @babaonpc...');
-    unofficialLiveChat = new LiveChat({ handle: '@babaonpc' }, 5000, 'live');
-  }
+async function processModerationQueue() {
+  if (isModerating) return;
+  isModerating = true;
 
-  unofficialLiveChat.on("start", (liveId: string) => {
-    console.log(`[Unofficial API] Connected to live stream: ${liveId}`);
-    clearTTSQueue(); // Flush old backlog!
-  });
-
-  unofficialLiveChat.on("chat", async (chatItem: any) => {
-    const rawName = chatItem.author.name;
-    const authorId = chatItem.author.channelId;
+  while (moderationQueue.length > 0) {
+    const item = moderationQueue.shift();
+    if (!item) continue;
     
-    if (isUserBanned(authorId)) return;
-
-    const rawText = chatItem.message.map((m: any) => {
-      if ("text" in m) return m.text;
-      return m.emojiText || m.alt || '';
-    }).join('');
+    const { chatItem, rawName, authorId, rawText } = item;
     
-    const spamCheck = isSpamMessage(authorId, rawText);
-    if (spamCheck.isSpam) {
-      console.log(`[Spam Filter] Blocked message from ${rawName}: ${spamCheck.reason}`);
-      return;
-    }
-
     try {
       const modRes = await fetch('http://127.0.0.1:7065/moderate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: rawText }),
-        signal: AbortSignal.timeout(2000)
+        signal: AbortSignal.timeout(1000)
       });
       
       if (modRes.ok) {
         const modData = await modRes.json();
         if (modData.speak === false) {
           console.log(`[Moderation] AI blocked toxic message from ${rawName}`);
-          return;
+          continue;
         }
       }
     } catch (err) {
@@ -81,6 +60,47 @@ export function startUnofficialPolling() {
       broadcastMessages([msg]);
       enqueueMessageForTTS(msg);
     }
+  }
+
+  isModerating = false;
+}
+
+export function startUnofficialPolling() {
+  if (unofficialLiveChat) return;
+
+  const liveIdOverride = process.env.YOUTUBE_LIVE_ID;
+  if (liveIdOverride) {
+    console.log(`[Unofficial API] Starting YouTube polling for liveId override: ${liveIdOverride}...`);
+    unofficialLiveChat = new LiveChat({ liveId: liveIdOverride }, 5000, 'live');
+  } else {
+    console.log('[Unofficial API] Starting YouTube polling for @babaonpc...');
+    unofficialLiveChat = new LiveChat({ handle: '@babaonpc' }, 5000, 'live');
+  }
+
+  unofficialLiveChat.on("start", (liveId: string) => {
+    console.log(`[Unofficial API] Connected! Polling started. Using liveId: ${liveId}`);
+    clearTTSQueue(); // Flush old backlog!
+  });
+
+  unofficialLiveChat.on("chat", (chatItem: any) => {
+    const rawName = chatItem.author.name;
+    const authorId = chatItem.author.channelId;
+    
+    if (isUserBanned(authorId)) return;
+
+    const rawText = chatItem.message.map((m: any) => {
+      if ("text" in m) return m.text;
+      return m.emojiText || m.alt || '';
+    }).join('');
+    
+    const spamCheck = isSpamMessage(authorId, rawText);
+    if (spamCheck.isSpam) {
+      console.log(`[Spam Filter] Blocked message from ${rawName}: ${spamCheck.reason}`);
+      return;
+    }
+
+    moderationQueue.push({ chatItem, rawName, authorId, rawText });
+    processModerationQueue();
   });
 
   unofficialLiveChat.on("end", (reason: any) => {
