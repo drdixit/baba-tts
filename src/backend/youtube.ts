@@ -27,7 +27,7 @@ export function startUnofficialPolling() {
     clearTTSQueue(); // Flush old backlog!
   });
 
-  unofficialLiveChat.on("chat", (chatItem: any) => {
+  unofficialLiveChat.on("chat", async (chatItem: any) => {
     const rawName = chatItem.author.name;
     const authorId = chatItem.author.channelId;
     
@@ -42,6 +42,25 @@ export function startUnofficialPolling() {
     if (spamCheck.isSpam) {
       console.log(`[Spam Filter] Blocked message from ${rawName}: ${spamCheck.reason}`);
       return;
+    }
+
+    try {
+      const modRes = await fetch('http://127.0.0.1:7065/moderate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: rawText }),
+        signal: AbortSignal.timeout(2000)
+      });
+      
+      if (modRes.ok) {
+        const modData = await modRes.json();
+        if (modData.speak === false) {
+          console.log(`[Moderation] AI blocked toxic message from ${rawName}`);
+          return;
+        }
+      }
+    } catch (err) {
+      console.log(`[Moderation] API offline/timeout, gracefully skipping moderation`);
     }
 
     const themes = ['subtitle-sweep', 'subtitle-karaoke', 'subtitle-words', 'pro-clean'];
