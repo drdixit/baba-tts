@@ -17,52 +17,58 @@ async function processModerationQueue() {
   if (isModerating) return;
   isModerating = true;
 
-  while (moderationQueue.length > 0) {
-    const item = moderationQueue.shift();
-    if (!item) continue;
-    
-    const { chatItem, rawName, authorId, rawText } = item;
-    
-    try {
-      const modRes = await fetch('http://127.0.0.1:7065/moderate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: rawText }),
-        signal: AbortSignal.timeout(1000)
-      });
+  try {
+    while (moderationQueue.length > 0) {
+      const item = moderationQueue.shift();
+      if (!item) continue;
       
-      if (modRes.ok) {
-        const modData = await modRes.json();
-        if (modData.speak === false) {
-          console.log(`[Moderation] AI blocked toxic message from ${rawName}`);
-          continue;
+      try {
+        const { chatItem, rawName, authorId, rawText } = item;
+        
+        try {
+          const modRes = await fetch('http://127.0.0.1:7065/moderate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ message: rawText }),
+            signal: AbortSignal.timeout(1000)
+          });
+          
+          if (modRes.ok) {
+            const modData = await modRes.json();
+            if (modData.speak === false) {
+              console.log(`[Moderation] AI blocked toxic message from ${rawName}`);
+              continue;
+            }
+          }
+        } catch (err) {
+          console.log(`[Moderation] API offline/timeout, gracefully skipping moderation`);
         }
+
+        const themes = ['subtitle-sweep', 'subtitle-karaoke', 'subtitle-words', 'pro-clean'];
+        const randomTheme = themes[Math.floor(Math.random() * themes.length)];
+
+        const msg: ChatMessage = {
+          messageId: chatItem.id || `msg-${Date.now()}-${Math.random()}`,
+          authorName: rawName,
+          authorId: authorId,
+          authorProfileImageUrl: chatItem.author.thumbnail?.url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${rawName}`,
+          authorColor: getDeterministicColor(rawName),
+          text: rawText,
+          status: 'queued',
+          theme: randomTheme as any
+        };
+
+        if (msg.text.trim().length > 0) {
+          broadcastMessages([msg]);
+          enqueueMessageForTTS(msg);
+        }
+      } catch (innerErr) {
+        console.error("[Queue] Error processing individual message:", innerErr);
       }
-    } catch (err) {
-      console.log(`[Moderation] API offline/timeout, gracefully skipping moderation`);
     }
-
-    const themes = ['subtitle-sweep', 'subtitle-karaoke', 'subtitle-words', 'pro-clean'];
-    const randomTheme = themes[Math.floor(Math.random() * themes.length)];
-
-    const msg: ChatMessage = {
-      messageId: chatItem.id || `msg-${Date.now()}-${Math.random()}`,
-      authorName: rawName,
-      authorId: authorId,
-      authorProfileImageUrl: chatItem.author.thumbnail?.url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${rawName}`,
-      authorColor: getDeterministicColor(rawName),
-      text: rawText,
-      status: 'queued',
-      theme: randomTheme as any
-    };
-
-    if (msg.text.trim().length > 0) {
-      broadcastMessages([msg]);
-      enqueueMessageForTTS(msg);
-    }
+  } finally {
+    isModerating = false;
   }
-
-  isModerating = false;
 }
 
 export function startUnofficialPolling() {
@@ -80,6 +86,7 @@ export function startUnofficialPolling() {
   unofficialLiveChat.on("start", (liveId: string) => {
     console.log(`[Unofficial API] Connected! Polling started. Using liveId: ${liveId}`);
     clearTTSQueue(); // Flush old backlog!
+    moderationQueue.length = 0;
   });
 
   unofficialLiveChat.on("chat", (chatItem: any) => {
