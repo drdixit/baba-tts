@@ -90,7 +90,8 @@ export function startUnofficialPolling() {
   });
 
   unofficialLiveChat.on("chat", (chatItem: any) => {
-    const rawName = chatItem.author.name;
+    try {
+      const rawName = chatItem.author.name;
     const authorId = chatItem.author.channelId;
     
     if (isUserBanned(authorId)) return;
@@ -108,6 +109,9 @@ export function startUnofficialPolling() {
 
     moderationQueue.push({ chatItem, rawName, authorId, rawText });
     processModerationQueue();
+    } catch (err) {
+      console.error("[Unofficial API] Error parsing chat item:", err);
+    }
   });
 
   unofficialLiveChat.on("end", (reason: any) => {
