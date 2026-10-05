@@ -101,6 +101,8 @@ export function startUnofficialPolling() {
       return m.emojiText || m.alt || '';
     }).join('');
     
+    if (!rawText || rawText.trim().length === 0) return;
+
     const spamCheck = isSpamMessage(authorId, rawText);
     if (spamCheck.isSpam) {
       console.log(`[Spam Filter] Blocked message from ${rawName}: ${spamCheck.reason}`);
