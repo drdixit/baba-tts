@@ -210,7 +210,7 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({ message, currentAu
               className="w-8 h-8 rounded-full shrink-0 border border-gray-600 bg-gray-800 shadow-md"
             />
           )}
-          <p className={`text-[32px] break-words leading-relaxed font-semibold transition-all duration-300 origin-left drop-shadow-[1px_1px_2px_rgba(0,0,0,1)] ${
+          <p className={`text-[42px] break-words leading-relaxed font-semibold transition-all duration-300 origin-left drop-shadow-[1px_1px_2px_rgba(0,0,0,1)] ${
             isFinished ? 'line-through text-gray-400' : 'text-gray-50'
           } ${isActive ? 'text-green-300' : ''}`}>
             <span 
