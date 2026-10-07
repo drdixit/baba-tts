@@ -290,14 +290,14 @@ function App() {
       {/* Floating UI controls (absolute top right) */}
             
       {/* ZONE B: Moderation Panel & Toolbar */}
-      <div className="absolute top-0 left-0 w-[1080px] h-[1045px] z-40 flex flex-col bg-gray-900 border-y border-gray-700 px-16 py-8 gap-6 shadow-2xl pointer-events-auto">
+      <div className="absolute top-0 left-0 w-[1080px] h-[1045px] z-40 flex flex-col bg-gray-900 border-y border-gray-700 px-8 py-6 gap-4 shadow-2xl pointer-events-auto">
         
         {/* Full-Width Toolbar */}
         <div className="w-full flex gap-4">
 
           <button
             onClick={simulateSpamMessage}
-            className="flex-1 px-10 py-6 bg-purple-600 hover:bg-purple-500 rounded-2xl text-3xl font-bold transition-all shadow-xl text-white"
+            className="flex-1 px-6 py-4 bg-purple-600 hover:bg-purple-500 rounded-2xl text-xl font-bold transition-all shadow-xl text-white"
           >
             Simulate Spam
           </button>
@@ -308,7 +308,7 @@ function App() {
                 wsRef.current.send(JSON.stringify({ type: 'BAN_CURRENT_SPEAKER' }));
               }
             }}
-            className="flex-1 px-10 py-6 bg-orange-600 hover:bg-orange-500 rounded-2xl text-3xl font-bold transition-all shadow-xl text-white uppercase"
+            className="flex-1 px-6 py-4 bg-orange-600 hover:bg-orange-500 rounded-2xl text-xl font-bold transition-all shadow-xl text-white uppercase"
           >
             Ban Current Speaker
           </button>
@@ -319,7 +319,7 @@ function App() {
                 wsRef.current.send(JSON.stringify({ type: 'SKIP_CURRENT_MESSAGE' }));
               }
             }}
-            className="flex-1 px-10 py-6 bg-yellow-600 hover:bg-yellow-500 rounded-2xl text-3xl font-bold transition-all shadow-xl text-white uppercase"
+            className="flex-1 px-6 py-4 bg-yellow-600 hover:bg-yellow-500 rounded-2xl text-xl font-bold transition-all shadow-xl text-white uppercase"
           >
             Skip Current
           </button>
@@ -340,7 +340,7 @@ function App() {
               setCurrentAudioTime(0);
               useStore.getState().skipAllActiveMessages();
             }}
-            className="flex-1 px-10 py-6 bg-red-600 hover:bg-red-500 rounded-2xl text-3xl font-bold transition-all shadow-xl text-white uppercase"
+            className="flex-1 px-6 py-4 bg-red-600 hover:bg-red-500 rounded-2xl text-xl font-bold transition-all shadow-xl text-white uppercase"
           >
             Clear TTS Queue
           </button>
@@ -348,11 +348,11 @@ function App() {
 
         {/* Temporary Theme Testing Toolbar */}
         <div className="w-full flex gap-4 border-b border-gray-700 pb-4">
-          <span className="text-gray-400 text-2xl font-bold self-center px-4 uppercase tracking-wider">Test Styles:</span>
-          <button onClick={() => simulateGoodMessage('subtitle-sweep')} className="flex-1 px-6 py-4 bg-gray-800 hover:bg-gray-700 rounded-xl text-white text-2xl font-bold transition-colors border border-gray-600">Sweep</button>
-          <button onClick={() => simulateGoodMessage('subtitle-karaoke')} className="flex-1 px-6 py-4 bg-gray-800 hover:bg-gray-700 rounded-xl text-white text-2xl font-bold transition-colors border border-gray-600">Karaoke</button>
-          <button onClick={() => simulateGoodMessage('subtitle-words')} className="flex-1 px-6 py-4 bg-gray-800 hover:bg-gray-700 rounded-xl text-white text-2xl font-bold transition-colors border border-gray-600">Words</button>
-          <button onClick={() => simulateGoodMessage('pro-clean')} className="flex-1 px-6 py-4 bg-gray-800 hover:bg-gray-700 rounded-xl text-white text-2xl font-bold transition-colors border border-cyan-400 shadow-[0_0_15px_rgba(34,211,238,0.2)]">Pro Clean</button>
+          <span className="text-gray-400 text-lg font-bold self-center px-4 uppercase tracking-wider">Test Styles:</span>
+          <button onClick={() => simulateGoodMessage('subtitle-sweep')} className="flex-1 px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded-xl text-white text-lg font-bold transition-colors border border-gray-600">Sweep</button>
+          <button onClick={() => simulateGoodMessage('subtitle-karaoke')} className="flex-1 px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded-xl text-white text-lg font-bold transition-colors border border-gray-600">Karaoke</button>
+          <button onClick={() => simulateGoodMessage('subtitle-words')} className="flex-1 px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded-xl text-white text-lg font-bold transition-colors border border-gray-600">Words</button>
+          <button onClick={() => simulateGoodMessage('pro-clean')} className="flex-1 px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded-xl text-white text-lg font-bold transition-colors border border-cyan-400 shadow-[0_0_15px_rgba(34,211,238,0.2)]">Pro Clean</button>
         </div>
 
         {/* The Moderation Panel Columns */}
