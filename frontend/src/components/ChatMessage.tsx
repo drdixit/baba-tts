@@ -60,11 +60,11 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({ message, currentAu
   return (
     <>
       {/* ZONE D SPOTLIGHT (Active Messages Only) */}
-      {/* This sits exactly 810px from the bottom, which is right inside your Display zone (above 1750px) */}
+      {/* This sits exactly 660px from the bottom */}
       {isActive && (
         
           <div 
-            className={`fixed bottom-[810px] left-[49px] right-[51px] z-50 p-6 rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.8)] animate-spotlight flex flex-row items-center gap-8 text-left transition-all duration-500 overflow-hidden ${message.theme === 'pro-clean' ? 'border-l-[6px]' : ''}`}
+            className={`fixed bottom-[660px] left-[49px] right-[51px] z-50 p-6 rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.8)] animate-spotlight flex flex-row items-center gap-8 text-left transition-all duration-500 overflow-hidden ${message.theme === 'pro-clean' ? 'border-l-[6px]' : ''}`}
             style={{ 
               background: `color-mix(in srgb, ${message.authorColor || '#4ade80'} 15%, #0f172a)`,
               borderLeftColor: message.theme === 'pro-clean' ? (message.authorColor || '#4ade80') : undefined

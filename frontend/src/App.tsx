@@ -359,8 +359,8 @@ function App() {
         <ModerationPanel onBanUser={banUser} onUnbanUser={unbanUser} />
       </div>
 
-      {/* ZONE E: SCROLLING CHAT BOX (Strictly bottom 810px, between 49px and 1389px) */}
-      <main className="absolute bottom-0 left-[49px] right-[51px] h-[810px] overflow-hidden flex flex-col justify-end py-4 bg-transparent z-50 pointer-events-none">
+      {/* ZONE E: SCROLLING CHAT BOX (Strictly bottom 660px) */}
+      <main className="absolute bottom-0 left-[49px] right-[51px] h-[660px] overflow-hidden flex flex-col justify-end py-4 bg-transparent z-50 pointer-events-none">
         <div className="flex flex-col justify-end min-h-full">
           {messages.filter(msg => msg.status !== 'error').map((msg) => (
             <ChatMessage 
