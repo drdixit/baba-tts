@@ -363,7 +363,7 @@ function App() {
 
       {/* Background layer for Chat History */}
       <div 
-        className="absolute bottom-0 left-[49px] right-[51px] h-[640px] backdrop-blur-2xl rounded-t-[40px] z-40 pointer-events-none border-t border-white/10"
+        className="hidden absolute bottom-0 left-[49px] right-[51px] h-[640px] backdrop-blur-2xl rounded-t-[40px] z-40 pointer-events-none border-t border-white/10"
         style={{
           background: 'rgba(28, 28, 30, 0.7)'
         }}

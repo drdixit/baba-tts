@@ -198,8 +198,8 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({ message, currentAu
           </div>
       )}
 
-      {/* ZONE E CHAT HISTORY (Always visible) */}
-      <div className={`relative px-2 py-1 flex items-center justify-between transition-all duration-300 rounded ${
+      {/* ZONE E CHAT HISTORY (Hidden for now) */}
+      <div className={`hidden relative px-2 py-1 flex items-center justify-between transition-all duration-300 rounded ${
         isFinished ? 'opacity-50' : 'opacity-100'
       } bg-transparent`}>
         <div className="flex items-center gap-3">
