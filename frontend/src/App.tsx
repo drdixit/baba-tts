@@ -364,9 +364,9 @@ function App() {
 
       {/* Background layer for Chat History */}
       <div 
-        className="absolute bottom-0 left-[49px] right-[51px] h-[640px] backdrop-blur-md rounded-t-[40px] z-40 pointer-events-none overflow-hidden transition-colors duration-1000 border-t border-white/5 shadow-2xl"
+        className="absolute bottom-0 left-[49px] right-[51px] h-[640px] backdrop-blur-xl rounded-t-[40px] z-40 pointer-events-none overflow-hidden transition-colors duration-1000 border-t border-white/5"
         style={{
-          background: activeColor ? `color-mix(in srgb, ${activeColor} 8%, rgba(0,0,0,0.8))` : 'rgba(0,0,0,0.8)'
+          background: activeColor ? `color-mix(in srgb, ${activeColor} 25%, rgba(0,0,0,0.6))` : 'rgba(0,0,0,0.6)'
         }}
       >
         {/* Subtle grid texture overlay */}
