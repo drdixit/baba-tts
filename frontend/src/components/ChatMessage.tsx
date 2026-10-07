@@ -64,11 +64,10 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({ message, currentAu
       {isActive && (
         
           <div 
-            className={`fixed bottom-[670px] left-[49px] right-[51px] z-50 p-6 rounded-3xl animate-spotlight flex flex-row items-center gap-8 text-left transition-all duration-500 overflow-hidden ${message.theme === 'pro-clean' ? 'border-l-[6px]' : ''}`}
+            className={`fixed bottom-[670px] left-[49px] right-[51px] z-50 p-6 rounded-3xl animate-spotlight flex flex-row items-center gap-8 text-left transition-colors duration-1000 overflow-hidden backdrop-blur-xl border border-white/5 shadow-2xl ${message.theme === 'pro-clean' ? 'border-l-[6px]' : ''}`}
             style={{ 
-              background: `color-mix(in srgb, ${message.authorColor || '#4ade80'} 15%, #0f172a)`,
-              borderLeftColor: message.theme === 'pro-clean' ? (message.authorColor || '#4ade80') : undefined,
-              boxShadow: `0 20px 50px rgba(0,0,0,0.8), 0 0 40px -10px ${message.authorColor || 'rgba(255,255,255,0.2)'}`
+              background: `color-mix(in srgb, ${message.authorColor || '#4ade80'} 20%, rgba(0, 0, 0, 0.6))`,
+              borderLeftColor: message.theme === 'pro-clean' ? (message.authorColor || '#4ade80') : undefined
             }}
           >
             {/* Background Sweep effect */}
