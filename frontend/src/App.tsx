@@ -360,7 +360,12 @@ function App() {
       </div>
 
       {/* Background layer for Chat History */}
-      <div className="absolute bottom-0 left-[49px] right-[51px] h-[640px] bg-black/70 backdrop-blur-md rounded-t-3xl border-t border-white/10 z-40 pointer-events-none"></div>
+      <div className="absolute bottom-0 left-[49px] right-[51px] h-[640px] bg-gradient-to-t from-black/95 to-black/50 backdrop-blur-md rounded-t-[40px] border-t border-white/20 z-40 pointer-events-none shadow-[inset_0_2px_30px_rgba(255,255,255,0.06)] overflow-hidden">
+        {/* Subtle grid texture overlay */}
+        <div className="absolute inset-0 opacity-[0.04]" style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,1) 1px, transparent 1px)', backgroundSize: '24px 24px' }}></div>
+        {/* Top glowing edge effect */}
+        <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-white/30 to-transparent"></div>
+      </div>
 
       {/* ZONE E: SCROLLING CHAT BOX (Strictly bottom 640px) */}
       <main className="absolute bottom-0 left-[49px] right-[51px] h-[640px] overflow-hidden flex flex-col justify-end p-6 bg-transparent z-50 pointer-events-none">
