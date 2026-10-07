@@ -359,8 +359,11 @@ function App() {
         <ModerationPanel onBanUser={banUser} onUnbanUser={unbanUser} />
       </div>
 
+      {/* Background layer for Chat History */}
+      <div className="absolute bottom-0 left-[49px] right-[51px] h-[640px] bg-black/70 backdrop-blur-md rounded-t-3xl border-t border-white/10 z-40 pointer-events-none"></div>
+
       {/* ZONE E: SCROLLING CHAT BOX (Strictly bottom 640px) */}
-      <main className="absolute bottom-0 left-[49px] right-[51px] h-[640px] overflow-hidden flex flex-col justify-end p-6 bg-black/70 backdrop-blur-md rounded-t-3xl border-t border-white/10 z-50 pointer-events-none">
+      <main className="absolute bottom-0 left-[49px] right-[51px] h-[640px] overflow-hidden flex flex-col justify-end p-6 bg-transparent z-50 pointer-events-none">
         <div className="flex flex-col justify-end min-h-full space-y-2">
           {messages.filter(msg => msg.status !== 'error').map((msg) => (
             <ChatMessage 
