@@ -363,15 +363,15 @@ function App() {
 
       {/* Background layer for Chat History */}
       <div 
-        className="hidden absolute bottom-0 left-[49px] right-[51px] h-[605px] backdrop-blur-2xl rounded-t-[40px] z-40 pointer-events-none border-t border-white/10"
+        className="hidden absolute bottom-0 left-[49px] right-[51px] h-[600px] backdrop-blur-2xl rounded-t-[40px] z-40 pointer-events-none border-t border-white/10"
         style={{
           background: 'rgba(28, 28, 30, 0.7)'
         }}
       >
       </div>
 
-      {/* ZONE E: SCROLLING CHAT BOX (Strictly bottom 605px) */}
-      <main className="absolute bottom-0 left-[49px] right-[51px] h-[605px] overflow-hidden flex flex-col justify-end p-6 bg-transparent z-50 pointer-events-none">
+      {/* ZONE E: SCROLLING CHAT BOX (Strictly bottom 600px) */}
+      <main className="absolute bottom-0 left-[49px] right-[51px] h-[600px] overflow-hidden flex flex-col justify-end p-6 bg-transparent z-50 pointer-events-none">
         <div className="flex flex-col justify-end min-h-full space-y-2">
           {messages.filter(msg => msg.status !== 'error').map((msg) => (
             <ChatMessage 
