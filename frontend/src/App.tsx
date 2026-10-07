@@ -285,8 +285,7 @@ function App() {
     }
   };
 
-  const activeMessage = messages.find(m => m.status === 'speaking');
-  const activeColor = activeMessage?.authorColor;
+
 
   return (
     <div className="h-screen w-screen flex flex-col overflow-hidden bg-transparent relative">
@@ -364,13 +363,11 @@ function App() {
 
       {/* Background layer for Chat History */}
       <div 
-        className="absolute bottom-0 left-[49px] right-[51px] h-[640px] backdrop-blur-xl rounded-t-[40px] z-40 pointer-events-none overflow-hidden transition-colors duration-1000 border-t border-white/5"
+        className="absolute bottom-0 left-[49px] right-[51px] h-[640px] backdrop-blur-2xl rounded-t-[40px] z-40 pointer-events-none border-t border-white/10"
         style={{
-          background: activeColor ? `color-mix(in srgb, ${activeColor} 25%, rgba(0,0,0,0.6))` : 'rgba(0,0,0,0.6)'
+          background: 'rgba(28, 28, 30, 0.7)'
         }}
       >
-        {/* Subtle grid texture overlay */}
-        <div className="absolute inset-0 opacity-[0.04]" style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,1) 1px, transparent 1px)', backgroundSize: '24px 24px' }}></div>
       </div>
 
       {/* ZONE E: SCROLLING CHAT BOX (Strictly bottom 640px) */}
