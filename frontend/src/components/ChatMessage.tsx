@@ -208,7 +208,7 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({ message, currentAu
             <img 
               src={message.authorProfileImageUrl} 
               alt="" 
-              className="w-8 h-8 rounded-full shrink-0 border border-gray-600 bg-gray-800 shadow-md"
+              className="w-14 h-14 object-cover rounded-full shrink-0 border border-gray-600 bg-gray-800 shadow-md"
             />
           )}
           <p className={`text-[42px] break-words leading-relaxed font-semibold transition-all duration-300 origin-left drop-shadow-[1px_1px_2px_rgba(0,0,0,1)] ${

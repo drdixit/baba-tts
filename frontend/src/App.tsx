@@ -285,6 +285,9 @@ function App() {
     }
   };
 
+  const activeMessage = messages.find(m => m.status === 'speaking');
+  const activeColor = activeMessage?.authorColor;
+
   return (
     <div className="h-screen w-screen flex flex-col overflow-hidden bg-transparent relative">
       {/* Floating UI controls (absolute top right) */}
@@ -360,11 +363,21 @@ function App() {
       </div>
 
       {/* Background layer for Chat History */}
-      <div className="absolute bottom-0 left-[49px] right-[51px] h-[640px] bg-gradient-to-t from-black/95 to-black/50 backdrop-blur-md rounded-t-[40px] border-t border-white/20 z-40 pointer-events-none shadow-[inset_0_2px_30px_rgba(255,255,255,0.06)] overflow-hidden">
+      <div 
+        className="absolute bottom-0 left-[49px] right-[51px] h-[640px] backdrop-blur-md rounded-t-[40px] z-40 pointer-events-none overflow-hidden transition-all duration-700"
+        style={{
+          background: activeColor ? `linear-gradient(to top, rgba(0,0,0,0.95), color-mix(in srgb, ${activeColor} 10%, rgba(0,0,0,0.6)))` : 'linear-gradient(to top, rgba(0,0,0,0.95), rgba(0,0,0,0.5))',
+          boxShadow: activeColor ? `inset 0 2px 30px color-mix(in srgb, ${activeColor} 20%, transparent), 0 -4px 20px color-mix(in srgb, ${activeColor} 15%, transparent)` : 'inset 0 2px 30px rgba(255,255,255,0.06)',
+          borderTop: activeColor ? `1px solid color-mix(in srgb, ${activeColor} 50%, transparent)` : '1px solid rgba(255,255,255,0.2)'
+        }}
+      >
         {/* Subtle grid texture overlay */}
         <div className="absolute inset-0 opacity-[0.04]" style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,1) 1px, transparent 1px)', backgroundSize: '24px 24px' }}></div>
         {/* Top glowing edge effect */}
-        <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-white/30 to-transparent"></div>
+        <div 
+          className="absolute top-0 left-0 right-0 h-[2px] transition-all duration-700"
+          style={{ background: activeColor ? `linear-gradient(to right, transparent, ${activeColor}, transparent)` : 'linear-gradient(to right, transparent, rgba(255,255,255,0.3), transparent)' }}
+        ></div>
       </div>
 
       {/* ZONE E: SCROLLING CHAT BOX (Strictly bottom 640px) */}
