@@ -199,7 +199,7 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({ message, currentAu
       )}
 
       {/* ZONE E CHAT HISTORY */}
-      <div className={`relative px-2 py-1 flex items-center justify-between transition-all duration-300 rounded ${
+      <div className={`hidden relative px-2 py-1 flex items-center justify-between transition-all duration-300 rounded ${
         isFinished ? 'opacity-50' : 'opacity-100'
       } bg-transparent`}>
         <div className="flex items-center gap-3">
