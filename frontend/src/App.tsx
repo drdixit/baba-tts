@@ -1,17 +1,14 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import ChatMessage from './components/ChatMessage';
 import ModerationPanel from './components/ModerationPanel';
 import { useStore } from './store';
 import { getDeterministicColor } from '../../src/shared/colors';
+import { useAppWebSocket } from './hooks/useAppWebSocket';
 
 function App() {
-  const { messages, addMessages } = useStore();
-  const wsRef = useRef<WebSocket | null>(null);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  const rafRef = useRef<number | null>(null);
+  const { messages } = useStore();
+  const { wsRef, currentAudioTime } = useAppWebSocket(true); // true means play audio
   const messagesEndRef = useRef<HTMLDivElement>(null);
-
-  const [currentAudioTime, setCurrentAudioTime] = useState(0);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -21,133 +18,6 @@ function App() {
     scrollToBottom();
   }, [messages]);
 
-  useEffect(() => {
-    let isIntentionalClose = false;
-    // Determine the WebSocket URL based on the current origin
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.host}/ws`;
-    
-    const ws = new WebSocket(wsUrl);
-    wsRef.current = ws;
-
-    ws.onopen = () => {
-      console.log('Connected to WebSocket');
-    };
-
-    ws.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        if (data.type === 'banned_users') {
-          useStore.getState().setBannedUsers(data.users);
-        } else if (data.type === 'tts_state') {
-          useStore.getState().updateMessageStatus(data.messageId, data.state);
-        } else if (data.type === 'tts_error') {
-          useStore.getState().updateMessageStatus(data.messageId, 'error');
-        } else if (data.type === 'KILL_AUDIO') {
-          if (audioRef.current) {
-            audioRef.current.pause();
-            audioRef.current.currentTime = 0;
-          }
-          if (rafRef.current !== null) {
-            cancelAnimationFrame(rafRef.current);
-            rafRef.current = null;
-          }
-          setCurrentAudioTime(0);
-          // Backend completely manages queue transition on KILL_AUDIO, do not send AUDIO_FINISHED
-        } else if (data.type === 'play_audio' && data.audioData) {
-          useStore.getState().updateMessage(data.messageId, {
-            status: 'speaking',
-            wordBoundaries: data.wordBoundaries
-          });
-          if (rafRef.current !== null) {
-            cancelAnimationFrame(rafRef.current);
-            rafRef.current = null;
-          }
-
-          if (audioRef.current) {
-            audioRef.current.pause();
-          }
-          
-          const audio = new Audio(data.audioData);
-          audioRef.current = audio;
-
-          const syncLoop = () => {
-            if (audioRef.current === audio && !audio.paused) {
-              setCurrentAudioTime(audio.currentTime);
-              rafRef.current = requestAnimationFrame(syncLoop);
-            }
-          };
-
-          audio.onplay = () => {
-            rafRef.current = requestAnimationFrame(syncLoop);
-          };
-
-          audio.onpause = () => {
-            if (rafRef.current !== null) {
-              cancelAnimationFrame(rafRef.current);
-              rafRef.current = null;
-            }
-          };
-          
-          audio.onended = () => {
-            if (rafRef.current !== null) {
-              cancelAnimationFrame(rafRef.current);
-              rafRef.current = null;
-            }
-            setCurrentAudioTime(0);
-            useStore.getState().updateMessageStatus(data.messageId, 'done');
-            if (wsRef.current?.readyState === WebSocket.OPEN) {
-              wsRef.current.send(JSON.stringify({ type: 'AUDIO_FINISHED', messageId: data.messageId }));
-            }
-          };
-          
-          audio.onerror = (e) => {
-            console.error("Audio play failed:", e);
-            useStore.getState().updateMessageStatus(data.messageId, 'skipped');
-            if (wsRef.current?.readyState === WebSocket.OPEN) {
-              wsRef.current.send(JSON.stringify({ type: 'AUDIO_FINISHED', messageId: data.messageId }));
-            }
-          };
-          
-          audio.play().catch(e => {
-            console.error("Audio play failed (Promise rejected):", e);
-            useStore.getState().updateMessageStatus(data.messageId, 'skipped');
-            if (wsRef.current?.readyState === WebSocket.OPEN) {
-              wsRef.current.send(JSON.stringify({ type: 'AUDIO_FINISHED', messageId: data.messageId }));
-            }
-          });
-        } else if (data.type === 'delete' && data.messageId) {
-          useStore.getState().removeMessage(data.messageId);
-        } else if (Array.isArray(data)) {
-          addMessages(data);
-        } else {
-          addMessages([data]);
-        }
-      } catch (err) {
-        console.error('Failed to parse WebSocket message:', err);
-      }
-    };
-
-    ws.onerror = (err) => {
-      console.error('WebSocket error:', err);
-    };
-
-    ws.onclose = () => {
-      if (isIntentionalClose) return;
-      console.log('WebSocket disconnected. Attempting to reconnect in 3s...');
-      setTimeout(() => {
-        console.log('Reconnecting...');
-        // We can't just call connectWebSocket if it's inside useEffect, so we trigger a state change or just reload.
-        // Actually, the simplest bulletproof way for a dashboard that lost connection is to reload the window.
-        window.location.reload();
-      }, 3000);
-    };
-
-    return () => {
-      isIntentionalClose = true;
-      ws.close();
-    };
-  }, [addMessages]);
 
 
   const simulateGoodMessage = (theme: 'subtitle-sweep' | 'subtitle-karaoke' | 'subtitle-words' | 'pro-clean' = 'subtitle-karaoke') => {
@@ -331,16 +201,6 @@ function App() {
               if (wsRef.current?.readyState === WebSocket.OPEN) {
                 wsRef.current.send(JSON.stringify({ type: 'CLEAR_TTS_QUEUE' }));
               }
-              if (audioRef.current) {
-                audioRef.current.pause();
-                audioRef.current.currentTime = 0;
-              }
-              if (rafRef.current !== null) {
-                cancelAnimationFrame(rafRef.current);
-                rafRef.current = null;
-              }
-              setCurrentAudioTime(0);
-              useStore.getState().skipAllActiveMessages();
             }}
             className="flex-1 px-6 py-4 bg-red-600 hover:bg-red-500 rounded-2xl text-xl font-bold transition-all shadow-xl text-white uppercase"
           >
@@ -378,6 +238,7 @@ function App() {
               key={msg.messageId} 
               message={msg} 
               currentAudioTime={msg.status === 'speaking' ? currentAudioTime : 0} 
+              hideHistory={true}
             />
           ))}
           <div ref={messagesEndRef} />

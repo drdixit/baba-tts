@@ -4,6 +4,8 @@ import type { ChatMessage as ChatMessageType } from '../../../src/shared/types';
 interface ChatMessageProps {
   message: ChatMessageType;
   currentAudioTime?: number;
+  hideHistory?: boolean;
+  hideCard?: boolean;
 }
 
 const statusBadgeStyles: Record<ChatMessageType['status'], string> = {
@@ -16,7 +18,7 @@ const statusBadgeStyles: Record<ChatMessageType['status'], string> = {
   done: '', // hidden
 };
 
-const ChatMessage: React.FC<ChatMessageProps> = React.memo(({ message, currentAudioTime }) => {
+const ChatMessage: React.FC<ChatMessageProps> = React.memo(({ message, currentAudioTime, hideHistory = false, hideCard = false }) => {
   const isFinished = message.status === 'skipped' || message.status === 'done';
   const isSpeaking = message.status === 'speaking';
   const isProcessing = message.status === 'processing';
@@ -61,7 +63,7 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({ message, currentAu
     <>
       {/* ZONE D SPOTLIGHT (Active Messages Only) */}
       {/* This sits exactly 630px from the bottom */}
-      {isActive && (
+      {!hideCard && isActive && (
         
           <div 
             className={`fixed bottom-[630px] left-[49px] right-[51px] z-50 p-6 rounded-3xl animate-spotlight flex flex-row items-center gap-8 text-left overflow-hidden shadow-2xl ${message.theme === 'pro-clean' ? 'border-l-[6px]' : ''}`}
@@ -199,7 +201,7 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({ message, currentAu
       )}
 
       {/* ZONE E CHAT HISTORY */}
-      <div className={`hidden relative px-2 py-1 flex items-center justify-between transition-all duration-300 rounded ${
+      <div className={`${hideHistory ? 'hidden' : ''} relative px-2 py-1 flex items-center justify-between transition-all duration-300 rounded ${
         isFinished ? 'opacity-50' : 'opacity-100'
       } bg-transparent`}>
         <div className="flex items-center gap-3">

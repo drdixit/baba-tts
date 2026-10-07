@@ -125,7 +125,7 @@ export function broadcastPlayAudio(messageId: string, audioData: string, wordBou
   });
 }
 
-export function broadcastTTSState(messageId: string, state: 'processing' | 'skipped' | 'error') {
+export function broadcastTTSState(messageId: string, state: 'processing' | 'skipped' | 'error' | 'done') {
   if (!wss) return;
   const data = JSON.stringify({ type: 'tts_state', messageId, state });
   wss.clients.forEach((client) => {

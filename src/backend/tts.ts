@@ -103,6 +103,11 @@ export function markAudioFinished(messageId?: string) {
   if (messageId && currentProcessingMessage?.messageId !== messageId) {
     return; // Duplicate AUDIO_FINISHED from another client (OBS vs Chrome)
   }
+  
+  if (currentProcessingMessage && messageId) {
+    broadcastTTSState(currentProcessingMessage.messageId, 'done');
+  }
+
   currentProcessingMessage = null;
   isProcessing = false;
   processQueue();
