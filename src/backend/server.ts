@@ -14,6 +14,21 @@ app.get('/api/skip-current', async (c) => {
   return c.text('Skipped');
 });
 
+app.get('/api/skip-ban-current', async (c) => {
+  const { getCurrentProcessingMessage, removeUserFromQueue } = await import('./tts.js');
+  const { banUser } = await import('./db.js');
+  const { broadcastBannedUsers } = await import('./ws.js');
+  
+  const currentMsg = getCurrentProcessingMessage();
+  if (currentMsg && currentMsg.authorId) {
+    banUser(currentMsg.authorId, currentMsg.authorName, currentMsg.authorProfileImageUrl);
+    broadcastBannedUsers();
+    removeUserFromQueue(currentMsg.authorId);
+    return c.text(`Banned and skipped: ${currentMsg.authorName}`);
+  }
+  return c.text('No active message to ban');
+});
+
 app.post('/api/baba-say', async (c) => {
   const body = await c.req.json().catch(() => ({}));
   if (!body.text || typeof body.text !== 'string') {
