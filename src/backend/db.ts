@@ -51,6 +51,12 @@ export function getBannedUsers(): BannedUser[] {
   return stmt.all() as BannedUser[];
 }
 
+export function getLastBannedUser(): BannedUser | null {
+  const stmt = db.prepare('SELECT author_id as authorId, display_name as displayName, profile_image_url as profileImageUrl, banned_at as bannedAt FROM banned_users ORDER BY banned_at DESC LIMIT 1');
+  const result = stmt.get();
+  return result ? (result as BannedUser) : null;
+}
+
 export function isUserBanned(authorId: string): boolean {
   if (!authorId) return false;
   const stmt = db.prepare('SELECT 1 FROM banned_users WHERE author_id = ? LIMIT 1');

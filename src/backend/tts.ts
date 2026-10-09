@@ -76,6 +76,10 @@ export function enqueuePriorityMessage(text: string): ChatMessage {
     status: 'queued',
     theme: randomTheme as any,
   };
+  return enqueuePriorityCustomMessage(msg);
+}
+
+export function enqueuePriorityCustomMessage(msg: ChatMessage): ChatMessage {
   queue.unshift(msg); // insert at front — plays next after current
   broadcastMessages([msg]);
   processQueue();

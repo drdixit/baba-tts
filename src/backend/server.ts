@@ -39,6 +39,38 @@ app.post('/api/baba-say', async (c) => {
   return c.json({ success: true, text: body.text });
 });
 
+app.post('/api/speak-as-banned', async (c) => {
+  const body = await c.req.json().catch(() => ({}));
+  if (!body.text || typeof body.text !== 'string') {
+    return c.json({ error: 'Missing or invalid "text" field' }, 400);
+  }
+
+  const { getLastBannedUser } = await import('./db.js');
+  const { enqueuePriorityCustomMessage } = await import('./tts.js');
+  const { getDeterministicColor } = await import('../shared/colors.js');
+
+  const lastBanned = getLastBannedUser();
+  if (!lastBanned) {
+    return c.json({ error: 'No banned users found' }, 404);
+  }
+
+  const themes = ['subtitle-sweep', 'subtitle-karaoke', 'subtitle-words', 'pro-clean'];
+  const randomTheme = themes[Math.floor(Math.random() * themes.length)];
+
+  enqueuePriorityCustomMessage({
+    messageId: `impersonate-${Date.now()}-${Math.random()}`,
+    authorName: lastBanned.displayName,
+    authorId: lastBanned.authorId,
+    authorProfileImageUrl: lastBanned.profileImageUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${lastBanned.displayName}`,
+    authorColor: getDeterministicColor(lastBanned.displayName),
+    text: body.text,
+    status: 'queued',
+    theme: randomTheme as any,
+  });
+
+  return c.json({ success: true, user: lastBanned.displayName, message: body.text });
+});
+
 const port = 7060;
 console.log(`Server is running on port ${port}`);
 
