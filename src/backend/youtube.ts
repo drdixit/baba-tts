@@ -47,11 +47,16 @@ async function processModerationQueue() {
         const themes = ['subtitle-sweep', 'subtitle-karaoke', 'subtitle-words', 'pro-clean'];
         const randomTheme = themes[Math.floor(Math.random() * themes.length)];
 
+        let avatarUrl = chatItem.author.thumbnail?.url;
+        if (avatarUrl && avatarUrl.startsWith('//')) {
+          avatarUrl = 'https:' + avatarUrl;
+        }
+
         const msg: ChatMessage = {
           messageId: chatItem.id || `msg-${Date.now()}-${Math.random()}`,
           authorName: rawName,
           authorId: authorId,
-          authorProfileImageUrl: chatItem.author.thumbnail?.url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${rawName}`,
+          authorProfileImageUrl: avatarUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(rawName)}`,
           authorColor: getDeterministicColor(rawName),
           text: rawText,
           status: 'queued',
@@ -75,12 +80,17 @@ export function startUnofficialPolling() {
   if (unofficialLiveChat) return;
 
   const liveIdOverride = process.env.YOUTUBE_LIVE_ID;
+  const channelId = process.env.YOUTUBE_CHANNEL_ID || 'UCiz4lqlVpaB4PpK-1aecMgQ';
+
   if (liveIdOverride) {
     console.log(`[Unofficial API] Starting YouTube polling for liveId override: ${liveIdOverride}...`);
     unofficialLiveChat = new LiveChat({ liveId: liveIdOverride }, 5000, 'live');
+  } else if (channelId) {
+    console.log(`[Unofficial API] Starting YouTube polling for channelId: ${channelId}...`);
+    unofficialLiveChat = new LiveChat({ channelId }, 5000, 'live');
   } else {
-    console.log('[Unofficial API] Starting YouTube polling for @babaonpc...');
-    unofficialLiveChat = new LiveChat({ handle: '@babaonpc' }, 5000, 'live');
+    console.log('[Unofficial API] Starting YouTube polling for @babaજી...');
+    unofficialLiveChat = new LiveChat({ handle: '@babaજી' }, 5000, 'live');
   }
 
   unofficialLiveChat.on("start", (liveId: string) => {

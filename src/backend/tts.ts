@@ -6,6 +6,14 @@ import * as sdk from 'microsoft-cognitiveservices-speech-sdk';
 let queue: ChatMessage[] = [];
 let isProcessing = false;
 let currentProcessingMessage: ChatMessage | null = null;
+let watchdogTimer: NodeJS.Timeout | null = null;
+
+function clearWatchdog() {
+  if (watchdogTimer) {
+    clearTimeout(watchdogTimer);
+    watchdogTimer = null;
+  }
+}
 
 const RECENT_MESSAGES_CACHE = new Map<string, number>();
 
@@ -40,6 +48,7 @@ export function getCurrentProcessingMessage() {
 }
 
 export function clearTTSQueue() {
+  clearWatchdog();
   for (const msg of queue) {
     broadcastTTSState(msg.messageId, 'skipped');
   }
@@ -53,6 +62,7 @@ export function clearTTSQueue() {
 }
 
 export function skipCurrentMessage() {
+  clearWatchdog();
   if (currentProcessingMessage) {
     broadcastTTSState(currentProcessingMessage.messageId, 'skipped');
     broadcastKillAudio();
@@ -108,6 +118,8 @@ export function markAudioFinished(messageId?: string) {
     return; // Duplicate AUDIO_FINISHED from another client (OBS vs Chrome)
   }
   
+  clearWatchdog();
+
   if (currentProcessingMessage && messageId) {
     broadcastTTSState(currentProcessingMessage.messageId, 'done');
   }
@@ -156,6 +168,17 @@ async function processQueue() {
       // Send to frontend to play. We stay isProcessing=true until AUDIO_FINISHED
       console.log(`[TTS] Step 4: Sending bundled Audio + Mapping to frontend UI for message ${msg.messageId}... (+${Date.now() - reqStartTime}ms total)`);
       broadcastPlayAudio(msg.messageId, result.audioData, result.wordBoundaries);
+
+      // Watchdog timeout to prevent TTS queue from locking if client drops or fails to send AUDIO_FINISHED
+      clearWatchdog();
+      const lastBoundary = result.wordBoundaries?.[result.wordBoundaries.length - 1];
+      const durationSec = lastBoundary ? (lastBoundary.audioOffset + lastBoundary.duration) : 7;
+      const timeoutMs = Math.max(5000, Math.min(25000, Math.round((durationSec + 4) * 1000)));
+
+      watchdogTimer = setTimeout(() => {
+        console.warn(`[TTS] Watchdog timeout (${timeoutMs}ms) for message ${msg.messageId}. Auto-finishing.`);
+        markAudioFinished(msg.messageId);
+      }, timeoutMs);
     } else {
       // Azure failed, skip this message
       broadcastTTSState(msg.messageId, 'error');

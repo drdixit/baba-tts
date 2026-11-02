@@ -5,6 +5,7 @@ frontend/node_modules/
 # Build outputs
 dist/
 frontend/dist/
+target/
 
 # SQLite databases
 *.db
@@ -36,5 +37,6 @@ skills-lock.json
 baba.db
 baba.db-shm
 baba.db-wal
+*-singleton-lock
 
 .worktrees/

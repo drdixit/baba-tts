@@ -12,7 +12,8 @@ export function useAppWebSocket(playAudio: boolean = false) {
   useEffect(() => {
     let isIntentionalClose = false;
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.host}/ws`;
+    const wsHost = window.location.port === '7061' ? `${window.location.hostname}:7060` : window.location.host;
+    const wsUrl = `${protocol}//${wsHost}/ws`;
     
     const ws = new WebSocket(wsUrl);
     wsRef.current = ws;
@@ -125,8 +126,10 @@ export function useAppWebSocket(playAudio: boolean = false) {
       if (isIntentionalClose) return;
       console.log('WebSocket disconnected. Attempting to reconnect in 3s...');
       setTimeout(() => {
-        console.log('Reconnecting...');
-        window.location.reload();
+        if (!isIntentionalClose) {
+          console.log('Reconnecting...');
+          window.location.reload();
+        }
       }, 3000);
     };
 
