@@ -3,6 +3,7 @@ mod colors;
 mod db;
 mod server;
 mod spam_filter;
+mod tray;
 mod tts_queue;
 mod types;
 mod ws;
@@ -26,7 +27,8 @@ async fn main() -> Result<()> {
         .map_err(|e| anyhow::anyhow!("Failed to check single instance lock: {}", e))?;
 
     if !instance.is_single() {
-        eprintln!("[BABA TTS] Another instance is already running! Exiting immediately.");
+        eprintln!("[BABA TTS] Another instance is already running! Focusing existing instance in browser...");
+        let _ = open::that("http://localhost:7060");
         std::process::exit(0);
     }
 
@@ -65,7 +67,14 @@ async fn main() -> Result<()> {
     );
     youtube_poller.start();
 
-    // 6. Embedded Axum Web Server & WebSockets
+    // 6. Concurrency & Graceful Shutdown Signaling
+    let (shutdown_tx, shutdown_rx) = tokio::sync::mpsc::channel::<()>(1);
+    let port = 7060;
+
+    // 7. System Tray (Windows Native / Resilient to Explorer restarts)
+    let _tray_handle = crate::tray::start_tray(tts_handle.clone(), shutdown_tx, port);
+
+    // 8. Embedded Axum Web Server & WebSockets
     let state = AppState {
         db,
         tts_handle,
@@ -73,7 +82,6 @@ async fn main() -> Result<()> {
     };
 
     let router = create_router(state);
-    let port = 7060;
     let addr = SocketAddr::from(([0, 0, 0, 0], port));
     let listener = tokio::net::TcpListener::bind(addr)
         .await
@@ -84,9 +92,9 @@ async fn main() -> Result<()> {
     info!("  • OBS Moderation Dock: http://localhost:{}/", port);
     info!("  • Settings API:        http://localhost:{}/api/settings", port);
 
-    // 7. Run Server with Graceful Shutdown
+    // 9. Run Server with Graceful Shutdown
     axum::serve(listener, router)
-        .with_graceful_shutdown(shutdown_signal())
+        .with_graceful_shutdown(shutdown_signal(shutdown_rx))
         .await
         .context("Server error")?;
 
@@ -94,7 +102,7 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
-async fn shutdown_signal() {
+async fn shutdown_signal(mut shutdown_rx: tokio::sync::mpsc::Receiver<()>) {
     let ctrl_c = async {
         tokio::signal::ctrl_c()
             .await
@@ -115,6 +123,9 @@ async fn shutdown_signal() {
     tokio::select! {
         _ = ctrl_c => {},
         _ = terminate => {},
+        _ = shutdown_rx.recv() => {
+            info!("[Tray] Exit requested from system tray.");
+        },
     }
 
     info!("Shutdown signal received, shutting down gracefully...");
