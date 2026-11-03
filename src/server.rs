@@ -161,7 +161,7 @@ async fn save_settings_handler(
 async fn static_handler(uri: Uri) -> impl IntoResponse {
     let mut path = uri.path().trim_start_matches('/').to_string();
 
-    if path.is_empty() || path == "chat" || path == "dock" {
+    if path.is_empty() || path == "chat" || path == "dock" || path == "settings" {
         path = "index.html".to_string();
     }
 
@@ -214,6 +214,14 @@ mod tests {
         let response = app
             .clone()
             .oneshot(Request::builder().uri("/chat").body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+
+        // Test GET /settings (SPA settings route)
+        let response = app
+            .clone()
+            .oneshot(Request::builder().uri("/settings").body(Body::empty()).unwrap())
             .await
             .unwrap();
         assert_eq!(response.status(), StatusCode::OK);

@@ -1,4 +1,6 @@
 import { useEffect, useRef } from 'react';
+import { Link } from 'react-router-dom';
+import { Settings } from 'lucide-react';
 import ChatMessage from './components/ChatMessage';
 import ModerationPanel from './components/ModerationPanel';
 import { useStore } from './store';
@@ -206,6 +208,15 @@ function App() {
           >
             Clear TTS Queue
           </button>
+
+          <Link
+            to="/settings"
+            title="Open Settings"
+            className="px-5 py-4 bg-gray-800 hover:bg-gray-700 border border-gray-600 rounded-2xl text-xl font-bold transition-all shadow-xl text-white flex items-center justify-center gap-2"
+          >
+            <Settings className="w-6 h-6 text-gray-300" />
+            <span className="hidden xl:inline">Settings</span>
+          </Link>
         </div>
 
         {/* Temporary Theme Testing Toolbar */}
