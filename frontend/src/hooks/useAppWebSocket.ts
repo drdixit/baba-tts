@@ -12,7 +12,8 @@ export function useAppWebSocket(playAudio: boolean = false) {
   useEffect(() => {
     let isIntentionalClose = false;
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsHost = window.location.port === '7061' ? `${window.location.hostname}:7060` : window.location.host;
+    const isViteDev = import.meta.env.DEV && (window.location.port === '5173' || window.location.port === '3000');
+    const wsHost = isViteDev ? `${window.location.hostname}:7060` : window.location.host;
     const wsUrl = `${protocol}//${wsHost}/ws`;
     
     const ws = new WebSocket(wsUrl);

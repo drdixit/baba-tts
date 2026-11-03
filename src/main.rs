@@ -1,3 +1,5 @@
+#![cfg_attr(all(not(test), target_os = "windows"), windows_subsystem = "windows")]
+
 mod azure_tts;
 mod colors;
 mod db;
@@ -28,7 +30,12 @@ async fn main() -> Result<()> {
 
     if !instance.is_single() {
         eprintln!("[BABA TTS] Another instance is already running! Focusing existing instance in browser...");
-        let _ = open::that("http://localhost:7060");
+        let active_port = Db::open("baba.db")
+            .ok()
+            .and_then(|d| d.get_setting("active_port").ok().flatten())
+            .and_then(|p| p.parse::<u16>().ok())
+            .unwrap_or(7060);
+        let _ = open::that(format!("http://localhost:{}", active_port));
         std::process::exit(0);
     }
 
@@ -67,32 +74,50 @@ async fn main() -> Result<()> {
     );
     youtube_poller.start();
 
-    // 6. Concurrency & Graceful Shutdown Signaling
-    let (shutdown_tx, shutdown_rx) = tokio::sync::mpsc::channel::<()>(1);
-    let port = 7060;
+    // 6. Dynamic Port Selection & Server Binding
+    // Default to port 7060, fall back to next available port if 7060 is in use
+    let mut port = 7060;
+    let listener = loop {
+        let addr = SocketAddr::from(([0, 0, 0, 0], port));
+        match tokio::net::TcpListener::bind(addr).await {
+            Ok(l) => break l,
+            Err(e) if e.kind() == std::io::ErrorKind::AddrInUse => {
+                tracing::warn!("Port {} in use, trying next port {}", port, port + 1);
+                port += 1;
+                if port > 7100 {
+                    return Err(anyhow::anyhow!("Could not find available port in range 7060-7100"));
+                }
+            }
+            Err(e) => return Err(e).context(format!("Failed to bind server to port {}", port)),
+        }
+    };
+    let _ = db.set_setting("active_port", &port.to_string());
 
-    // 7. System Tray (Windows Native / Resilient to Explorer restarts)
+    // 7. Concurrency & Graceful Shutdown Signaling
+    let (shutdown_tx, shutdown_rx) = tokio::sync::mpsc::channel::<()>(1);
+
+    // 8. System Tray (Windows Native / Resilient to Explorer restarts)
     let _tray_handle = crate::tray::start_tray(tts_handle.clone(), shutdown_tx, port);
 
-    // 8. Embedded Axum Web Server & WebSockets
+    // 9. Embedded Axum Web Server & WebSockets
     let state = AppState {
         db,
         tts_handle,
         broadcast_tx,
+        port,
     };
 
     let router = create_router(state);
-    let addr = SocketAddr::from(([0, 0, 0, 0], port));
-    let listener = tokio::net::TcpListener::bind(addr)
-        .await
-        .with_context(|| format!("Failed to bind server to port {}", port))?;
 
     info!("✓ Server running on http://localhost:{}", port);
     info!("  • OBS Chat Overlay:    http://localhost:{}/chat", port);
     info!("  • OBS Moderation Dock: http://localhost:{}/", port);
     info!("  • Settings API:        http://localhost:{}/api/settings", port);
 
-    // 9. Run Server with Graceful Shutdown
+    // 10. Automatically open Dashboard in default browser on launch
+    let _ = open::that(format!("http://localhost:{}", port));
+
+    // 11. Run Server with Graceful Shutdown
     axum::serve(listener, router)
         .with_graceful_shutdown(shutdown_signal(shutdown_rx))
         .await
@@ -129,4 +154,30 @@ async fn shutdown_signal(mut shutdown_rx: tokio::sync::mpsc::Receiver<()>) {
     }
 
     info!("Shutdown signal received, shutting down gracefully...");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_port_fallback_when_in_use() {
+        let initial_listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let occupied_port = initial_listener.local_addr().unwrap().port();
+
+        let mut try_port = occupied_port;
+        let (found_listener, bound_port) = loop {
+            let addr = SocketAddr::from(([127, 0, 0, 1], try_port));
+            match tokio::net::TcpListener::bind(addr).await {
+                Ok(l) => break (l, try_port),
+                Err(e) if e.kind() == std::io::ErrorKind::AddrInUse => {
+                    try_port += 1;
+                }
+                Err(e) => panic!("Unexpected error: {}", e),
+            }
+        };
+
+        assert!(bound_port > occupied_port);
+        assert_eq!(found_listener.local_addr().unwrap().port(), bound_port);
+    }
 }

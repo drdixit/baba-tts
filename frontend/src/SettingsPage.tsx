@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, Eye, EyeOff, Save, Loader2, Check, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Eye, EyeOff, Save, Loader2, Check, AlertCircle, Copy } from 'lucide-react';
 
 interface AppSettings {
   azure_speech_key: string;
@@ -280,9 +280,114 @@ export default function SettingsPage() {
           {saving ? 'Saving...' : 'Save Settings'}
         </button>
 
-        <p className="text-center text-xs text-gray-600 mt-4">
-          Settings are applied immediately. TTS voice changes take effect on the next message.
+        <p className="text-center text-xs text-gray-500 mt-3 mb-8">
+          Settings are saved directly into the local SQLite database (<span className="text-gray-400 font-mono">baba.db</span>). No <span className="font-mono text-gray-400">.env</span> editing needed!
         </p>
+
+        {/* OBS Studio Integration Section */}
+        <section className="mb-8 border-t border-gray-800 pt-8">
+          <h2 className="text-lg font-bold text-gray-300 uppercase tracking-wider mb-4 flex items-center justify-between">
+            <span>OBS Studio Integration</span>
+            <span className="text-xs text-cyan-400 font-mono font-normal bg-cyan-950/60 border border-cyan-800/60 px-2.5 py-1 rounded-lg">
+              Port: {window.location.port || '80'}
+            </span>
+          </h2>
+
+          <div className="space-y-4 bg-gray-800 rounded-2xl p-6 border border-gray-700">
+            {/* OBS Moderation Dock */}
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-sm font-medium text-gray-300">
+                  OBS Moderation Dock URL
+                </label>
+                <span className="text-xs text-purple-400">OBS &rarr; Docks &rarr; Custom Browser Docks</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  readOnly
+                  value={`${window.location.origin}/`}
+                  className="w-full px-4 py-2.5 bg-gray-900 border border-gray-600 rounded-xl text-purple-300 font-mono text-sm select-all"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard.writeText(`${window.location.origin}/`);
+                    setBanner({ type: 'success', message: 'OBS Moderation Dock URL copied!' });
+                  }}
+                  className="px-4 py-2.5 bg-gray-700 hover:bg-gray-600 border border-gray-500 text-white rounded-xl text-sm font-semibold flex items-center gap-1.5 transition-colors shrink-0"
+                  title="Copy Dock URL"
+                >
+                  <Copy className="w-4 h-4" />
+                  <span>Copy</span>
+                </button>
+              </div>
+            </div>
+
+            {/* OBS Chat Overlay */}
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-sm font-medium text-gray-300">
+                  OBS Chat Overlay URL
+                </label>
+                <span className="text-xs text-cyan-400">Add as OBS Browser Source</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  readOnly
+                  value={`${window.location.origin}/chat`}
+                  className="w-full px-4 py-2.5 bg-gray-900 border border-gray-600 rounded-xl text-cyan-300 font-mono text-sm select-all"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard.writeText(`${window.location.origin}/chat`);
+                    setBanner({ type: 'success', message: 'OBS Chat Overlay URL copied!' });
+                  }}
+                  className="px-4 py-2.5 bg-gray-700 hover:bg-gray-600 border border-gray-500 text-white rounded-xl text-sm font-semibold flex items-center gap-1.5 transition-colors shrink-0"
+                  title="Copy Overlay URL"
+                >
+                  <Copy className="w-4 h-4" />
+                  <span>Copy</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Keyboard Numpad Shortcuts Reference */}
+        <section className="mb-8">
+          <h2 className="text-lg font-bold text-gray-300 uppercase tracking-wider mb-4">
+            Numpad Hotkeys
+          </h2>
+          <div className="bg-gray-800 rounded-2xl p-6 border border-gray-700 space-y-3 text-sm">
+            <div className="flex items-center justify-between py-1.5 border-b border-gray-700/60">
+              <span className="text-gray-300 font-medium">Ban & Skip Current Speaker</span>
+              <kbd className="px-2.5 py-1 bg-gray-900 border border-orange-500/50 text-orange-300 rounded-lg font-mono text-xs font-bold">
+                Numpad 1
+              </kbd>
+            </div>
+            <div className="flex items-center justify-between py-1.5 border-b border-gray-700/60">
+              <span className="text-gray-300 font-medium">Speak as Last Banned User (Apology)</span>
+              <kbd className="px-2.5 py-1 bg-gray-900 border border-rose-500/50 text-rose-300 rounded-lg font-mono text-xs font-bold">
+                Numpad 2
+              </kbd>
+            </div>
+            <div className="flex items-center justify-between py-1.5 border-b border-gray-700/60">
+              <span className="text-gray-300 font-medium">Skip Current TTS</span>
+              <kbd className="px-2.5 py-1 bg-gray-900 border border-yellow-500/50 text-yellow-300 rounded-lg font-mono text-xs font-bold">
+                Numpad 3
+              </kbd>
+            </div>
+            <div className="flex items-center justify-between py-1.5">
+              <span className="text-gray-300 font-medium">Clear Entire TTS Queue</span>
+              <kbd className="px-2.5 py-1 bg-gray-900 border border-red-500/50 text-red-300 rounded-lg font-mono text-xs font-bold">
+                Numpad 0
+              </kbd>
+            </div>
+          </div>
+        </section>
       </div>
     </div>
   );

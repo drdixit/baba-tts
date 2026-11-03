@@ -23,19 +23,34 @@ pub struct AppState {
     pub db: Db,
     pub tts_handle: TtsHandle,
     pub broadcast_tx: broadcast::Sender<WsBroadcastMessage>,
+    pub port: u16,
 }
 
 pub fn create_router(state: AppState) -> Router {
     Router::new()
         .route("/ws", get(ws_handler))
-        .route("/api/skip-current", get(skip_current_handler))
-        .route("/api/skip-ban-current", get(skip_ban_current_handler))
+        .route("/api/info", get(get_info_handler))
+        .route("/api/skip-current", get(skip_current_handler).post(skip_current_handler))
+        .route("/api/skip-ban-current", get(skip_ban_current_handler).post(skip_ban_current_handler))
         .route("/api/baba-say", post(baba_say_handler))
-        .route("/api/speak-as-banned", post(speak_as_banned_handler))
+        .route(
+            "/api/speak-as-banned",
+            get(speak_as_banned_get_handler).post(speak_as_banned_post_handler),
+        )
         .route("/api/settings", get(get_settings_handler).post(save_settings_handler))
         .fallback(static_handler)
         .layer(CorsLayer::permissive())
         .with_state(state)
+}
+
+async fn get_info_handler(State(state): State<AppState>) -> Json<serde_json::Value> {
+    let banned_count = state.db.get_banned_users().map(|u| u.len()).unwrap_or(0);
+    Json(serde_json::json!({
+        "port": state.port,
+        "bannedCount": banned_count,
+        "obsChatUrl": format!("http://localhost:{}/chat", state.port),
+        "obsDockUrl": format!("http://localhost:{}/", state.port),
+    }))
 }
 
 async fn ws_handler(
@@ -66,7 +81,7 @@ async fn skip_ban_current_handler(State(state): State<AppState>) -> impl IntoRes
     "No active message to ban".to_string()
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Default)]
 struct TextPayload {
     text: Option<String>,
 }
@@ -102,17 +117,45 @@ async fn baba_say_handler(
     Json(serde_json::json!({ "success": true, "text": trimmed })).into_response()
 }
 
-async fn speak_as_banned_handler(
-    State(state): State<AppState>,
-    Json(payload): Json<TextPayload>,
-) -> Response {
-    let Some(text) = payload.text else {
-        return (StatusCode::BAD_REQUEST, "Missing text").into_response();
-    };
+async fn speak_as_banned_get_handler(State(state): State<AppState>) -> Response {
+    execute_speak_as_banned(&state, None).await
+}
 
+async fn speak_as_banned_post_handler(
+    State(state): State<AppState>,
+    body: axum::body::Bytes,
+) -> Response {
+    let text = if !body.is_empty() {
+        serde_json::from_slice::<TextPayload>(&body).ok().and_then(|p| p.text)
+    } else {
+        None
+    };
+    execute_speak_as_banned(&state, text).await
+}
+
+async fn execute_speak_as_banned(state: &AppState, custom_text: Option<String>) -> Response {
     let Ok(Some(last_banned)) = state.db.get_last_banned_user() else {
         return (StatusCode::NOT_FOUND, "No banned users found").into_response();
     };
+
+    let apologies = [
+        "Bhai mujhe maaf kardo, ab main kabhi spam nahi karunga!",
+        "Galti ho gayi streamer bhai, please mujhe unban kardo!",
+        "Main to bas troll kar raha tha bhai, sach mein ban kar diya?!",
+        "Alvida dosto, main ban ho gaya!",
+        "Streamer bhai ek aakhri chance dedo please, ab sudhar gaya hu!",
+    ];
+
+    let text = custom_text
+        .filter(|t| !t.trim().is_empty())
+        .unwrap_or_else(|| {
+            use std::time::{SystemTime, UNIX_EPOCH};
+            let seed = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .map(|d| d.as_millis() as usize)
+                .unwrap_or(0);
+            apologies[seed % apologies.len()].to_string()
+        });
 
     let msg = ChatMessage {
         message_id: format!("impersonate-{}", uuid::Uuid::new_v4()),
@@ -199,6 +242,7 @@ mod tests {
             db: db.clone(),
             tts_handle,
             broadcast_tx,
+            port: 7060,
         };
         let app = create_router(state);
 
@@ -209,6 +253,24 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(response.status(), StatusCode::OK);
+
+        // Test GET /api/info
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/api/info")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = response.into_body().collect().await.unwrap().to_bytes();
+        let info_json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(info_json["port"], 7060);
+        assert_eq!(info_json["obsChatUrl"], "http://localhost:7060/chat");
+        assert_eq!(info_json["obsDockUrl"], "http://localhost:7060/");
 
         // Test GET /chat (SPA overlay route)
         let response = app
@@ -321,6 +383,20 @@ mod tests {
                     .uri("/api/speak-as-banned")
                     .header("Content-Type", "application/json")
                     .body(Body::from(r#"{"text":"I repent!"}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+
+        // Test GET /api/speak-as-banned (should succeed with fallback apology)
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri("/api/speak-as-banned")
+                    .body(Body::empty())
                     .unwrap(),
             )
             .await
