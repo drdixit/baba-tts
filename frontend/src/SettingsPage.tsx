@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, Eye, EyeOff, Save, Loader2, Check, AlertCircle, Copy } from 'lucide-react';
+import { ArrowLeft, Eye, EyeOff, Save, Loader2, Check, AlertCircle, Copy, RotateCcw } from 'lucide-react';
 
 interface AppSettings {
   azure_speech_key: string;
@@ -369,7 +369,13 @@ export default function SettingsPage() {
               </kbd>
             </div>
             <div className="flex items-center justify-between py-1.5 border-b border-gray-700/60">
-              <span className="text-gray-300 font-medium">Speak as Last Banned User (Apology)</span>
+              <span className="text-gray-300 font-medium">Speak as Streamer / User (Pop-up)</span>
+              <kbd className="px-2.5 py-1 bg-gray-900 border border-cyan-500/50 text-cyan-300 rounded-lg font-mono text-xs font-bold">
+                Numpad 4
+              </kbd>
+            </div>
+            <div className="flex items-center justify-between py-1.5 border-b border-gray-700/60">
+              <span className="text-gray-300 font-medium">Speak as Last Banned User (Pop-up & Apology)</span>
               <kbd className="px-2.5 py-1 bg-gray-900 border border-rose-500/50 text-rose-300 rounded-lg font-mono text-xs font-bold">
                 Numpad 2
               </kbd>
@@ -386,6 +392,43 @@ export default function SettingsPage() {
                 Numpad 0
               </kbd>
             </div>
+          </div>
+        </section>
+
+        {/* System Controls & Maintenance */}
+        <section className="mb-8">
+          <h2 className="text-lg font-bold text-gray-300 uppercase tracking-wider mb-4">
+            System & Maintenance
+          </h2>
+          <div className="bg-gray-800 rounded-2xl p-6 border border-gray-700 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                <RotateCcw className="w-4 h-4 text-red-400" />
+                Restart BABA TTS Server
+              </h3>
+              <p className="text-xs text-gray-400 mt-1">
+                Gracefully reboots the TTS queue, YouTube poller, and WebSockets without touching Windows Task Manager.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                if (window.confirm('Restart BABA TTS Server now?')) {
+                  fetch('/api/restart', { method: 'POST' })
+                    .then(() => {
+                      setBanner({ type: 'success', message: 'Server restarting... Reconnecting in 3s' });
+                      setTimeout(() => window.location.reload(), 3000);
+                    })
+                    .catch((err) => {
+                      setBanner({ type: 'error', message: 'Restart failed: ' + err.message });
+                    });
+                }
+              }}
+              className="px-5 py-2.5 bg-red-800/80 hover:bg-red-700 border border-red-600 text-white rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-colors shadow-lg shrink-0"
+            >
+              <RotateCcw className="w-4 h-4" />
+              <span>Restart Server</span>
+            </button>
           </div>
         </section>
       </div>

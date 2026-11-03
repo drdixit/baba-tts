@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import { Settings, Copy, Check, ShieldAlert, Mic, Volume2 } from 'lucide-react';
+import { Settings, Copy, Check, ShieldAlert, Mic, Volume2, RotateCcw, User } from 'lucide-react';
 import ChatMessage from './components/ChatMessage';
 import ModerationPanel from './components/ModerationPanel';
+import QuickInputModal from './components/QuickInputModal';
 import { useStore } from './store';
 import { getDeterministicColor } from '../../src/shared/colors';
 import { useAppWebSocket } from './hooks/useAppWebSocket';
@@ -13,6 +14,8 @@ function App() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [copiedUrl, setCopiedUrl] = useState<string | null>(null);
+  const [quickInputOpen, setQuickInputOpen] = useState(false);
+  const [quickInputMode, setQuickInputMode] = useState<'user' | 'banned'>('banned');
 
   const baseUrl = window.location.origin;
   const obsChatUrl = `${baseUrl}/chat`;
@@ -49,17 +52,29 @@ function App() {
   }, []);
 
   const handleSpeakAsBanned = useCallback(() => {
-    fetch('/api/speak-as-banned', { method: 'POST' })
-      .then(async (r) => {
-        if (r.ok) {
-          const data = await r.json();
-          setToast(`Speaking as banned user: ${data.user || 'User'}`);
-        } else {
-          setToast('No banned users found to impersonate');
-        }
-        setTimeout(() => setToast(null), 3000);
-      })
-      .catch(console.error);
+    setQuickInputMode('banned');
+    setQuickInputOpen(true);
+  }, []);
+
+  const handleSpeakAsUser = useCallback(() => {
+    setQuickInputMode('user');
+    setQuickInputOpen(true);
+  }, []);
+
+  const handleRestartServer = useCallback(() => {
+    if (window.confirm('Restart BABA TTS Server now?')) {
+      fetch('/api/restart', { method: 'POST' })
+        .then(() => {
+          setToast('Server restarting... Reconnecting in 3s');
+          setTimeout(() => {
+            window.location.reload();
+          }, 3000);
+        })
+        .catch((err) => {
+          setToast('Failed to restart server: ' + err.message);
+          setTimeout(() => setToast(null), 3000);
+        });
+    }
   }, []);
 
   const handleSkipCurrent = useCallback(() => {
@@ -96,6 +111,9 @@ function App() {
       } else if (e.code === 'Numpad3' || (e.key === '3' && e.location === 3)) {
         e.preventDefault();
         handleSkipCurrent();
+      } else if (e.code === 'Numpad4' || (e.key === '4' && e.location === 3)) {
+        e.preventDefault();
+        handleSpeakAsUser();
       } else if (e.code === 'Numpad0' || (e.key === '0' && e.location === 3)) {
         e.preventDefault();
         handleClearQueue();
@@ -104,7 +122,7 @@ function App() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handleBanCurrent, handleSpeakAsBanned, handleSkipCurrent, handleClearQueue]);
+  }, [handleBanCurrent, handleSpeakAsBanned, handleSpeakAsUser, handleSkipCurrent, handleClearQueue]);
 
   const simulateGoodMessage = (theme: 'subtitle-sweep' | 'subtitle-karaoke' | 'subtitle-words' | 'pro-clean' = 'subtitle-karaoke') => {
     const id = `test-${Date.now()}`;
@@ -251,6 +269,21 @@ function App() {
         </div>
       )}
 
+      {/* Quick Text Input Pop-up Modal */}
+      <QuickInputModal
+        isOpen={quickInputOpen}
+        initialMode={quickInputMode}
+        onClose={() => setQuickInputOpen(false)}
+        onSent={(sentText, mode) => {
+          setToast(
+            mode === 'user'
+              ? `Queued streamer TTS: "${sentText.slice(0, 30)}..."`
+              : `Queued banned TTS: "${sentText.slice(0, 30)}..."`
+          );
+          setTimeout(() => setToast(null), 3000);
+        }}
+      />
+
       {/* ZONE B: Moderation Panel & Toolbar */}
       <div className="absolute top-0 left-0 w-[1080px] h-[520px] z-40 flex flex-col bg-gray-900 border-y border-gray-700 px-8 py-5 gap-3 shadow-2xl pointer-events-auto">
         
@@ -275,7 +308,7 @@ function App() {
             </div>
           </div>
 
-          {/* OBS URLs with 1-click Copy */}
+          {/* OBS URLs with 1-click Copy & Restart */}
           <div className="flex items-center gap-2">
             <button
               onClick={() => copyToClipboard(obsChatUrl, 'OBS Chat Overlay URL')}
@@ -293,6 +326,15 @@ function App() {
             >
               {copiedUrl === 'OBS Moderation Dock URL' ? <Check className="w-3.5 h-3.5 text-green-400" /> : <Copy className="w-3.5 h-3.5" />}
               <span>OBS Dock</span>
+            </button>
+
+            <button
+              onClick={handleRestartServer}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-800 hover:bg-gray-700 border border-red-500/40 rounded-xl text-xs font-semibold text-red-300 transition-colors shadow"
+              title="Restart BABA TTS Server"
+            >
+              <RotateCcw className="w-3.5 h-3.5 text-red-400" />
+              <span>Restart Server</span>
             </button>
 
             <Link
@@ -314,6 +356,18 @@ function App() {
           >
             <span>Ban Current</span>
             <span className="text-xs text-orange-200 font-mono font-normal mt-0.5">[Num 1]</span>
+          </button>
+
+          <button
+            onClick={handleSpeakAsUser}
+            className="flex-1 px-4 py-3 bg-cyan-700 hover:bg-cyan-600 rounded-2xl text-lg font-bold transition-all shadow-xl text-white flex flex-col items-center justify-center leading-tight"
+            title="Speak with streamer voice [Numpad 4]"
+          >
+            <span className="flex items-center gap-1">
+              <User className="w-4 h-4" />
+              Speak as User
+            </span>
+            <span className="text-xs text-cyan-200 font-mono font-normal mt-0.5">[Num 4]</span>
           </button>
 
           <button

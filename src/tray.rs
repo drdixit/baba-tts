@@ -9,8 +9,75 @@ pub enum TrayCommand {
     SkipCurrent,
     BanCurrent,
     SpeakAsBanned,
+    SpeakAsUser,
     ClearQueue,
+    RestartServer,
     Exit,
+}
+
+pub fn open_desktop_app(url: &str) {
+    #[cfg(target_os = "windows")]
+    {
+        let edge_res = std::process::Command::new("msedge")
+            .arg(format!("--app={}", url))
+            .spawn();
+        if edge_res.is_err() {
+            let chrome_res = std::process::Command::new("chrome")
+                .arg(format!("--app={}", url))
+                .spawn();
+            if chrome_res.is_err() {
+                let _ = open::that(url);
+            }
+        }
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let _ = open::that(url);
+    }
+}
+
+pub fn open_popup_window(port: u16, mode: &str) {
+    let url = format!("http://localhost:{}/popup?mode={}", port, mode);
+    #[cfg(target_os = "windows")]
+    {
+        let edge_res = std::process::Command::new("msedge")
+            .arg(format!("--app={}", url))
+            .arg("--window-size=540,280")
+            .spawn();
+        if edge_res.is_err() {
+            let chrome_res = std::process::Command::new("chrome")
+                .arg(format!("--app={}", url))
+                .arg("--window-size=540,280")
+                .spawn();
+            if chrome_res.is_err() {
+                let _ = open::that(&url);
+            }
+        }
+        pin_popup_topmost();
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let _ = open::that(url);
+    }
+}
+
+pub fn restart_process() {
+    tracing::info!("Initiating process restart...");
+    if let Ok(exe) = std::env::current_exe() {
+        let exe_str = exe.to_string_lossy().to_string();
+        #[cfg(target_os = "windows")]
+        {
+            let _ = std::process::Command::new("cmd")
+                .args(["/C", &format!("ping 127.0.0.1 -n 2 > nul && start \"\" \"{}\"", exe_str)])
+                .spawn();
+        }
+        #[cfg(not(target_os = "windows"))]
+        {
+            let _ = std::process::Command::new("sh")
+                .args(["-c", "sleep 0.5 && \"$0\" &", &exe_str])
+                .spawn();
+        }
+    }
 }
 
 impl TrayCommand {
@@ -22,8 +89,10 @@ impl TrayCommand {
             1004 => Some(Self::SkipCurrent),
             1005 => Some(Self::BanCurrent),
             1006 => Some(Self::SpeakAsBanned),
-            1007 => Some(Self::ClearQueue),
-            1008 => Some(Self::Exit),
+            1007 => Some(Self::SpeakAsUser),
+            1008 => Some(Self::ClearQueue),
+            1009 => Some(Self::RestartServer),
+            1010 => Some(Self::Exit),
             _ => None,
         }
     }
@@ -36,8 +105,10 @@ impl TrayCommand {
             Self::SkipCurrent => 1004,
             Self::BanCurrent => 1005,
             Self::SpeakAsBanned => 1006,
-            Self::ClearQueue => 1007,
-            Self::Exit => 1008,
+            Self::SpeakAsUser => 1007,
+            Self::ClearQueue => 1008,
+            Self::RestartServer => 1009,
+            Self::Exit => 1010,
         }
     }
 
@@ -51,15 +122,15 @@ impl TrayCommand {
         match self {
             Self::OpenDashboard => {
                 let url = format!("http://localhost:{}", port);
-                let _ = open::that(url);
+                open_desktop_app(&url);
             }
             Self::OpenSettings => {
                 let url = format!("http://localhost:{}/settings", port);
-                let _ = open::that(url);
+                open_desktop_app(&url);
             }
             Self::OpenObs => {
                 let url = format!("http://localhost:{}/chat", port);
-                let _ = open::that(url);
+                open_desktop_app(&url);
             }
             Self::SkipCurrent => {
                 let handle = tts_handle.clone();
@@ -75,17 +146,20 @@ impl TrayCommand {
                 });
             }
             Self::SpeakAsBanned => {
-                let url = format!("http://127.0.0.1:{}/api/speak-as-banned", port);
-                runtime.spawn(async move {
-                    let client = reqwest::Client::new();
-                    let _ = client.get(&url).send().await;
-                });
+                open_popup_window(port, "banned");
+            }
+            Self::SpeakAsUser => {
+                open_popup_window(port, "user");
             }
             Self::ClearQueue => {
                 let handle = tts_handle.clone();
                 runtime.spawn(async move {
                     handle.clear_queue().await;
                 });
+            }
+            Self::RestartServer => {
+                restart_process();
+                let _ = shutdown_tx.try_send(());
             }
             Self::Exit => {
                 let _ = shutdown_tx.try_send(());
@@ -129,6 +203,7 @@ mod win32 {
     const HOTKEY_SPEAK_AS_BANNED: i32 = 2002;
     const HOTKEY_SKIP_CURRENT: i32 = 2003;
     const HOTKEY_CLEAR_QUEUE: i32 = 2004;
+    const HOTKEY_SPEAK_AS_USER: i32 = 2005;
 
     struct TrayState {
         port: u16,
@@ -253,6 +328,12 @@ mod win32 {
                         AppendMenuW(
                             hmenu,
                             MF_STRING,
+                            TrayCommand::SpeakAsUser.to_id(),
+                            to_wide("Speak as User (BABA) [Num 4]").as_ptr(),
+                        );
+                        AppendMenuW(
+                            hmenu,
+                            MF_STRING,
                             TrayCommand::SkipCurrent.to_id(),
                             to_wide("Skip Current TTS [Num 3]").as_ptr(),
                         );
@@ -263,6 +344,12 @@ mod win32 {
                             to_wide("Clear TTS Queue [Num 0]").as_ptr(),
                         );
                         AppendMenuW(hmenu, MF_SEPARATOR, 0, std::ptr::null());
+                        AppendMenuW(
+                            hmenu,
+                            MF_STRING,
+                            TrayCommand::RestartServer.to_id(),
+                            to_wide("Restart Server").as_ptr(),
+                        );
                         AppendMenuW(
                             hmenu,
                             MF_STRING,
@@ -299,6 +386,14 @@ mod win32 {
                     }
                     HOTKEY_SPEAK_AS_BANNED => {
                         TrayCommand::SpeakAsBanned.execute(
+                            state.port,
+                            &state.tts_handle,
+                            &state.shutdown_tx,
+                            &state.runtime,
+                        );
+                    }
+                    HOTKEY_SPEAK_AS_USER => {
+                        TrayCommand::SpeakAsUser.execute(
                             state.port,
                             &state.tts_handle,
                             &state.shutdown_tx,
@@ -347,6 +442,7 @@ mod win32 {
             WM_DESTROY => {
                 UnregisterHotKey(hwnd, HOTKEY_BAN_CURRENT);
                 UnregisterHotKey(hwnd, HOTKEY_SPEAK_AS_BANNED);
+                UnregisterHotKey(hwnd, HOTKEY_SPEAK_AS_USER);
                 UnregisterHotKey(hwnd, HOTKEY_SKIP_CURRENT);
                 UnregisterHotKey(hwnd, HOTKEY_CLEAR_QUEUE);
                 Shell_NotifyIconW(NIM_DELETE, &state.nid);
@@ -464,6 +560,7 @@ mod win32 {
                 // VK_NUMPAD1 = 0x61, VK_NUMPAD2 = 0x62, VK_NUMPAD3 = 0x63, VK_NUMPAD0 = 0x60
                 RegisterHotKey(hwnd, HOTKEY_BAN_CURRENT, MOD_NOREPEAT, 0x61);
                 RegisterHotKey(hwnd, HOTKEY_SPEAK_AS_BANNED, MOD_NOREPEAT, 0x62);
+                RegisterHotKey(hwnd, HOTKEY_SPEAK_AS_USER, MOD_NOREPEAT, 0x64);
                 RegisterHotKey(hwnd, HOTKEY_SKIP_CURRENT, MOD_NOREPEAT, 0x63);
                 RegisterHotKey(hwnd, HOTKEY_CLEAR_QUEUE, MOD_NOREPEAT, 0x60);
 
@@ -495,6 +592,37 @@ mod win32 {
             thread: Some(thread),
         })
     }
+
+    pub fn pin_popup_topmost() {
+        std::thread::spawn(|| {
+            use windows_sys::Win32::UI::WindowsAndMessaging::{
+                FindWindowW, SetForegroundWindow, SetWindowPos, SWP_NOMOVE, SWP_NOSIZE,
+                SWP_SHOWWINDOW,
+            };
+
+            let title = to_wide("BABA TTS - Quick Input");
+            for _ in 0..30 {
+                std::thread::sleep(std::time::Duration::from_millis(100));
+                unsafe {
+                    let hwnd = FindWindowW(std::ptr::null(), title.as_ptr());
+                    if hwnd != 0 {
+                        let hwnd_topmost = -1 as windows_sys::Win32::Foundation::HWND;
+                        SetWindowPos(
+                            hwnd,
+                            hwnd_topmost,
+                            0,
+                            0,
+                            0,
+                            0,
+                            SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW,
+                        );
+                        SetForegroundWindow(hwnd);
+                        break;
+                    }
+                }
+            }
+        });
+    }
 }
 
 #[cfg(not(windows))]
@@ -511,6 +639,9 @@ mod non_windows {
         tracing::info!("[Tray] System tray is only active on Windows systems.");
         Some(TrayHandle)
     }
+
+    #[allow(dead_code)]
+    pub fn pin_popup_topmost() {}
 }
 
 #[cfg(windows)]
@@ -531,8 +662,10 @@ mod tests {
         assert_eq!(TrayCommand::from_id(1004), Some(TrayCommand::SkipCurrent));
         assert_eq!(TrayCommand::from_id(1005), Some(TrayCommand::BanCurrent));
         assert_eq!(TrayCommand::from_id(1006), Some(TrayCommand::SpeakAsBanned));
-        assert_eq!(TrayCommand::from_id(1007), Some(TrayCommand::ClearQueue));
-        assert_eq!(TrayCommand::from_id(1008), Some(TrayCommand::Exit));
+        assert_eq!(TrayCommand::from_id(1007), Some(TrayCommand::SpeakAsUser));
+        assert_eq!(TrayCommand::from_id(1008), Some(TrayCommand::ClearQueue));
+        assert_eq!(TrayCommand::from_id(1009), Some(TrayCommand::RestartServer));
+        assert_eq!(TrayCommand::from_id(1010), Some(TrayCommand::Exit));
         assert_eq!(TrayCommand::from_id(9999), None);
 
         assert_eq!(TrayCommand::OpenDashboard.to_id(), 1001);
@@ -541,8 +674,10 @@ mod tests {
         assert_eq!(TrayCommand::SkipCurrent.to_id(), 1004);
         assert_eq!(TrayCommand::BanCurrent.to_id(), 1005);
         assert_eq!(TrayCommand::SpeakAsBanned.to_id(), 1006);
-        assert_eq!(TrayCommand::ClearQueue.to_id(), 1007);
-        assert_eq!(TrayCommand::Exit.to_id(), 1008);
+        assert_eq!(TrayCommand::SpeakAsUser.to_id(), 1007);
+        assert_eq!(TrayCommand::ClearQueue.to_id(), 1008);
+        assert_eq!(TrayCommand::RestartServer.to_id(), 1009);
+        assert_eq!(TrayCommand::Exit.to_id(), 1010);
     }
 
     #[test]
@@ -562,6 +697,11 @@ mod tests {
         // Test Exit command
         TrayCommand::Exit.execute(7060, &tts_handle, &shutdown_tx, &runtime);
         assert!(shutdown_rx.try_recv().is_ok());
+
+        // Test RestartServer command sends shutdown signal
+        let (restart_tx, mut restart_rx) = tokio::sync::mpsc::channel(1);
+        TrayCommand::RestartServer.execute(7060, &tts_handle, &restart_tx, &runtime);
+        assert!(restart_rx.try_recv().is_ok());
 
         // Test Skip and Clear commands on a bare OS thread with no thread-local Tokio runtime
         let tts_clone = tts_handle.clone();

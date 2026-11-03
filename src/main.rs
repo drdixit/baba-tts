@@ -29,13 +29,13 @@ async fn main() -> Result<()> {
         .map_err(|e| anyhow::anyhow!("Failed to check single instance lock: {}", e))?;
 
     if !instance.is_single() {
-        eprintln!("[BABA TTS] Another instance is already running! Focusing existing instance in browser...");
+        eprintln!("[BABA TTS] Another instance is already running! Focusing existing instance in desktop app...");
         let active_port = Db::open("baba.db")
             .ok()
             .and_then(|d| d.get_setting("active_port").ok().flatten())
             .and_then(|p| p.parse::<u16>().ok())
             .unwrap_or(7060);
-        let _ = open::that(format!("http://localhost:{}", active_port));
+        crate::tray::open_desktop_app(&format!("http://localhost:{}", active_port));
         std::process::exit(0);
     }
 
@@ -97,13 +97,14 @@ async fn main() -> Result<()> {
     let (shutdown_tx, shutdown_rx) = tokio::sync::mpsc::channel::<()>(1);
 
     // 8. System Tray (Windows Native / Resilient to Explorer restarts)
-    let _tray_handle = crate::tray::start_tray(tts_handle.clone(), shutdown_tx, port);
+    let _tray_handle = crate::tray::start_tray(tts_handle.clone(), shutdown_tx.clone(), port);
 
     // 9. Embedded Axum Web Server & WebSockets
     let state = AppState {
         db,
         tts_handle,
         broadcast_tx,
+        shutdown_tx,
         port,
     };
 
@@ -114,11 +115,11 @@ async fn main() -> Result<()> {
     info!("  • OBS Moderation Dock: http://localhost:{}/", port);
     info!("  • Settings API:        http://localhost:{}/api/settings", port);
 
-    // 10. Automatically open Dashboard in default browser on launch
-    let _ = open::that(format!("http://localhost:{}", port));
+    // 10. Automatically open Dashboard in desktop app mode on launch
+    crate::tray::open_desktop_app(&format!("http://localhost:{}", port));
 
     // 11. Run Server with Graceful Shutdown
-    axum::serve(listener, router)
+    axum::serve(listener, router.into_make_service_with_connect_info::<SocketAddr>())
         .with_graceful_shutdown(shutdown_signal(shutdown_rx))
         .await
         .context("Server error")?;

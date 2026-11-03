@@ -4,13 +4,14 @@ use crate::tts_queue::{TtsHandle, WsBroadcastMessage};
 use crate::types::{AppSettings, ChatMessage, MessageStatus};
 use crate::ws::handle_websocket;
 use axum::extract::ws::WebSocketUpgrade;
-use axum::extract::State;
+use axum::extract::{ConnectInfo, State};
 use axum::http::{header, StatusCode, Uri};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use rust_embed::RustEmbed;
 use serde::Deserialize;
+use std::net::SocketAddr;
 use tokio::sync::broadcast;
 use tower_http::cors::CorsLayer;
 
@@ -23,6 +24,7 @@ pub struct AppState {
     pub db: Db,
     pub tts_handle: TtsHandle,
     pub broadcast_tx: broadcast::Sender<WsBroadcastMessage>,
+    pub shutdown_tx: tokio::sync::mpsc::Sender<()>,
     pub port: u16,
 }
 
@@ -30,6 +32,8 @@ pub fn create_router(state: AppState) -> Router {
     Router::new()
         .route("/ws", get(ws_handler))
         .route("/api/info", get(get_info_handler))
+        .route("/api/last-banned", get(get_last_banned_handler))
+        .route("/api/restart", post(restart_handler))
         .route("/api/skip-current", get(skip_current_handler).post(skip_current_handler))
         .route("/api/skip-ban-current", get(skip_ban_current_handler).post(skip_ban_current_handler))
         .route("/api/baba-say", post(baba_say_handler))
@@ -51,6 +55,30 @@ async fn get_info_handler(State(state): State<AppState>) -> Json<serde_json::Val
         "obsChatUrl": format!("http://localhost:{}/chat", state.port),
         "obsDockUrl": format!("http://localhost:{}/", state.port),
     }))
+}
+
+async fn get_last_banned_handler(State(state): State<AppState>) -> impl IntoResponse {
+    match state.db.get_last_banned_user() {
+        Ok(user) => Json(serde_json::json!({ "user": user })).into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+    }
+}
+
+async fn restart_handler(
+    State(state): State<AppState>,
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
+) -> Response {
+    if !addr.ip().is_loopback() {
+        tracing::warn!("Forbidden remote restart attempt from {}", addr);
+        return (StatusCode::FORBIDDEN, "Restart is only permitted from localhost").into_response();
+    }
+    tracing::info!("Server restart requested via /api/restart from {}", addr);
+    crate::tray::restart_process();
+    let _ = state.shutdown_tx.try_send(());
+    Json(serde_json::json!({
+        "success": true,
+        "message": "Server restarting..."
+    })).into_response()
 }
 
 async fn ws_handler(
@@ -237,11 +265,13 @@ mod tests {
     async fn test_static_and_spa_routing() {
         let db = Db::open_in_memory().unwrap();
         let (broadcast_tx, _) = broadcast::channel(10);
+        let (shutdown_tx, mut shutdown_rx) = tokio::sync::mpsc::channel(1);
         let tts_handle = TtsActor::spawn(broadcast_tx.clone(), AppSettings::default());
         let state = AppState {
             db: db.clone(),
             tts_handle,
             broadcast_tx,
+            shutdown_tx,
             port: 7060,
         };
         let app = create_router(state);
@@ -284,6 +314,14 @@ mod tests {
         let response = app
             .clone()
             .oneshot(Request::builder().uri("/settings").body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+
+        // Test GET /popup (SPA popup route)
+        let response = app
+            .clone()
+            .oneshot(Request::builder().uri("/popup").body(Body::empty()).unwrap())
             .await
             .unwrap();
         assert_eq!(response.status(), StatusCode::OK);
@@ -373,8 +411,41 @@ mod tests {
             .unwrap();
         assert_eq!(response.status(), StatusCode::NOT_FOUND);
 
+        // Test GET /api/last-banned before banning (should return user: null)
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/api/last-banned")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = response.into_body().collect().await.unwrap().to_bytes();
+        let last_banned_json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert!(last_banned_json["user"].is_null());
+
         // Ban a user and test POST /api/speak-as-banned (should succeed)
         db.ban_user("spammer-1", "SpamGuy", None).unwrap();
+
+        // Test GET /api/last-banned after banning
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/api/last-banned")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = response.into_body().collect().await.unwrap().to_bytes();
+        let last_banned_json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(last_banned_json["user"]["displayName"], "SpamGuy");
+
         let response = app
             .clone()
             .oneshot(
@@ -402,6 +473,27 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(response.status(), StatusCode::OK);
+
+        // Test POST /api/restart from non-loopback IP (should be 403 Forbidden)
+        let mut remote_req = Request::builder()
+            .method("POST")
+            .uri("/api/restart")
+            .body(Body::empty())
+            .unwrap();
+        remote_req.extensions_mut().insert(ConnectInfo(SocketAddr::from(([192, 168, 1, 100], 55555))));
+        let response = app.clone().oneshot(remote_req).await.unwrap();
+        assert_eq!(response.status(), StatusCode::FORBIDDEN);
+
+        // Test POST /api/restart from loopback IP (should succeed)
+        let mut local_req = Request::builder()
+            .method("POST")
+            .uri("/api/restart")
+            .body(Body::empty())
+            .unwrap();
+        local_req.extensions_mut().insert(ConnectInfo(SocketAddr::from(([127, 0, 0, 1], 55555))));
+        let response = app.clone().oneshot(local_req).await.unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        assert!(shutdown_rx.try_recv().is_ok());
     }
 }
 
