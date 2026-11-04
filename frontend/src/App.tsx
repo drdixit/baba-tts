@@ -1,25 +1,18 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { Link } from 'react-router-dom';
-import { Settings, Copy, Check, ShieldAlert, Mic, Volume2, RotateCcw, User } from 'lucide-react';
+import { ShieldAlert, Volume2, RotateCcw, LayoutDashboard, Sliders } from 'lucide-react';
 import ChatMessage from './components/ChatMessage';
 import ModerationPanel from './components/ModerationPanel';
-import QuickInputModal from './components/QuickInputModal';
+import SettingsPanel from './components/SettingsPanel';
 import { useStore } from './store';
 import { getDeterministicColor } from '../../src/shared/colors';
 import { useAppWebSocket } from './hooks/useAppWebSocket';
 
 function App() {
   const { messages, bannedUsers } = useStore();
-  const { wsRef, currentAudioTime } = useAppWebSocket(true); // true means play audio
+  const { wsRef, currentAudioTime } = useAppWebSocket(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [toast, setToast] = useState<string | null>(null);
-  const [copiedUrl, setCopiedUrl] = useState<string | null>(null);
-  const [quickInputOpen, setQuickInputOpen] = useState(false);
-  const [quickInputMode, setQuickInputMode] = useState<'user' | 'banned'>('banned');
-
-  const baseUrl = window.location.origin;
-  const obsChatUrl = `${baseUrl}/chat`;
-  const obsDockUrl = `${baseUrl}/`;
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'settings'>('dashboard');
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -28,18 +21,6 @@ function App() {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
-
-  const copyToClipboard = (text: string, label: string) => {
-    navigator.clipboard.writeText(text).then(() => {
-      setCopiedUrl(label);
-      setToast(`${label} copied to clipboard!`);
-      setTimeout(() => setCopiedUrl(null), 2000);
-      setTimeout(() => setToast(null), 3000);
-    }).catch(() => {
-      setToast('Failed to copy to clipboard');
-      setTimeout(() => setToast(null), 3000);
-    });
-  };
 
   const handleBanCurrent = useCallback(() => {
     fetch('/api/skip-ban-current', { method: 'POST' })
@@ -52,13 +33,34 @@ function App() {
   }, []);
 
   const handleSpeakAsBanned = useCallback(() => {
-    setQuickInputMode('banned');
-    setQuickInputOpen(true);
+    fetch('/api/speak-as-banned', { method: 'GET' })
+      .then(async (r) => {
+        if (r.ok) {
+          const res = await r.json();
+          setToast(`Queued banned apology for "${res.user}"`);
+        } else {
+          setToast('No banned users available');
+        }
+        setTimeout(() => setToast(null), 3000);
+      })
+      .catch(console.error);
   }, []);
 
   const handleSpeakAsUser = useCallback(() => {
-    setQuickInputMode('user');
-    setQuickInputOpen(true);
+    // Triggers local speech prompt or fallback test speech
+    const defaultText = "Haan bhai sab badhiya chal raha hai!";
+    fetch('/api/baba-say', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: defaultText }),
+    })
+      .then(async (r) => {
+        if (r.ok) {
+          setToast('Queued BABA speech');
+        }
+        setTimeout(() => setToast(null), 3000);
+      })
+      .catch(console.error);
   }, []);
 
   const handleRestartServer = useCallback(() => {
@@ -95,7 +97,7 @@ function App() {
     setTimeout(() => setToast(null), 2500);
   }, [wsRef]);
 
-  // Numpad keyboard shortcuts
+  // Global Numpad keyboard shortcuts for the Windows application
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (['INPUT', 'TEXTAREA', 'SELECT'].includes((e.target as HTMLElement)?.tagName)) {
@@ -126,82 +128,24 @@ function App() {
 
   const simulateGoodMessage = (theme: 'subtitle-sweep' | 'subtitle-karaoke' | 'subtitle-words' | 'pro-clean' = 'subtitle-karaoke') => {
     const id = `test-${Date.now()}`;
-    
     const usernames = [
       'Rahul_Gaming', 'Priya123', 'CoderBhai', 'AmanOP', 'Neha_Sharma', 
-      'RohanXD', 'DevNinja', 'TechGuru', 'Sneha_Codes', 'Vikram_YT',
-      'DesiGamer', 'CodingWaleBhaiya', 'Anita_Designs', 'Karan_Op', 'Simran_1999',
-      'NoobMaster', 'ProPlayer_99', 'IndianTechie', 'ChaiLover', 'Mumbaikar_Dev'
+      'RohanXD', 'DevNinja', 'TechGuru', 'Sneha_Codes', 'Vikram_YT'
     ];
     const randomUser = usernames[Math.floor(Math.random() * usernames.length)];
-
     const phrases = [
-      'Kya dosto 😄', 'क्या दोस्तों 😄', 'Hello bhai!', 'नमस्ते दोस्तों!',
-      'Kya haal hai sabka?', 'दोस्तों क्या हाल है?', 'Aaj kya scene hai?',
-      'आज क्या चल रहा है?', 'Nice bhai 🔥', 'बहुत बढ़िया भाई!',
-      'Kahan se dekh rahe ho sab?', 'आप लोग कहाँ से देख रहे हो?',
-      'Hello everyone 👋', 'सभी को नमस्ते 🙏', 'Aaj stream mast lag rahi hai',
-      'आज की स्ट्रीम मज़ेदार लग रही है', 'Bhai ye kaise kiya?', 'भाई ये कैसे किया?',
-      'This looks awesome!', 'यह काफी बढ़िया लग रहा है!', 'Kya dosto, sab badhiya? 😄',
-      'क्या दोस्तों, सब बढ़िया? 😄', 'Main abhi join hua hu', 'मैं अभी जुड़ा हूँ',
-      'Aaj ka topic interesting hai', 'आज का टॉपिक काफी दिलचस्प है',
-      'Ye setup kaafi clean lag raha hai', 'ये सेटअप काफी साफ और बढ़िया लग रहा है',
-      'Bro this is actually cool 😂', 'भाई ये तो गजब है 😂',
-      'Chat kaafi active hai aaj 🔥', 'आज चैट काफी एक्टिव है 🔥',
-      'What are we building today?', 'आज हम क्या बना रहे हैं?',
-      'Bhai ek baar phir dikhao', 'भाई एक बार फिर दिखाओ',
-      'Can you explain this part?', 'क्या आप ये हिस्सा समझा सकते हो?',
-      'Acha ab samajh gaya', 'अच्छा अब समझ गया', 'Yeh kaafi useful hai',
-      'यह काफी उपयोगी है', 'I just learned something new today',
-      'मैंने आज कुछ नया सीखा', 'Kya mast workflow hai 🔥',
-      'क्या शानदार तरीका है 🔥', 'Ye mujhe bhi try karna hai',
-      'मुझे भी ये आज़माना है', 'This is actually much simpler than I expected',
-      'यह तो उम्मीद से काफी आसान है', 'Bhai aaj full coding hone wali hai kya? 😄',
-      'भाई आज पूरी कोडिंग होने वाली है क्या? 😄', 'आज कितने लोग लाइव हैं?',
-      'How many people are watching right now?', 'Main chai ke saath stream dekh raha hu ☕',
-      'मैं चाय के साथ स्ट्रीम देख रहा हूँ ☕', 'Aaj ka stream kaafi productive lag raha hai',
-      'आज की स्ट्रीम काफी उपयोगी लग रही है', 'Hello chat, kya haal hai sabka? 👋',
-      'हेलो चैट, क्या हाल है सबका? 👋', 'This is exactly the kind of thing I wanted to learn',
-      'यही चीज़ मैं काफी समय से सीखना चाहता था', 'Bhai ye idea sach mein mast hai',
-      'भाई ये आइडिया सच में शानदार है', 'मुझे ये तरीका काफी पसंद आया',
-      'I really like this approach', 'Ye error mujhe bhi last time aaya tha 😂',
-      'ये एरर मुझे भी पिछली बार आया था 😂', 'Bhai thoda slow explain karna please 😅',
-      'भाई थोड़ा धीरे समझाना प्लीज़ 😅', 'Could you show that part one more time?',
-      'क्या आप उस हिस्से को एक बार फिर दिखा सकते हो?', 'Aaj first time tumhari stream dekh raha hu',
-      'आज पहली बार आपकी स्ट्रीम देख रहा हूँ', 'Welcome everyone, hope you are doing great!',
-      'आप सभी का स्वागत है, उम्मीद है सब बढ़िया होंगे!', 'Kya zabardast stream chal rahi hai 🔥',
-      'क्या ज़बरदस्त स्ट्रीम चल रही है 🔥', 'Chat mein koi aur developer bhi hai? 😂',
-      'चैट में कोई और डेवलपर भी है? 😂', 'I am working on my own project while watching this stream',
-      'मैं अपना प्रोजेक्ट बनाते हुए आपकी स्ट्रीम भी देख रहा हूँ',
-      'Bhai ye feature kab actually use karne wale ho?',
-      'भाई ये फीचर वास्तव में कब इस्तेमाल करने वाले हो?',
-      'यह फीचर काफी काम का लग रहा है',
-      'This feature looks really useful for real projects',
-      'Kya dosto, chai pi li sabne? ☕😂',
-      'दोस्तों, चाय पी ली सबने? ☕😂',
-      'आज तो माहौल बन गया है 😄🔥',
-      'Aaj toh stream dekhne mein maza aa raha hai 😄',
-      'This stream is honestly much better than I expected',
-      'यह स्ट्रीम मेरी उम्मीद से भी ज्यादा अच्छी लग रही है',
-      'Bhai pura process beginning se end tak dikhao please',
-      'भाई पूरा प्रोसेस शुरुआत से अंत तक दिखाओ प्लीज़',
-      'Mujhe lag raha aaj kuch interesting seekhne ko milega',
-      'मुझे लग रहा है आज कुछ अच्छा सीखने को मिलेगा',
-      'I joined a little late, but this already looks very interesting',
-      'मैं थोड़ा लेट आया हूँ, लेकिन अभी तक जो देखा काफी दिलचस्प लग रहा है',
-      'Bhai agar tum isko thoda aur detail mein samjha do, toh beginners ko bhi easily samajh aa jayega 👍',
-      'भाई ये पूरा workflow काफी साफ लग रहा है, खासकर जिस तरह तुम एक-एक step करके समझा रहे हो, उससे चीज़ें काफी आसानी से समझ आ रही हैं 🔥'
+      'Kya dosto 😄', 'Hello bhai!', 'Namaste dosto!', 'Kya haal hai sabka?',
+      'Stream kaafi mast chal rahi hai 🔥', 'Aaj ka setup sach mein bohot clean lag raha hai!',
+      'Kya dosto chai pi li sabne? ☕', 'Maza aa raha hai stream dekhne mein 😄'
     ];
     const randomText = phrases[Math.floor(Math.random() * phrases.length)];
-
-    const authorColor = getDeterministicColor(randomUser);
 
     const msg = {
       messageId: id,
       authorName: randomUser,
       authorId: `sim-user-${randomUser}`,
       authorProfileImageUrl: `https://api.dicebear.com/7.x/avataaars/svg?seed=${randomUser}`,
-      authorColor: authorColor,
+      authorColor: getDeterministicColor(randomUser),
       text: randomText,
       status: 'queued' as const,
       theme: theme
@@ -226,7 +170,6 @@ function App() {
 
   const simulateSpamMessage = () => {
     const spamText = 'BUY FOLLOWERS SCAM.COM 😡🤬';
-
     const msg1 = {
       messageId: `spam-${Date.now()}-1`,
       authorName: 'SpamBot9000',
@@ -237,214 +180,195 @@ function App() {
       status: 'queued' as const
     };
 
-    const msg2 = {
-      messageId: `spam-${Date.now()}-2`,
-      authorName: 'SpamBot9001',
-      authorId: 'sim-bot-9001',
-      authorColor: getDeterministicColor('SpamBot9001'),
-      authorProfileImageUrl: `https://api.dicebear.com/7.x/avataaars/svg?seed=spambot2`,
-      text: spamText,
-      status: 'queued' as const
-    };
-    
-    // Send both through WS to test backend deduplication
     if (wsRef.current?.readyState === 1) {
       wsRef.current.send(JSON.stringify({ type: 'SIMULATE_MESSAGE', payload: msg1 }));
-      // Send second one immediately after
-      setTimeout(() => {
-        if (wsRef.current?.readyState === 1) {
-          wsRef.current.send(JSON.stringify({ type: 'SIMULATE_MESSAGE', payload: msg2 }));
-        }
-      }, 50);
     }
   };
 
   return (
-    <div className="h-screen w-screen flex flex-col overflow-hidden bg-transparent relative">
+    <div className="h-screen w-screen flex flex-col overflow-hidden bg-gray-950 text-white relative">
       {/* Toast Notification */}
       {toast && (
         <div className="fixed top-4 right-4 z-50 bg-gray-900/95 border border-cyan-500/50 text-cyan-200 px-5 py-3 rounded-2xl shadow-2xl backdrop-blur-md flex items-center gap-3 animate-fade-in text-base font-semibold">
-          <Check className="w-5 h-5 text-cyan-400" />
           <span>{toast}</span>
         </div>
       )}
 
-      {/* Quick Text Input Pop-up Modal */}
-      <QuickInputModal
-        isOpen={quickInputOpen}
-        initialMode={quickInputMode}
-        onClose={() => setQuickInputOpen(false)}
-        onSent={(sentText, mode) => {
-          setToast(
-            mode === 'user'
-              ? `Queued streamer TTS: "${sentText.slice(0, 30)}..."`
-              : `Queued banned TTS: "${sentText.slice(0, 30)}..."`
-          );
-          setTimeout(() => setToast(null), 3000);
-        }}
-      />
+      {/* Top Application Header */}
+      <header className="w-full h-16 bg-gray-900 border-b border-gray-800 px-6 flex items-center justify-between shrink-0 z-50">
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2.5">
+            <Volume2 className="w-6 h-6 text-cyan-400" />
+            <span className="text-xl font-black tracking-wider text-white">BABA TTS</span>
+          </div>
 
-      {/* ZONE B: Moderation Panel & Toolbar */}
-      <div className="absolute top-0 left-0 w-[1080px] h-[520px] z-40 flex flex-col bg-gray-900 border-y border-gray-700 px-8 py-5 gap-3 shadow-2xl pointer-events-auto">
-        
-        {/* Top Header: Title, Banned Counter, OBS URLs, Settings */}
-        <div className="w-full flex items-center justify-between gap-3 pb-2 border-b border-gray-800">
-          <div className="flex items-center gap-3">
-            <span className="text-xl font-black text-white tracking-wider flex items-center gap-2">
-              <Volume2 className="w-6 h-6 text-cyan-400" />
-              BABA TTS
-            </span>
-
-            {/* Banned Users Count Badge */}
-            <div 
-              className="flex items-center gap-2 px-3 py-1 bg-red-950/80 border border-red-700/60 rounded-xl text-red-200 shadow-sm"
-              title="Total users banned from TTS"
+          {/* Navigation Tabs */}
+          <div className="flex items-center gap-1 bg-gray-950 p-1 rounded-xl border border-gray-800">
+            <button
+              onClick={() => setActiveTab('dashboard')}
+              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-colors ${
+                activeTab === 'dashboard'
+                  ? 'bg-cyan-600 text-white shadow'
+                  : 'text-gray-400 hover:text-white'
+              }`}
             >
-              <ShieldAlert className="w-4 h-4 text-red-400" />
-              <span className="font-bold text-xs uppercase tracking-wide">Banned:</span>
-              <span className="px-2 py-0.5 bg-red-800 text-white font-extrabold rounded-full text-xs">
-                {bannedUsers.length}
-              </span>
+              <LayoutDashboard className="w-4 h-4" />
+              <span>Dashboard & Moderation</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('settings')}
+              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-colors ${
+                activeTab === 'settings'
+                  ? 'bg-cyan-600 text-white shadow'
+                  : 'text-gray-400 hover:text-white'
+              }`}
+            >
+              <Sliders className="w-4 h-4" />
+              <span>Settings</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Right Header Status & Controls */}
+        <div className="flex items-center gap-3">
+          {/* Banned Users Count Badge */}
+          <div 
+            className="flex items-center gap-2 px-3 py-1.5 bg-red-950/80 border border-red-700/60 rounded-xl text-red-200 shadow-sm"
+            title="Total users banned from TTS"
+          >
+            <ShieldAlert className="w-4 h-4 text-red-400" />
+            <span className="font-bold text-xs uppercase tracking-wide">Banned:</span>
+            <span className="px-2 py-0.5 bg-red-800 text-white font-extrabold rounded-full text-xs">
+              {bannedUsers.length}
+            </span>
+          </div>
+
+          <button
+            onClick={handleRestartServer}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-800 hover:bg-gray-700 border border-red-500/40 rounded-xl text-xs font-semibold text-red-300 transition-colors shadow"
+            title="Restart BABA TTS Server"
+          >
+            <RotateCcw className="w-3.5 h-3.5 text-red-400" />
+            <span>Restart</span>
+          </button>
+        </div>
+      </header>
+
+      {/* Main Body Content based on Active Tab */}
+      {activeTab === 'settings' ? (
+        <div className="flex-1 overflow-y-auto p-6 max-w-5xl mx-auto w-full">
+          <SettingsPanel />
+        </div>
+      ) : (
+        <div className="flex-1 flex overflow-hidden">
+          {/* LEFT COLUMN: Controls, Simulation & Moderation Panel */}
+          <div className="w-[620px] h-full flex flex-col bg-gray-900 border-r border-gray-800 p-5 gap-4 overflow-y-auto shrink-0">
+            {/* Quick Stream Action Buttons */}
+            <div className="grid grid-cols-3 gap-2.5">
+              <button
+                onClick={handleBanCurrent}
+                className="px-3 py-2.5 bg-orange-600 hover:bg-orange-500 rounded-xl text-sm font-bold transition-all shadow-md text-white flex flex-col items-center justify-center"
+                title="Ban & Skip Current Speaker [Num 1]"
+              >
+                <span>Ban Speaker</span>
+                <span className="text-[11px] text-orange-200 font-mono font-normal">[Num 1]</span>
+              </button>
+
+              <button
+                onClick={handleSpeakAsBanned}
+                className="px-3 py-2.5 bg-rose-600 hover:bg-rose-500 rounded-xl text-sm font-bold transition-all shadow-md text-white flex flex-col items-center justify-center"
+                title="Speak apology as banned user [Num 2]"
+              >
+                <span>Speak Banned</span>
+                <span className="text-[11px] text-rose-200 font-mono font-normal">[Num 2]</span>
+              </button>
+
+              <button
+                onClick={handleSpeakAsUser}
+                className="px-3 py-2.5 bg-cyan-700 hover:bg-cyan-600 rounded-xl text-sm font-bold transition-all shadow-md text-white flex flex-col items-center justify-center"
+                title="Speak as BABA streamer [Num 4]"
+              >
+                <span>Speak BABA</span>
+                <span className="text-[11px] text-cyan-200 font-mono font-normal">[Num 4]</span>
+              </button>
+
+              <button
+                onClick={handleSkipCurrent}
+                className="px-3 py-2.5 bg-yellow-600 hover:bg-yellow-500 rounded-xl text-sm font-bold transition-all shadow-md text-white flex flex-col items-center justify-center"
+                title="Skip current message [Num 3]"
+              >
+                <span>Skip Current</span>
+                <span className="text-[11px] text-yellow-200 font-mono font-normal">[Num 3]</span>
+              </button>
+
+              <button
+                onClick={handleClearQueue}
+                className="px-3 py-2.5 bg-red-700 hover:bg-red-600 rounded-xl text-sm font-bold transition-all shadow-md text-white flex flex-col items-center justify-center"
+                title="Clear queue [Num 0]"
+              >
+                <span>Clear Queue</span>
+                <span className="text-[11px] text-red-200 font-mono font-normal">[Num 0]</span>
+              </button>
+
+              <button
+                onClick={simulateSpamMessage}
+                className="px-3 py-2.5 bg-purple-600 hover:bg-purple-500 rounded-xl text-sm font-bold transition-all shadow-md text-white flex flex-col items-center justify-center"
+                title="Test spam message filter"
+              >
+                <span>Simulate Spam</span>
+                <span className="text-[11px] text-purple-200 font-mono font-normal">Test</span>
+              </button>
+            </div>
+
+            {/* Test Simulation Toolbar */}
+            <div className="w-full flex items-center gap-2 bg-gray-950 p-2 rounded-xl border border-gray-800">
+              <span className="text-gray-400 text-xs font-bold uppercase tracking-wider pl-1 shrink-0">Simulate:</span>
+              <button onClick={() => simulateGoodMessage('subtitle-karaoke')} className="flex-1 px-2.5 py-1 bg-gray-800 hover:bg-gray-700 rounded-lg text-white text-xs font-bold transition-colors border border-gray-700">Karaoke</button>
+              <button onClick={() => simulateGoodMessage('subtitle-sweep')} className="flex-1 px-2.5 py-1 bg-gray-800 hover:bg-gray-700 rounded-lg text-white text-xs font-bold transition-colors border border-gray-700">Sweep</button>
+              <button onClick={() => simulateGoodMessage('subtitle-words')} className="flex-1 px-2.5 py-1 bg-gray-800 hover:bg-gray-700 rounded-lg text-white text-xs font-bold transition-colors border border-gray-700">Words</button>
+              <button onClick={() => simulateGoodMessage('pro-clean')} className="flex-1 px-2.5 py-1 bg-gray-800 hover:bg-gray-700 rounded-lg text-white text-xs font-bold transition-colors border border-cyan-500/50 text-cyan-200">Pro Clean</button>
+            </div>
+
+            {/* Moderation Columns */}
+            <div className="flex-1 min-h-[300px]">
+              <ModerationPanel onBanUser={banUser} onUnbanUser={unbanUser} />
             </div>
           </div>
 
-          {/* OBS URLs with 1-click Copy & Restart */}
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => copyToClipboard(obsChatUrl, 'OBS Chat Overlay URL')}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-800 hover:bg-gray-700 border border-cyan-500/40 rounded-xl text-xs font-semibold text-cyan-300 transition-colors shadow"
-              title={`Click to copy: ${obsChatUrl}`}
-            >
-              {copiedUrl === 'OBS Chat Overlay URL' ? <Check className="w-3.5 h-3.5 text-green-400" /> : <Copy className="w-3.5 h-3.5" />}
-              <span>OBS Chat Overlay</span>
-            </button>
+          {/* RIGHT COLUMN: Live Chat History & Real-Time Animated Stream Preview */}
+          <div className="flex-1 flex flex-col h-full bg-[#121214] p-6 overflow-hidden relative">
+            <div className="flex justify-between items-center pb-3 border-b border-gray-800 mb-4 shrink-0">
+              <h2 className="text-sm font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
+                <span>Live Chat History & Monitor</span>
+                <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+              </h2>
+              <span className="text-xs font-mono text-gray-400">Total: {messages.length}</span>
+            </div>
 
-            <button
-              onClick={() => copyToClipboard(obsDockUrl, 'OBS Moderation Dock URL')}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-800 hover:bg-gray-700 border border-purple-500/40 rounded-xl text-xs font-semibold text-purple-300 transition-colors shadow"
-              title={`Click to copy: ${obsDockUrl}`}
-            >
-              {copiedUrl === 'OBS Moderation Dock URL' ? <Check className="w-3.5 h-3.5 text-green-400" /> : <Copy className="w-3.5 h-3.5" />}
-              <span>OBS Dock</span>
-            </button>
-
-            <button
-              onClick={handleRestartServer}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-800 hover:bg-gray-700 border border-red-500/40 rounded-xl text-xs font-semibold text-red-300 transition-colors shadow"
-              title="Restart BABA TTS Server"
-            >
-              <RotateCcw className="w-3.5 h-3.5 text-red-400" />
-              <span>Restart Server</span>
-            </button>
-
-            <Link
-              to="/settings"
-              title="Open Settings"
-              className="p-1.5 bg-gray-800 hover:bg-gray-700 border border-gray-600 rounded-xl text-gray-300 hover:text-white transition-colors"
-            >
-              <Settings className="w-5 h-5" />
-            </Link>
+            {/* Scrolling Chat History */}
+            <div className="flex-1 overflow-y-auto overflow-x-hidden flex flex-col pr-2 space-y-3">
+              <div className="flex flex-col min-h-full justify-end space-y-3">
+                {messages.length === 0 ? (
+                  <div className="flex items-center justify-center h-48 text-gray-600 text-sm italic">
+                    Waiting for YouTube chat messages or test simulation...
+                  </div>
+                ) : (
+                  messages.filter(msg => msg.status !== 'error').map((msg) => (
+                    <ChatMessage 
+                      key={msg.messageId} 
+                      message={msg} 
+                      currentAudioTime={msg.status === 'speaking' ? currentAudioTime : 0} 
+                      hideHistory={false}
+                    />
+                  ))
+                )}
+                <div ref={messagesEndRef} />
+              </div>
+            </div>
           </div>
         </div>
-
-        {/* Primary Action Buttons Row (with Numpad hotkey hints) */}
-        <div className="w-full flex gap-3">
-          <button
-            onClick={handleBanCurrent}
-            className="flex-1 px-4 py-3 bg-orange-600 hover:bg-orange-500 rounded-2xl text-lg font-bold transition-all shadow-xl text-white flex flex-col items-center justify-center leading-tight"
-            title="Ban speaking user and purge their queue [Numpad 1]"
-          >
-            <span>Ban Current</span>
-            <span className="text-xs text-orange-200 font-mono font-normal mt-0.5">[Num 1]</span>
-          </button>
-
-          <button
-            onClick={handleSpeakAsUser}
-            className="flex-1 px-4 py-3 bg-cyan-700 hover:bg-cyan-600 rounded-2xl text-lg font-bold transition-all shadow-xl text-white flex flex-col items-center justify-center leading-tight"
-            title="Speak with streamer voice [Numpad 4]"
-          >
-            <span className="flex items-center gap-1">
-              <User className="w-4 h-4" />
-              Speak as User
-            </span>
-            <span className="text-xs text-cyan-200 font-mono font-normal mt-0.5">[Num 4]</span>
-          </button>
-
-          <button
-            onClick={handleSpeakAsBanned}
-            className="flex-1 px-4 py-3 bg-rose-700 hover:bg-rose-600 rounded-2xl text-lg font-bold transition-all shadow-xl text-white flex flex-col items-center justify-center leading-tight"
-            title="Impersonate last banned user with apology [Numpad 2]"
-          >
-            <span className="flex items-center gap-1">
-              <Mic className="w-4 h-4" />
-              Speak as Banned
-            </span>
-            <span className="text-xs text-rose-200 font-mono font-normal mt-0.5">[Num 2]</span>
-          </button>
-
-          <button
-            onClick={handleSkipCurrent}
-            className="flex-1 px-4 py-3 bg-yellow-600 hover:bg-yellow-500 rounded-2xl text-lg font-bold transition-all shadow-xl text-white flex flex-col items-center justify-center leading-tight"
-            title="Skip currently playing TTS message [Numpad 3]"
-          >
-            <span>Skip Current</span>
-            <span className="text-xs text-yellow-200 font-mono font-normal mt-0.5">[Num 3]</span>
-          </button>
-
-          <button
-            onClick={handleClearQueue}
-            className="flex-1 px-4 py-3 bg-red-600 hover:bg-red-500 rounded-2xl text-lg font-bold transition-all shadow-xl text-white flex flex-col items-center justify-center leading-tight"
-            title="Clear all queued TTS messages [Numpad 0]"
-          >
-            <span>Clear Queue</span>
-            <span className="text-xs text-red-200 font-mono font-normal mt-0.5">[Num 0]</span>
-          </button>
-
-          <button
-            onClick={simulateSpamMessage}
-            className="px-4 py-3 bg-purple-600 hover:bg-purple-500 rounded-2xl text-base font-bold transition-all shadow-xl text-white flex flex-col items-center justify-center leading-tight shrink-0"
-          >
-            <span>Simulate Spam</span>
-            <span className="text-xs text-purple-200 font-mono font-normal mt-0.5">Test</span>
-          </button>
-        </div>
-
-        {/* Temporary Theme Testing Toolbar */}
-        <div className="w-full flex gap-3 border-b border-gray-800 pb-2">
-          <span className="text-gray-400 text-sm font-bold self-center px-2 uppercase tracking-wider">Test Styles:</span>
-          <button onClick={() => simulateGoodMessage('subtitle-sweep')} className="flex-1 px-3 py-1.5 bg-gray-800 hover:bg-gray-700 rounded-xl text-white text-sm font-bold transition-colors border border-gray-600">Sweep</button>
-          <button onClick={() => simulateGoodMessage('subtitle-karaoke')} className="flex-1 px-3 py-1.5 bg-gray-800 hover:bg-gray-700 rounded-xl text-white text-sm font-bold transition-colors border border-gray-600">Karaoke</button>
-          <button onClick={() => simulateGoodMessage('subtitle-words')} className="flex-1 px-3 py-1.5 bg-gray-800 hover:bg-gray-700 rounded-xl text-white text-sm font-bold transition-colors border border-gray-600">Words</button>
-          <button onClick={() => simulateGoodMessage('pro-clean')} className="flex-1 px-3 py-1.5 bg-gray-800 hover:bg-gray-700 rounded-xl text-white text-sm font-bold transition-colors border border-cyan-400 shadow-[0_0_15px_rgba(34,211,238,0.2)]">Pro Clean</button>
-        </div>
-
-        {/* The Moderation Panel Columns */}
-        <ModerationPanel onBanUser={banUser} onUnbanUser={unbanUser} />
-      </div>
-
-      {/* Background layer for Chat History */}
-      <div 
-        className="hidden absolute bottom-0 left-[49px] right-[51px] h-[600px] backdrop-blur-2xl rounded-t-[40px] z-40 pointer-events-none border-t border-white/10"
-        style={{
-          background: 'rgba(28, 28, 30, 0.7)'
-        }}
-      >
-      </div>
-
-      {/* ZONE E: SCROLLING CHAT BOX (Strictly bottom 600px) */}
-      <main className="absolute bottom-0 left-[49px] right-[51px] h-[600px] overflow-hidden flex flex-col justify-end p-6 bg-transparent z-50 pointer-events-none">
-        <div className="flex flex-col justify-end min-h-full space-y-2">
-          {messages.filter(msg => msg.status !== 'error').map((msg) => (
-            <ChatMessage 
-              key={msg.messageId} 
-              message={msg} 
-              currentAudioTime={msg.status === 'speaking' ? currentAudioTime : 0} 
-              hideHistory={true}
-            />
-          ))}
-          <div ref={messagesEndRef} />
-        </div>
-      </main>
+      )}
     </div>
   );
 }

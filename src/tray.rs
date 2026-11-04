@@ -128,11 +128,11 @@ impl TrayCommand {
                 open_desktop_app(&url);
             }
             Self::OpenSettings => {
-                let url = format!("http://localhost:{}/settings", port);
+                let url = format!("http://localhost:{}", port);
                 open_desktop_app(&url);
             }
             Self::OpenObs => {
-                let url = format!("http://localhost:{}/chat", port);
+                let url = format!("http://localhost:{}", port);
                 open_desktop_app(&url);
             }
             Self::SkipCurrent => {
