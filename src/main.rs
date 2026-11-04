@@ -3,6 +3,7 @@
 mod azure_tts;
 mod colors;
 mod db;
+mod native_prompt;
 mod server;
 mod spam_filter;
 mod tray;

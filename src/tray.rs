@@ -1,6 +1,7 @@
 use crate::tts_queue::TtsHandle;
 use tokio::sync::mpsc::Sender;
 
+#[cfg_attr(not(windows), allow(dead_code))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TrayCommand {
     OpenDashboard,
@@ -36,6 +37,7 @@ pub fn open_desktop_app(url: &str) {
     }
 }
 
+#[cfg_attr(not(windows), allow(dead_code))]
 pub fn open_popup_window(port: u16, mode: &str) {
     let url = format!("http://localhost:{}/popup?mode={}", port, mode);
     #[cfg(target_os = "windows")]
@@ -80,6 +82,7 @@ pub fn restart_process() {
     }
 }
 
+#[cfg_attr(not(windows), allow(dead_code))]
 impl TrayCommand {
     pub fn from_id(id: usize) -> Option<Self> {
         match id {
@@ -146,10 +149,10 @@ impl TrayCommand {
                 });
             }
             Self::SpeakAsBanned => {
-                open_popup_window(port, "banned");
+                crate::native_prompt::show_native_prompt(port, crate::native_prompt::PromptMode::Banned);
             }
             Self::SpeakAsUser => {
-                open_popup_window(port, "user");
+                crate::native_prompt::show_native_prompt(port, crate::native_prompt::PromptMode::User);
             }
             Self::ClearQueue => {
                 let handle = tts_handle.clone();
@@ -168,6 +171,7 @@ impl TrayCommand {
     }
 }
 
+#[cfg_attr(not(windows), allow(dead_code))]
 pub fn format_tray_tooltip(port: u16) -> String {
     format!("BABA TTS (Port {})", port)
 }
@@ -190,7 +194,7 @@ mod win32 {
         AppendMenuW, CreatePopupMenu, CreateWindowExW, DefWindowProcW, DestroyMenu, DestroyWindow,
         DispatchMessageW, GetCursorPos, GetMessageW, GetWindowLongPtrW, LoadIconW, LoadImageW,
         PostMessageW, PostQuitMessage, RegisterClassW, RegisterWindowMessageW, SetForegroundWindow,
-        SetWindowLongPtrW, TrackPopupMenu, TranslateMessage, CREATESTRUCTW, GWLP_USERDATA, HMENU,
+        SetWindowLongPtrW, TrackPopupMenu, TranslateMessage, CREATESTRUCTW, GWLP_USERDATA,
         IDI_APPLICATION, IMAGE_ICON, LR_LOADFROMFILE, MF_SEPARATOR, MF_STRING, MSG,
         TPM_BOTTOMALIGN, TPM_RIGHTBUTTON, WM_CLOSE, WM_COMMAND, WM_CREATE, WM_DESTROY,
         WM_LBUTTONDBLCLK, WM_LBUTTONUP, WM_NCDESTROY, WM_NULL, WM_RBUTTONUP, WM_USER, WNDCLASSW,
