@@ -63,23 +63,25 @@ mod win32 {
     use std::sync::Mutex;
     use windows_sys::Win32::Foundation::{HWND, LPARAM, LRESULT, RECT, WPARAM};
     use windows_sys::Win32::Graphics::Gdi::{
-        CreateSolidBrush, GetStockObject, SetBkColor, SetTextColor, COLOR_WINDOW, DEFAULT_GUI_FONT,
+        CreateSolidBrush, GetStockObject, SetBkColor, SetTextColor, DEFAULT_GUI_FONT,
         HBRUSH, HDC,
     };
     use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
+    use windows_sys::Win32::UI::Input::KeyboardAndMouse::SetFocus;
     use windows_sys::Win32::UI::WindowsAndMessaging::{
-        CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW, GetMessageW,
-        GetWindowLongPtrW, PostMessageW, RegisterClassW, SendMessageW, SetFocus,
-        SetForegroundWindow, SetWindowLongPtrW, SetWindowPos, SetWindowSubclass,
-        SystemParametersInfoW, TranslateMessage, CREATESTRUCTW, ES_AUTOHSCROLL, GWLP_USERDATA,
-        MSG, SPI_GETWORKAREA, SWP_SHOWWINDOW, SW_HIDE, SW_SHOW, WM_CLOSE, WM_COMMAND,
-        WM_CTLCOLORCOLOR_STATIC, WM_CTLCOLOREDIT, WM_DESTROY, WM_KEYDOWN, WM_USER, WNDCLASSW,
-        WS_CHILD, WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_POPUP, WS_TABSTOP, WS_VISIBLE,
+        CallWindowProcW, CreateWindowExW, DefWindowProcW, DispatchMessageW, GetMessageW,
+        GetWindowLongPtrW, PostMessageW, RegisterClassW, SendMessageW, SetForegroundWindow,
+        SetWindowLongPtrW, SetWindowPos, SystemParametersInfoW, TranslateMessage,
+        ES_AUTOHSCROLL, GWLP_WNDPROC, MSG, SPI_GETWORKAREA, SWP_SHOWWINDOW, SW_HIDE, SW_SHOW,
+        WM_CLOSE, WM_CTLCOLOREDIT, WM_CTLCOLORSTATIC, WM_DESTROY, WM_KEYDOWN, WM_USER,
+        WNDCLASSW, WNDPROC, WS_CHILD, WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_POPUP, WS_TABSTOP,
+        WS_VISIBLE,
     };
 
     static ACTIVE_PORT: AtomicU16 = AtomicU16::new(7060);
     static PROMPT_HWND: Mutex<Option<HWND>> = Mutex::new(None);
     static EDIT_HWND: Mutex<Option<HWND>> = Mutex::new(None);
+    static ORIG_EDIT_PROC: Mutex<Option<WNDPROC>> = Mutex::new(None);
     static CURRENT_MODE: Mutex<PromptMode> = Mutex::new(PromptMode::User);
 
     const WM_SHOW_PROMPT: u32 = WM_USER + 201;
@@ -96,8 +98,6 @@ mod win32 {
         msg: u32,
         wparam: WPARAM,
         lparam: LPARAM,
-        _uid_subclass: usize,
-        _ref_data: usize,
     ) -> LRESULT {
         if msg == WM_KEYDOWN {
             match wparam as i32 {
@@ -164,7 +164,12 @@ mod win32 {
             }
         }
 
-        windows_sys::Win32::UI::Shell::DefSubclassProc(hwnd, msg, wparam, lparam)
+        let orig = *ORIG_EDIT_PROC.lock().unwrap();
+        if let Some(proc) = orig {
+            CallWindowProcW(proc, hwnd, msg, wparam, lparam)
+        } else {
+            DefWindowProcW(hwnd, msg, wparam, lparam)
+        }
     }
 
     unsafe extern "system" fn prompt_wndproc(
@@ -185,7 +190,7 @@ mod win32 {
                     0,
                     to_wide("EDIT").as_ptr(),
                     to_wide("").as_ptr(),
-                    WS_CHILD | WS_VISIBLE | ES_AUTOHSCROLL | WS_TABSTOP,
+                    WS_CHILD | WS_VISIBLE | (ES_AUTOHSCROLL as u32) | WS_TABSTOP,
                     12,
                     10,
                     456,
@@ -199,12 +204,17 @@ mod win32 {
                 if edit_hwnd != 0 {
                     let font = GetStockObject(DEFAULT_GUI_FONT as _);
                     SendMessageW(edit_hwnd, 0x0030 /* WM_SETFONT */, font as _, 1);
-                    SetWindowSubclass(edit_hwnd, Some(edit_subclass_proc), 1, 0);
+                    let orig = SetWindowLongPtrW(
+                        edit_hwnd,
+                        GWLP_WNDPROC,
+                        edit_subclass_proc as usize as isize,
+                    );
+                    *ORIG_EDIT_PROC.lock().unwrap() = std::mem::transmute(orig);
                     *EDIT_HWND.lock().unwrap() = Some(edit_hwnd);
                 }
                 0
             }
-            WM_CTLCOLOREDIT | WM_CTLCOLORCOLOR_STATIC => {
+            WM_CTLCOLOREDIT | WM_CTLCOLORSTATIC => {
                 let hdc = wparam as HDC;
                 SetTextColor(hdc, 0x00F0F0F0); // White-ish text
                 SetBkColor(hdc, 0x00151111);   // Dark background
