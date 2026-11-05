@@ -1,11 +1,11 @@
-#[cfg_attr(not(windows), allow(dead_code))]
+#[allow(dead_code)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PromptMode {
     User,
     Banned,
 }
 
-#[cfg_attr(not(windows), allow(dead_code))]
+#[allow(dead_code)]
 impl PromptMode {
     pub fn as_str(&self) -> &'static str {
         match self {
@@ -29,7 +29,7 @@ impl PromptMode {
     }
 }
 
-#[cfg_attr(not(windows), allow(dead_code))]
+#[allow(dead_code)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PromptGeometry {
     pub x: i32,
@@ -38,7 +38,7 @@ pub struct PromptGeometry {
     pub height: i32,
 }
 
-#[cfg_attr(not(windows), allow(dead_code))]
+#[allow(dead_code)]
 pub fn calculate_bottom_left_geometry(
     workarea_left: i32,
     workarea_bottom: i32,
@@ -207,7 +207,7 @@ mod win32 {
                     let orig = SetWindowLongPtrW(
                         edit_hwnd,
                         GWLP_WNDPROC,
-                        edit_subclass_proc as usize as isize,
+                        edit_subclass_proc as *const () as usize as isize,
                     );
                     *ORIG_EDIT_PROC.lock().unwrap() = std::mem::transmute(orig);
                     *EDIT_HWND.lock().unwrap() = Some(edit_hwnd);

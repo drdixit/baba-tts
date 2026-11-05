@@ -37,31 +37,6 @@ pub fn open_desktop_app(url: &str) {
     }
 }
 
-#[cfg_attr(not(windows), allow(dead_code))]
-pub fn open_popup_window(port: u16, mode: &str) {
-    let url = format!("http://localhost:{}/popup?mode={}", port, mode);
-    #[cfg(target_os = "windows")]
-    {
-        let edge_res = std::process::Command::new("msedge")
-            .arg(format!("--app={}", url))
-            .arg("--window-size=540,280")
-            .spawn();
-        if edge_res.is_err() {
-            let chrome_res = std::process::Command::new("chrome")
-                .arg(format!("--app={}", url))
-                .arg("--window-size=540,280")
-                .spawn();
-            if chrome_res.is_err() {
-                let _ = open::that(&url);
-            }
-        }
-        pin_popup_topmost();
-    }
-    #[cfg(not(target_os = "windows"))]
-    {
-        let _ = open::that(url);
-    }
-}
 
 pub fn restart_process() {
     tracing::info!("Initiating process restart...");
@@ -596,37 +571,6 @@ mod win32 {
             thread: Some(thread),
         })
     }
-
-    pub fn pin_popup_topmost() {
-        std::thread::spawn(|| {
-            use windows_sys::Win32::UI::WindowsAndMessaging::{
-                FindWindowW, SetForegroundWindow, SetWindowPos, SWP_NOMOVE, SWP_NOSIZE,
-                SWP_SHOWWINDOW,
-            };
-
-            let title = to_wide("BABA TTS - Quick Input");
-            for _ in 0..30 {
-                std::thread::sleep(std::time::Duration::from_millis(100));
-                unsafe {
-                    let hwnd = FindWindowW(std::ptr::null(), title.as_ptr());
-                    if hwnd != 0 {
-                        let hwnd_topmost = -1 as windows_sys::Win32::Foundation::HWND;
-                        SetWindowPos(
-                            hwnd,
-                            hwnd_topmost,
-                            0,
-                            0,
-                            0,
-                            0,
-                            SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW,
-                        );
-                        SetForegroundWindow(hwnd);
-                        break;
-                    }
-                }
-            }
-        });
-    }
 }
 
 #[cfg(not(windows))]
@@ -643,9 +587,6 @@ mod non_windows {
         tracing::info!("[Tray] System tray is only active on Windows systems.");
         Some(TrayHandle)
     }
-
-    #[allow(dead_code)]
-    pub fn pin_popup_topmost() {}
 }
 
 #[cfg(windows)]
