@@ -70,7 +70,7 @@ mod win32 {
     use windows_sys::Win32::UI::Input::KeyboardAndMouse::SetFocus;
     use windows_sys::Win32::UI::WindowsAndMessaging::{
         CallWindowProcW, CreateWindowExW, DefWindowProcW, DispatchMessageW, GetMessageW,
-        GetWindowLongPtrW, PostMessageW, RegisterClassW, SendMessageW, SetForegroundWindow,
+        PostMessageW, RegisterClassW, SendMessageW, SetForegroundWindow,
         SetWindowLongPtrW, SetWindowPos, SystemParametersInfoW, TranslateMessage,
         ES_AUTOHSCROLL, GWLP_WNDPROC, MSG, SPI_GETWORKAREA, SWP_SHOWWINDOW, SW_HIDE, SW_SHOW,
         WM_CLOSE, WM_CTLCOLOREDIT, WM_CTLCOLORSTATIC, WM_DESTROY, WM_KEYDOWN, WM_USER,
@@ -81,7 +81,7 @@ mod win32 {
     static ACTIVE_PORT: AtomicU16 = AtomicU16::new(7060);
     static PROMPT_HWND: Mutex<Option<HWND>> = Mutex::new(None);
     static EDIT_HWND: Mutex<Option<HWND>> = Mutex::new(None);
-    static ORIG_EDIT_PROC: Mutex<Option<WNDPROC>> = Mutex::new(None);
+    static ORIG_EDIT_PROC: Mutex<WNDPROC> = Mutex::new(None);
     static CURRENT_MODE: Mutex<PromptMode> = Mutex::new(PromptMode::User);
 
     const WM_SHOW_PROMPT: u32 = WM_USER + 201;
@@ -165,8 +165,8 @@ mod win32 {
         }
 
         let orig = *ORIG_EDIT_PROC.lock().unwrap();
-        if let Some(proc) = orig {
-            CallWindowProcW(proc, hwnd, msg, wparam, lparam)
+        if orig.is_some() {
+            CallWindowProcW(orig, hwnd, msg, wparam, lparam)
         } else {
             DefWindowProcW(hwnd, msg, wparam, lparam)
         }
