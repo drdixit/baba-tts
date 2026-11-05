@@ -53,7 +53,7 @@ async fn get_info_handler(State(state): State<AppState>) -> Json<serde_json::Val
         "port": state.port,
         "bannedCount": banned_count,
         "appUrl": format!("http://localhost:{}/", state.port),
-        "obsChatUrl": format!("http://localhost:{}/", state.port),
+        "obsChatUrl": format!("http://localhost:{}/chat", state.port),
         "obsDockUrl": format!("http://localhost:{}/", state.port),
     }))
 }
@@ -300,7 +300,7 @@ mod tests {
         let body = response.into_body().collect().await.unwrap().to_bytes();
         let info_json: serde_json::Value = serde_json::from_slice(&body).unwrap();
         assert_eq!(info_json["port"], 7060);
-        assert_eq!(info_json["obsChatUrl"], "http://localhost:7060/");
+        assert_eq!(info_json["obsChatUrl"], "http://localhost:7060/chat");
         assert_eq!(info_json["obsDockUrl"], "http://localhost:7060/");
         assert_eq!(info_json["appUrl"], "http://localhost:7060/");
 
