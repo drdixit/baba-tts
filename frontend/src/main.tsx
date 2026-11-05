@@ -4,6 +4,8 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import './index.css'
 import App from './App.tsx'
 import ChatPage from './ChatPage.tsx'
+import PopupPage from './PopupPage.tsx'
+import OverlayPage from './OverlayPage.tsx'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
@@ -11,6 +13,8 @@ createRoot(document.getElementById('root')!).render(
       <Routes>
         <Route path="/" element={<App />} />
         <Route path="/chat" element={<ChatPage />} />
+        <Route path="/popup" element={<PopupPage />} />
+        <Route path="/overlay" element={<OverlayPage />} />
         <Route path="*" element={<App />} />
       </Routes>
     </BrowserRouter>

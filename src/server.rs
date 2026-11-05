@@ -233,7 +233,7 @@ async fn save_settings_handler(
 async fn static_handler(uri: Uri) -> impl IntoResponse {
     let mut path = uri.path().trim_start_matches('/').to_string();
 
-    if path.is_empty() || path == "chat" || path == "dock" || path == "settings" {
+    if path.is_empty() || path == "chat" || path == "dock" || path == "settings" || path == "popup" || path == "overlay" {
         path = "index.html".to_string();
     }
 
