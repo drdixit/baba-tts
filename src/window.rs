@@ -133,7 +133,7 @@ mod win32 {
         put_is_built_in_error_page_enabled: unsafe extern "system" fn(*mut std::ffi::c_void, i32) -> i32,
     }
 
-    // ICoreWebView2Settings3: {FDB5AB74-AF33-4854-84F0-0A631DEF52A0}
+    // ICoreWebView2Settings3: {FDB5AB74-AF33-4854-84F0-0A631DEB5EBA}
     #[repr(C)]
     struct ICoreWebView2Settings3Vtbl {
         settings: ICoreWebView2SettingsVtbl,
