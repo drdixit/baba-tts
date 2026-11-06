@@ -304,29 +304,35 @@ mod tests {
         assert_eq!(info_json["obsDockUrl"], "http://localhost:7060/");
         assert_eq!(info_json["appUrl"], "http://localhost:7060/");
 
-        // Test GET /chat (SPA overlay route)
-        let response = app
-            .clone()
-            .oneshot(Request::builder().uri("/chat").body(Body::empty()).unwrap())
-            .await
-            .unwrap();
-        assert_eq!(response.status(), StatusCode::OK);
-
-        // Test GET /settings (SPA settings route)
-        let response = app
-            .clone()
-            .oneshot(Request::builder().uri("/settings").body(Body::empty()).unwrap())
-            .await
-            .unwrap();
-        assert_eq!(response.status(), StatusCode::OK);
-
-        // Test GET /popup (SPA popup route)
-        let response = app
-            .clone()
-            .oneshot(Request::builder().uri("/popup").body(Body::empty()).unwrap())
-            .await
-            .unwrap();
-        assert_eq!(response.status(), StatusCode::OK);
+        // Test OBS overlay and SPA routes serve embedded SPA index.html with 200 OK and text/html
+        for route in &["/chat", "/overlay", "/popup", "/settings", "/dock"] {
+            let response = app
+                .clone()
+                .oneshot(Request::builder().uri(*route).body(Body::empty()).unwrap())
+                .await
+                .unwrap();
+            assert_eq!(response.status(), StatusCode::OK);
+            let content_type = response
+                .headers()
+                .get(header::CONTENT_TYPE)
+                .expect("content-type header should be present")
+                .to_str()
+                .unwrap();
+            assert!(
+                content_type.starts_with("text/html"),
+                "expected text/html for {}, got {}",
+                route,
+                content_type
+            );
+            let body = response.into_body().collect().await.unwrap().to_bytes();
+            let html_str = String::from_utf8_lossy(&body);
+            assert!(
+                html_str.contains("<html") || html_str.contains("<!DOCTYPE") || html_str.contains("<!doctype"),
+                "expected HTML index content for {}, got: {}",
+                route,
+                html_str
+            );
+        }
 
         // Test GET /api/settings
         let response = app
@@ -496,6 +502,60 @@ mod tests {
         let response = app.clone().oneshot(local_req).await.unwrap();
         assert_eq!(response.status(), StatusCode::OK);
         assert!(shutdown_rx.try_recv().is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_obs_overlay_endpoints_serve_spa_html() {
+        let db = Db::open_in_memory().unwrap();
+        let (broadcast_tx, _) = broadcast::channel(10);
+        let (shutdown_tx, _) = tokio::sync::mpsc::channel(1);
+        let tts_handle = TtsActor::spawn(broadcast_tx.clone(), AppSettings::default());
+        let state = AppState {
+            db,
+            tts_handle,
+            broadcast_tx,
+            shutdown_tx,
+            port: 7060,
+        };
+        let app = create_router(state);
+
+        let obs_routes = ["/overlay", "/popup", "/chat"];
+        for route in obs_routes {
+            let response = app
+                .clone()
+                .oneshot(Request::builder().uri(route).body(Body::empty()).unwrap())
+                .await
+                .unwrap();
+
+            assert_eq!(
+                response.status(),
+                StatusCode::OK,
+                "OBS route {} must return 200 OK",
+                route
+            );
+
+            let content_type = response
+                .headers()
+                .get(header::CONTENT_TYPE)
+                .expect("Content-Type header must be present")
+                .to_str()
+                .unwrap();
+
+            assert!(
+                content_type.starts_with("text/html"),
+                "OBS route {} Content-Type must be text/html, got {}",
+                route,
+                content_type
+            );
+
+            let body = response.into_body().collect().await.unwrap().to_bytes();
+            let html_str = String::from_utf8_lossy(&body);
+            assert!(
+                html_str.contains("<html") || html_str.contains("<!doctype") || html_str.contains("<!DOCTYPE"),
+                "OBS route {} must serve the index.html SPA content",
+                route
+            );
+        }
     }
 }
 
