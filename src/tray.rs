@@ -17,22 +17,7 @@ pub enum TrayCommand {
 }
 
 pub fn open_desktop_app(url: &str) {
-    #[cfg(target_os = "windows")]
-    {
-        let edge_res = std::process::Command::new("msedge")
-            .arg(format!("--app={}", url))
-            .spawn();
-        if edge_res.is_err() {
-            let chrome_res = std::process::Command::new("chrome")
-                .arg(format!("--app={}", url))
-                .spawn();
-            if chrome_res.is_err() {
-                let _ = open::that(url);
-            }
-        }
-    }
-    #[cfg(not(target_os = "windows"))]
-    {
+    if !crate::window::focus_existing_window() {
         let _ = open::that(url);
     }
 }
@@ -99,16 +84,14 @@ impl TrayCommand {
     ) {
         match self {
             Self::OpenDashboard => {
-                let url = format!("http://localhost:{}", port);
-                open_desktop_app(&url);
+                crate::window::restore_and_focus_window(port);
             }
             Self::OpenSettings => {
-                let url = format!("http://localhost:{}", port);
-                open_desktop_app(&url);
+                crate::window::restore_and_focus_window(port);
             }
             Self::OpenObs => {
-                let url = format!("http://localhost:{}", port);
-                open_desktop_app(&url);
+                let url = format!("http://localhost:{}/chat", port);
+                let _ = open::that(&url);
             }
             Self::SkipCurrent => {
                 let handle = tts_handle.clone();
@@ -648,6 +631,10 @@ mod tests {
         TrayCommand::RestartServer.execute(7060, &tts_handle, &restart_tx, &runtime);
         assert!(restart_rx.try_recv().is_ok());
 
+        // Test OpenDashboard and OpenSettings execute window restore/focus without panic
+        TrayCommand::OpenDashboard.execute(7060, &tts_handle, &shutdown_tx, &runtime);
+        TrayCommand::OpenSettings.execute(7060, &tts_handle, &shutdown_tx, &runtime);
+
         // Test Skip and Clear commands on a bare OS thread with no thread-local Tokio runtime
         let tts_clone = tts_handle.clone();
         let shutdown_clone = shutdown_tx.clone();
@@ -657,6 +644,20 @@ mod tests {
             TrayCommand::ClearQueue.execute(7060, &tts_clone, &shutdown_clone, &rt_clone);
         });
         th.join().expect("Bare OS thread execution should not panic");
+    }
+
+    #[test]
+    fn test_tray_no_browser_process_spawning() {
+        // Source-level invariant: tray.rs must not invoke external browser executables msedge or chrome
+        let tray_source = include_str!("tray.rs");
+        assert!(
+            !tray_source.contains("\"msedge\""),
+            "tray.rs must not spawn external msedge browser process"
+        );
+        assert!(
+            !tray_source.contains("\"chrome\""),
+            "tray.rs must not spawn external chrome browser process"
+        );
     }
 
     #[cfg(not(windows))]

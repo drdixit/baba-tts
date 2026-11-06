@@ -560,7 +560,6 @@ mod win32 {
         }
     }
 
-    #[allow(dead_code)]
     pub fn restore_and_focus_window(_port: u16) -> bool {
         focus_existing_window()
     }
@@ -585,7 +584,6 @@ mod non_windows {
         false
     }
 
-    #[allow(dead_code)]
     pub fn restore_and_focus_window(_port: u16) -> bool {
         tracing::info!("[Window] restore_and_focus_window mocked on non-Windows");
         false
