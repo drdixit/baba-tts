@@ -16,12 +16,6 @@ pub enum TrayCommand {
     Exit,
 }
 
-pub fn open_desktop_app(url: &str) {
-    if !crate::window::focus_existing_window() {
-        let _ = open::that(url);
-    }
-}
-
 
 pub fn restart_process() {
     tracing::info!("Initiating process restart...");

@@ -27,20 +27,22 @@ use std::net::SocketAddr;
 use tokio::sync::broadcast;
 use tracing::info;
 
+pub fn enforce_single_instance(instance: &SingleInstance) -> bool {
+    if !instance.is_single() {
+        eprintln!("[BABA TTS] Another instance is already running! Focusing existing window...");
+        crate::window::focus_existing_window();
+        return false;
+    }
+    true
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     // 1. Single-Instance Enforcement
     let instance = SingleInstance::new("baba-tts-singleton-lock")
         .map_err(|e| anyhow::anyhow!("Failed to check single instance lock: {}", e))?;
 
-    if !instance.is_single() {
-        eprintln!("[BABA TTS] Another instance is already running! Focusing existing instance in desktop app...");
-        let active_port = Db::open("baba.db")
-            .ok()
-            .and_then(|d| d.get_setting("active_port").ok().flatten())
-            .and_then(|p| p.parse::<u16>().ok())
-            .unwrap_or(7060);
-        crate::tray::open_desktop_app(&format!("http://localhost:{}", active_port));
+    if !enforce_single_instance(&instance) {
         std::process::exit(0);
     }
 
@@ -120,8 +122,8 @@ async fn main() -> Result<()> {
     info!("  • OBS Moderation Dock: http://localhost:{}/", port);
     info!("  • Settings API:        http://localhost:{}/api/settings", port);
 
-    // 10. Automatically open Dashboard in desktop app mode on launch
-    crate::tray::open_desktop_app(&format!("http://localhost:{}", port));
+    // 10. Automatically open Dashboard in native desktop window on launch
+    let _desktop_window = crate::window::create_desktop_window(port);
 
     // 11. Run Server with Graceful Shutdown
     axum::serve(listener, router.into_make_service_with_connect_info::<SocketAddr>())
@@ -165,6 +167,50 @@ async fn shutdown_signal(mut shutdown_rx: tokio::sync::mpsc::Receiver<()>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_single_instance_first_instance_allowed() {
+        let lock_name = format!("baba-tts-test-lock-{}", uuid::Uuid::new_v4());
+        {
+            let instance = SingleInstance::new(&lock_name).unwrap();
+            assert!(enforce_single_instance(&instance));
+        }
+        let _ = std::fs::remove_file(&lock_name);
+    }
+
+    #[test]
+    fn test_single_instance_second_instance_signals_and_denied() {
+        let lock_name = format!("baba-tts-test-lock-{}", uuid::Uuid::new_v4());
+        {
+            let first_instance = SingleInstance::new(&lock_name).unwrap();
+            assert!(first_instance.is_single());
+
+            let second_instance = SingleInstance::new(&lock_name).unwrap();
+            assert!(!second_instance.is_single());
+
+            let allowed = enforce_single_instance(&second_instance);
+            assert!(!allowed);
+        }
+        let _ = std::fs::remove_file(&lock_name);
+    }
+
+    #[test]
+    fn test_desktop_window_creation_and_shutdown() {
+        let window = crate::window::create_desktop_window(7060);
+        assert!(window.is_ok());
+        drop(window);
+    }
+
+    #[test]
+    fn test_main_no_open_desktop_app_references() {
+        let main_source = include_str!("main.rs");
+        let non_test_code = main_source.split("mod tests").next().unwrap_or(main_source);
+        let forbidden = ["open", "_desktop", "_app"].concat();
+        assert!(
+            !non_test_code.contains(&forbidden),
+            "main.rs must not contain any calls to deprecated helper"
+        );
+    }
 
     #[tokio::test]
     async fn test_port_fallback_when_in_use() {
