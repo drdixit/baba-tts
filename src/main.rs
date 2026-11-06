@@ -10,7 +10,11 @@ mod tray;
 mod tts_queue;
 mod types;
 mod ws;
+mod window;
 mod youtube;
+
+#[allow(unused_imports)]
+pub use window::{create_desktop_window, focus_existing_window, DesktopWindow};
 
 use crate::db::Db;
 use crate::server::{create_router, AppState};
