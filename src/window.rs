@@ -257,11 +257,11 @@ mod win32 {
                 ((*settings_vtbl).put_is_status_bar_enabled)(settings, 0);
                 ((*settings_vtbl).put_are_default_context_menus_enabled)(settings, 0);
 
-                // Query ICoreWebView2Settings3: {FDB5AB74-AF33-4854-84F0-0A631DEF52A0}
+                // Query ICoreWebView2Settings3: {FDB5AB74-AF33-4854-84F0-0A631DEB5EBA}
                 let mut settings3: *mut std::ffi::c_void = std::ptr::null_mut();
                 let iid_settings3: [u8; 16] = [
                     0x74, 0xab, 0xb5, 0xfd, 0x33, 0xaf, 0x54, 0x48,
-                    0x84, 0xf0, 0x0a, 0x63, 0x1d, 0xef, 0x52, 0xa0,
+                    0x84, 0xf0, 0x0a, 0x63, 0x1d, 0xeb, 0x5e, 0xba,
                 ];
                 let qi_res = ((*settings_vtbl).unknown.query_interface)(
                     settings,
@@ -427,6 +427,7 @@ mod win32 {
                 if !ctrl_ptr.is_null() {
                     let ctrl_vtbl = *(ctrl_ptr as *mut *mut ICoreWebView2ControllerVtbl);
                     ((*ctrl_vtbl).close)(ctrl_ptr);
+                    ((*ctrl_vtbl).unknown.release)(ctrl_ptr);
                 }
                 PostQuitMessage(0);
                 0
