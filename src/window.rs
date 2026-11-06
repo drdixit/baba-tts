@@ -211,7 +211,7 @@ mod win32 {
         if !ppv.is_null() {
             *ppv = std::ptr::null_mut();
         }
-        0x80004002 // E_NOINTERFACE
+        0x80004002u32 as i32 // E_NOINTERFACE
     }
 
     unsafe extern "system" fn handler_add_ref(_this: *mut std::ffi::c_void) -> u32 {
