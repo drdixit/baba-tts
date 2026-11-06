@@ -22,16 +22,17 @@ mod win32 {
     use windows_sys::Win32::System::LibraryLoader::{GetModuleHandleW, GetProcAddress, LoadLibraryW};
     use windows_sys::Win32::UI::WindowsAndMessaging::{
         CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW, FindWindowW,
-        GetClientRect, GetMessageW, LoadIconW, LoadImageW, PostMessageW, PostQuitMessage,
-        RegisterClassW, SetForegroundWindow, ShowWindow, TranslateMessage, CW_USEDEFAULT,
-        IDI_APPLICATION, IMAGE_ICON, LR_LOADFROMFILE, MSG, SW_HIDE, SW_RESTORE, SW_SHOW,
-        WM_CLOSE, WM_CREATE, WM_DESTROY, WM_SIZE, WM_USER, WNDCLASSW, WS_OVERLAPPEDWINDOW,
-        WS_VISIBLE,
+        GetClientRect, GetMessageW, LoadCursorW, LoadIconW, LoadImageW, PostMessageW,
+        PostQuitMessage, RegisterClassW, SetForegroundWindow, ShowWindow, TranslateMessage,
+        CW_USEDEFAULT, IDC_ARROW, IDI_APPLICATION, IMAGE_ICON, LR_LOADFROMFILE, MSG, SW_HIDE,
+        SW_RESTORE, SW_SHOW, WM_CLOSE, WM_CREATE, WM_DESTROY, WM_SIZE, WM_USER, WNDCLASSW,
+        WS_OVERLAPPEDWINDOW, WS_VISIBLE,
     };
 
     pub const WINDOW_CLASS_NAME: &str = "BabaTtsMainWindowClass";
     pub const WINDOW_TITLE: &str = "BABA TTS - Streamer Control Panel";
     pub const WM_USER_FOCUS_WINDOW: u32 = WM_USER + 101;
+    pub const WM_USER_CLOSE: u32 = WM_USER + 102;
 
     // Global controller storage for resizing and lifecycle
     static CONTROLLER_PTR: AtomicIsize = AtomicIsize::new(0);
@@ -108,6 +109,7 @@ mod win32 {
         release: unsafe extern "system" fn(*mut std::ffi::c_void) -> u32,
     }
 
+    // ICoreWebView2Settings terminates at slot 20 (put_is_built_in_error_page_enabled)
     #[repr(C)]
     struct ICoreWebView2SettingsVtbl {
         unknown: IUnknownVtbl,
@@ -129,6 +131,14 @@ mod win32 {
         put_is_zoom_control_enabled: unsafe extern "system" fn(*mut std::ffi::c_void, i32) -> i32,
         get_is_built_in_error_page_enabled: unsafe extern "system" fn(*mut std::ffi::c_void, *mut i32) -> i32,
         put_is_built_in_error_page_enabled: unsafe extern "system" fn(*mut std::ffi::c_void, i32) -> i32,
+    }
+
+    // ICoreWebView2Settings3: {FDB5AB74-AF33-4854-84F0-0A631DEF52A0}
+    #[repr(C)]
+    struct ICoreWebView2Settings3Vtbl {
+        settings: ICoreWebView2SettingsVtbl,
+        get_user_agent: unsafe extern "system" fn(*mut std::ffi::c_void, *mut *mut u16) -> i32,
+        put_user_agent: unsafe extern "system" fn(*mut std::ffi::c_void, *const u16) -> i32,
         get_are_browser_accelerator_keys_enabled: unsafe extern "system" fn(*mut std::ffi::c_void, *mut i32) -> i32,
         put_are_browser_accelerator_keys_enabled: unsafe extern "system" fn(*mut std::ffi::c_void, i32) -> i32,
     }
@@ -246,13 +256,35 @@ mod win32 {
                 let settings_vtbl = *(settings as *mut *mut ICoreWebView2SettingsVtbl);
                 ((*settings_vtbl).put_is_status_bar_enabled)(settings, 0);
                 ((*settings_vtbl).put_are_default_context_menus_enabled)(settings, 0);
-                ((*settings_vtbl).put_are_browser_accelerator_keys_enabled)(settings, 0);
+
+                // Query ICoreWebView2Settings3: {FDB5AB74-AF33-4854-84F0-0A631DEF52A0}
+                let mut settings3: *mut std::ffi::c_void = std::ptr::null_mut();
+                let iid_settings3: [u8; 16] = [
+                    0x74, 0xab, 0xb5, 0xfd, 0x33, 0xaf, 0x54, 0x48,
+                    0x84, 0xf0, 0x0a, 0x63, 0x1d, 0xef, 0x52, 0xa0,
+                ];
+                let qi_res = ((*settings_vtbl).unknown.query_interface)(
+                    settings,
+                    iid_settings3.as_ptr() as _,
+                    &mut settings3,
+                );
+                if qi_res >= 0 && !settings3.is_null() {
+                    let settings3_vtbl = *(settings3 as *mut *mut ICoreWebView2Settings3Vtbl);
+                    ((*settings3_vtbl).put_are_browser_accelerator_keys_enabled)(settings3, 0);
+                    ((*settings3_vtbl).settings.unknown.release)(settings3);
+                }
+
+                // Release ICoreWebView2Settings reference (+1 returned by get_settings)
+                ((*settings_vtbl).unknown.release)(settings);
             }
 
             let url = format_window_url(handler.port);
             let wide_url = to_wide(&url);
             ((*webview_vtbl).navigate)(webview, wide_url.as_ptr());
             info!("[Window] WebView2 navigated to {}", url);
+
+            // Release ICoreWebView2 reference (+1 returned by get_core_webview2)
+            ((*webview_vtbl).unknown.release)(webview);
         }
 
         0
@@ -385,6 +417,11 @@ mod win32 {
                 ShowWindow(hwnd, SW_HIDE);
                 0
             }
+            WM_USER_CLOSE => {
+                // Proper window teardown requested on Drop
+                DestroyWindow(hwnd);
+                0
+            }
             WM_DESTROY => {
                 let ctrl_ptr = CONTROLLER_PTR.swap(0, Ordering::SeqCst) as *mut std::ffi::c_void;
                 if !ctrl_ptr.is_null() {
@@ -407,7 +444,7 @@ mod win32 {
         fn drop(&mut self) {
             if self.hwnd != 0 {
                 unsafe {
-                    PostMessageW(self.hwnd, windows_sys::Win32::UI::WindowsAndMessaging::WM_DESTROY, 0, 0);
+                    PostMessageW(self.hwnd, WM_USER_CLOSE, 0, 0);
                 }
             }
             if let Some(th) = self.thread.take() {
@@ -422,6 +459,17 @@ mod win32 {
         let thread = std::thread::Builder::new()
             .name("baba-desktop-window".to_string())
             .spawn(move || unsafe {
+                // Initialize Single-Threaded Apartment (STA) for WebView2 and COM
+                let ole32 = LoadLibraryW(to_wide("ole32.dll").as_ptr());
+                if ole32 != 0 {
+                    let co_init = GetProcAddress(ole32, b"CoInitializeEx\0".as_ptr());
+                    if let Some(co_init_fn) = co_init {
+                        type CoInitializeExFn = unsafe extern "system" fn(*mut std::ffi::c_void, u32) -> i32;
+                        let func: CoInitializeExFn = std::mem::transmute(co_init_fn);
+                        func(std::ptr::null_mut(), 0x2 /* COINIT_APARTMENTTHREADED */);
+                    }
+                }
+
                 let h_instance = GetModuleHandleW(std::ptr::null());
                 let class_name = to_wide(WINDOW_CLASS_NAME);
 
@@ -432,7 +480,7 @@ mod win32 {
                     cbWndExtra: 0,
                     hInstance: h_instance,
                     hIcon: load_icon(),
-                    hCursor: 0,
+                    hCursor: LoadCursorW(0, IDC_ARROW),
                     hbrBackground: (COLOR_WINDOW + 1) as HBRUSH,
                     lpszMenuName: std::ptr::null(),
                     lpszClassName: class_name.as_ptr(),
@@ -469,6 +517,16 @@ mod win32 {
                 while GetMessageW(&mut msg, 0, 0, 0) > 0 {
                     TranslateMessage(&msg);
                     DispatchMessageW(&msg);
+                }
+
+                // Uninitialize COM before thread exit
+                if ole32 != 0 {
+                    let co_uninit = GetProcAddress(ole32, b"CoUninitialize\0".as_ptr());
+                    if let Some(co_uninit_fn) = co_uninit {
+                        type CoUninitializeFn = unsafe extern "system" fn();
+                        let func: CoUninitializeFn = std::mem::transmute(co_uninit_fn);
+                        func();
+                    }
                 }
             })
             .map_err(|e| anyhow::anyhow!("Failed to spawn desktop window thread: {}", e))?;
