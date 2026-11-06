@@ -15,6 +15,7 @@ import {
   Check,
   MessageSquare,
   AlertTriangle,
+  ExternalLink,
 } from 'lucide-react';
 import ChatMessage from './components/ChatMessage';
 import ModerationPanel from './components/ModerationPanel';
@@ -47,7 +48,7 @@ export default function App() {
 
 function DesktopApp() {
   const { messages, bannedUsers } = useStore();
-  const { wsRef, currentAudioTime } = useAppWebSocket(true);
+  const { wsRef, currentAudioTime, isConnected } = useAppWebSocket(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const [activeTab, setActiveTab] = useState<'monitor' | 'moderation' | 'settings' | 'obs'>('monitor');
@@ -71,10 +72,10 @@ function DesktopApp() {
     setTimeout(() => setToast(null), 3500);
   }, []);
 
-  const copyToClipboard = useCallback((text: string, key: string) => {
+  const copyToClipboard = useCallback((text: string, key: string, label?: string) => {
     navigator.clipboard.writeText(text).then(() => {
       setCopiedKey(key);
-      showToast(`Copied ${key} URL to clipboard!`);
+      showToast(`Copied ${label || key} URL to clipboard!`);
       setTimeout(() => setCopiedKey(null), 2000);
     }).catch(() => {
       showToast('Failed to copy to clipboard');
@@ -227,8 +228,10 @@ function DesktopApp() {
     }
   }, [wsRef, showToast]);
 
-  const isConnected = wsRef.current?.readyState === WebSocket.OPEN;
-  const baseUrl = `${window.location.protocol}//${window.location.hostname}:${serverPort}`;
+  const port = serverPort || 7060;
+  const protocol = window.location.protocol === 'file:' ? 'http:' : window.location.protocol;
+  const hostname = window.location.hostname || 'localhost';
+  const baseUrl = `${protocol}//${hostname}:${port}`;
 
   return (
     <div className="h-screen w-screen flex flex-col overflow-hidden bg-slate-950 text-slate-100 select-none">
@@ -241,15 +244,15 @@ function DesktopApp() {
       )}
 
       {/* Top Application Header */}
-      <header className="w-full h-16 bg-slate-900 border-b border-slate-800 px-5 flex items-center justify-between shrink-0 z-40">
+      <header className="w-full h-16 bg-slate-900/95 backdrop-blur border-b border-slate-800 px-5 flex items-center justify-between shrink-0 z-40 select-none">
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 shadow-sm">
+            <div className="p-2 rounded-xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 shadow-sm shadow-cyan-950/40">
               <Volume2 className="w-5 h-5" />
             </div>
             <div>
               <span className="text-lg font-black tracking-wider text-white">BABA TTS</span>
-              <span className="ml-2 text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 uppercase">
+              <span className="ml-2 text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 uppercase tracking-wider">
                 Desktop
               </span>
             </div>
@@ -257,21 +260,21 @@ function DesktopApp() {
 
           {/* Status Badges */}
           <div className="hidden sm:flex items-center gap-2">
-            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-800/80 border border-slate-700/60 text-xs font-semibold text-slate-300">
+            <div className="flex items-center gap-2 px-3 py-1 rounded-lg bg-slate-800/80 border border-slate-700/60 text-xs font-semibold text-slate-300 shadow-sm">
               <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`} />
-              <span>{isConnected ? `Port ${serverPort}` : 'Connecting...'}</span>
+              <span>{isConnected ? `Connected to Port ${port}` : `Connecting to Port ${port}...`}</span>
             </div>
 
-            <div className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-800/80 border border-slate-700/60 text-xs font-semibold text-slate-300">
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-800/80 border border-slate-700/60 text-xs font-semibold text-slate-300">
               <span className="text-slate-400">Queue:</span>
               <span className={`font-bold ${activeQueueCount > 0 ? 'text-cyan-400' : 'text-slate-400'}`}>
                 {activeQueueCount}
               </span>
             </div>
 
-            <div className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-800/80 border border-slate-700/60 text-xs font-semibold text-slate-300">
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-800/80 border border-slate-700/60 text-xs font-semibold text-slate-300">
               <span className="text-slate-400">Banned:</span>
-              <span className={`font-bold ${bannedUsers.length > 0 ? 'text-red-400' : 'text-slate-400'}`}>
+              <span className={`font-bold ${bannedUsers.length > 0 ? 'text-rose-400' : 'text-slate-400'}`}>
                 {bannedUsers.length}
               </span>
             </div>
@@ -535,103 +538,199 @@ function DesktopApp() {
         {activeTab === 'obs' && (
           <div className="flex-1 p-8 overflow-y-auto max-w-4xl mx-auto w-full space-y-6">
             <div>
-              <h2 className="text-2xl font-black text-white tracking-wide flex items-center gap-2.5">
-                <Tv className="w-6 h-6 text-cyan-400" />
-                OBS Studio Browser Sources
-              </h2>
-              <p className="text-sm text-slate-400 mt-1">
-                Add these transparent URLs to OBS Studio as Browser Sources to display live TTS popups and chat history on your stream.
-              </p>
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-400">
+                  <Tv className="w-6 h-6" />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-black text-white tracking-wide">
+                    OBS Studio Browser Sources
+                  </h2>
+                  <p className="text-sm text-slate-400 mt-0.5">
+                    Add these transparent URLs to OBS Studio as Browser Sources to display live TTS popups and chat history on your stream.
+                  </p>
+                </div>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 gap-4">
-              {/* Card 1: Chat History Overlay */}
-              <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-sm hover:border-cyan-500/40 transition-colors">
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold text-white text-base">Transparent Chat History</span>
-                    <span className="px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-300 text-[10px] font-bold uppercase">
-                      Recommended
+              {/* Card 1: 9:16 Full Broadcast Overlay (/overlay) */}
+              <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800 hover:border-cyan-500/40 transition-colors shadow-md flex flex-col md:flex-row md:items-center justify-between gap-5">
+                <div className="space-y-2 flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-bold text-white text-base">9:16 Full Broadcast Overlay</span>
+                    <span className="px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30 text-[10px] font-bold uppercase tracking-wider">
+                      1080 × 1920 (Vertical)
+                    </span>
+                    <span className="px-2 py-0.5 rounded bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 text-[10px] font-semibold">
+                      All-In-One Layout
                     </span>
                   </div>
                   <p className="text-xs text-slate-400">
-                    Auto-resizing transparent scrolling chat history. Place anywhere on stream.
+                    Complete vertical broadcast scene (1080×1920) combining the speaking spotlight popup card above dynamic scrolling chat history in a single browser source.
                   </p>
-                  <code className="text-xs font-mono text-cyan-300 block bg-slate-950 px-3 py-1.5 rounded-lg border border-slate-800">
-                    {`${baseUrl}/chat`}
-                  </code>
-                </div>
-                <button
-                  onClick={() => copyToClipboard(`${baseUrl}/chat`, 'Chat Overlay')}
-                  className="shrink-0 flex items-center gap-2 px-4 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold transition-colors shadow-sm"
-                >
-                  {copiedKey === 'Chat Overlay' ? <Check className="w-4 h-4 text-white" /> : <Copy className="w-4 h-4" />}
-                  <span>Copy URL</span>
-                </button>
-              </div>
-
-              {/* Card 2: Speaking Popup Overlay */}
-              <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-sm hover:border-cyan-500/40 transition-colors">
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold text-white text-base">Speaking Pop-up Spotlight</span>
-                    <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 text-[10px] font-bold uppercase">
-                      Dynamic Pop-up
-                    </span>
-                  </div>
-                  <p className="text-xs text-slate-400">
-                    Transparent pop-up that appears only while someone is speaking, with avatar pulse & karaoke.
-                  </p>
-                  <code className="text-xs font-mono text-cyan-300 block bg-slate-950 px-3 py-1.5 rounded-lg border border-slate-800">
-                    {`${baseUrl}/popup`}
-                  </code>
-                </div>
-                <button
-                  onClick={() => copyToClipboard(`${baseUrl}/popup`, 'Speaking Popup')}
-                  className="shrink-0 flex items-center gap-2 px-4 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold transition-colors shadow-sm"
-                >
-                  {copiedKey === 'Speaking Popup' ? <Check className="w-4 h-4 text-white" /> : <Copy className="w-4 h-4" />}
-                  <span>Copy URL</span>
-                </button>
-              </div>
-
-              {/* Card 3: Full 9:16 Vertical Broadcast Overlay */}
-              <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-sm hover:border-cyan-500/40 transition-colors">
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold text-white text-base">Combined 9:16 Vertical Broadcast Overlay</span>
-                    <span className="px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 text-[10px] font-bold uppercase">
-                      1080 × 1920
-                    </span>
-                  </div>
-                  <p className="text-xs text-slate-400">
-                    All-in-one vertical stream layout (1080x1920) with spotlight popup above chat history.
-                  </p>
-                  <code className="text-xs font-mono text-cyan-300 block bg-slate-950 px-3 py-1.5 rounded-lg border border-slate-800">
+                  <code className="text-xs font-mono text-cyan-300 block bg-slate-950 px-3.5 py-2 rounded-xl border border-slate-800 break-all select-all">
                     {`${baseUrl}/overlay`}
                   </code>
                 </div>
-                <button
-                  onClick={() => copyToClipboard(`${baseUrl}/overlay`, 'Vertical Overlay')}
-                  className="shrink-0 flex items-center gap-2 px-4 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold transition-colors shadow-sm"
-                >
-                  {copiedKey === 'Vertical Overlay' ? <Check className="w-4 h-4 text-white" /> : <Copy className="w-4 h-4" />}
-                  <span>Copy URL</span>
-                </button>
+
+                <div className="flex items-center gap-2 shrink-0">
+                  <a
+                    href={`${baseUrl}/overlay`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 transition-colors"
+                    title="Preview in browser tab"
+                  >
+                    <ExternalLink className="w-4 h-4" />
+                  </a>
+
+                  <button
+                    onClick={() => copyToClipboard(`${baseUrl}/overlay`, 'overlay', 'Full Broadcast Overlay')}
+                    className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold transition-all shadow-sm ${
+                      copiedKey === 'overlay'
+                        ? 'bg-emerald-600 text-white ring-2 ring-emerald-400/50'
+                        : 'bg-cyan-600 hover:bg-cyan-500 text-white shadow-cyan-950/50'
+                    }`}
+                  >
+                    {copiedKey === 'overlay' ? (
+                      <>
+                        <Check className="w-4 h-4 text-emerald-200" />
+                        <span>Copied!</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-4 h-4" />
+                        <span>Copy URL</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              {/* Card 2: Speaking Spotlight Only (/popup) */}
+              <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800 hover:border-cyan-500/40 transition-colors shadow-md flex flex-col md:flex-row md:items-center justify-between gap-5">
+                <div className="space-y-2 flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-bold text-white text-base">Speaking Spotlight Only</span>
+                    <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[10px] font-bold uppercase tracking-wider">
+                      Transparent Popup
+                    </span>
+                    <span className="px-2 py-0.5 rounded bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 text-[10px] font-semibold">
+                      Karaoke Sync
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-400">
+                    Transparent popup card that appears dynamically only while someone is speaking, with pulsing avatar border and word-by-word highlighted karaoke text.
+                  </p>
+                  <code className="text-xs font-mono text-cyan-300 block bg-slate-950 px-3.5 py-2 rounded-xl border border-slate-800 break-all select-all">
+                    {`${baseUrl}/popup`}
+                  </code>
+                </div>
+
+                <div className="flex items-center gap-2 shrink-0">
+                  <a
+                    href={`${baseUrl}/popup`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 transition-colors"
+                    title="Preview in browser tab"
+                  >
+                    <ExternalLink className="w-4 h-4" />
+                  </a>
+
+                  <button
+                    onClick={() => copyToClipboard(`${baseUrl}/popup`, 'popup', 'Speaking Spotlight')}
+                    className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold transition-all shadow-sm ${
+                      copiedKey === 'popup'
+                        ? 'bg-emerald-600 text-white ring-2 ring-emerald-400/50'
+                        : 'bg-cyan-600 hover:bg-cyan-500 text-white shadow-cyan-950/50'
+                    }`}
+                  >
+                    {copiedKey === 'popup' ? (
+                      <>
+                        <Check className="w-4 h-4 text-emerald-200" />
+                        <span>Copied!</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-4 h-4" />
+                        <span>Copy URL</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              {/* Card 3: Live Chat Stream Only (/chat) */}
+              <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800 hover:border-cyan-500/40 transition-colors shadow-md flex flex-col md:flex-row md:items-center justify-between gap-5">
+                <div className="space-y-2 flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-bold text-white text-base">Live Chat Stream Only</span>
+                    <span className="px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 text-[10px] font-bold uppercase tracking-wider">
+                      Transparent Chat
+                    </span>
+                    <span className="px-2 py-0.5 rounded bg-slate-800 text-slate-300 text-[10px] font-semibold">
+                      Auto-Scrolling
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-400">
+                    Transparent scrolling chat history feed. Automatically resizes to fit any width/height container and auto-scrolls down when new messages arrive.
+                  </p>
+                  <code className="text-xs font-mono text-cyan-300 block bg-slate-950 px-3.5 py-2 rounded-xl border border-slate-800 break-all select-all">
+                    {`${baseUrl}/chat`}
+                  </code>
+                </div>
+
+                <div className="flex items-center gap-2 shrink-0">
+                  <a
+                    href={`${baseUrl}/chat`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 transition-colors"
+                    title="Preview in browser tab"
+                  >
+                    <ExternalLink className="w-4 h-4" />
+                  </a>
+
+                  <button
+                    onClick={() => copyToClipboard(`${baseUrl}/chat`, 'chat', 'Live Chat Stream')}
+                    className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold transition-all shadow-sm ${
+                      copiedKey === 'chat'
+                        ? 'bg-emerald-600 text-white ring-2 ring-emerald-400/50'
+                        : 'bg-cyan-600 hover:bg-cyan-500 text-white shadow-cyan-950/50'
+                    }`}
+                  >
+                    {copiedKey === 'chat' ? (
+                      <>
+                        <Check className="w-4 h-4 text-emerald-200" />
+                        <span>Copied!</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-4 h-4" />
+                        <span>Copy URL</span>
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
             </div>
 
-            {/* OBS Browser Source Configuration Tips */}
-            <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-800/80 text-xs text-slate-400 space-y-1.5">
-              <div className="font-bold text-slate-300 flex items-center gap-1.5">
+            {/* OBS Browser Source Configuration Setup Guide */}
+            <div className="p-5 rounded-2xl bg-slate-900/70 border border-slate-800/90 text-xs text-slate-400 space-y-3">
+              <div className="font-bold text-slate-200 text-sm flex items-center gap-2">
                 <AlertTriangle className="w-4 h-4 text-amber-400" />
-                OBS Studio Browser Source Setup:
+                OBS Studio Browser Source Setup Guide
               </div>
-              <ul className="list-disc pl-5 space-y-1 text-slate-400">
-                <li>Check <strong>"Shutdown source when not visible"</strong> to save resources.</li>
-                <li>Do <strong>not</strong> route audio via OBS Browser Source — BABA TTS Desktop App plays all audio natively through Windows audio output.</li>
-                <li>For <code>/chat</code>, set whatever width and height fits your stream layout; it auto-adapts.</li>
-              </ul>
+              <ol className="list-decimal pl-5 space-y-1.5 text-slate-300">
+                <li>In OBS Studio, click the <strong className="text-white">+</strong> button in the <strong>Sources</strong> dock and choose <strong>Browser</strong>.</li>
+                <li>Give the source a clear name (e.g. <span className="text-cyan-300 font-mono">BABA Vertical Overlay</span>) and click OK.</li>
+                <li>Paste the copied URL into the <strong>URL</strong> field.</li>
+                <li>Set the recommended canvas resolution (e.g., <strong>Width: 1080</strong>, <strong>Height: 1920</strong> for Full Broadcast Overlay).</li>
+                <li>Check <strong className="text-white">"Shutdown source when not visible"</strong> to minimize stream GPU/CPU overhead.</li>
+                <li>Leave <strong className="text-white">"Control audio via OBS" unchecked</strong> — BABA TTS Desktop App plays audio natively via Windows audio output to eliminate latency and avoid double-audio echo.</li>
+              </ol>
             </div>
           </div>
         )}

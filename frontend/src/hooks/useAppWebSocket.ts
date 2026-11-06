@@ -8,6 +8,7 @@ export function useAppWebSocket(playAudio: boolean = false) {
   const rafRef = useRef<number | null>(null);
   
   const [currentAudioTime, setCurrentAudioTime] = useState(0);
+  const [isConnected, setIsConnected] = useState(false);
 
   useEffect(() => {
     let isIntentionalClose = false;
@@ -21,6 +22,7 @@ export function useAppWebSocket(playAudio: boolean = false) {
 
     ws.onopen = () => {
       console.log('Connected to WebSocket');
+      setIsConnected(true);
     };
 
     ws.onmessage = (event) => {
@@ -121,9 +123,11 @@ export function useAppWebSocket(playAudio: boolean = false) {
 
     ws.onerror = (err) => {
       console.error('WebSocket error:', err);
+      setIsConnected(false);
     };
 
     ws.onclose = () => {
+      setIsConnected(false);
       if (isIntentionalClose) return;
       console.log('WebSocket disconnected. Attempting to reconnect in 3s...');
       setTimeout(() => {
@@ -136,9 +140,10 @@ export function useAppWebSocket(playAudio: boolean = false) {
 
     return () => {
       isIntentionalClose = true;
+      setIsConnected(false);
       ws.close();
     };
   }, [addMessages, playAudio]);
 
-  return { wsRef, currentAudioTime, audioRef, rafRef, setCurrentAudioTime };
+  return { wsRef, currentAudioTime, isConnected, audioRef, rafRef, setCurrentAudioTime };
 }
