@@ -18,7 +18,7 @@ mod win32 {
     use std::sync::mpsc::sync_channel;
     use tracing::{error, info, warn};
     use windows_sys::Win32::Foundation::{HWND, LPARAM, LRESULT, RECT, WPARAM};
-    use windows_sys::Win32::Graphics::Gdi::{COLOR_WINDOW, HBRUSH};
+    use windows_sys::Win32::Graphics::Gdi::{CreateSolidBrush, COLOR_WINDOW, HBRUSH};
     use windows_sys::Win32::System::LibraryLoader::{GetModuleHandleW, GetProcAddress, LoadLibraryW};
     use windows_sys::Win32::UI::WindowsAndMessaging::{
         CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW, FindWindowW,
@@ -229,7 +229,9 @@ mod win32 {
     ) -> i32 {
         let handler = &*(this as *const ControllerCompletedHandler);
         if error_code < 0 || controller.is_null() {
-            error!("[Window] Failed to create WebView2 controller: error_code = {:#x}", error_code);
+            error!("[Window] Failed to create WebView2 controller: error_code = {:#x}. Opening in default browser.", error_code);
+            let url = format_window_url(handler.port);
+            let _ = open::that(&url);
             return 0;
         }
 
@@ -319,7 +321,9 @@ mod win32 {
     ) -> i32 {
         let handler = &*(this as *const EnvCompletedHandler);
         if error_code < 0 || env.is_null() {
-            error!("[Window] Failed to create WebView2 environment: error_code = {:#x}", error_code);
+            error!("[Window] Failed to create WebView2 environment: error_code = {:#x}. Opening in default browser.", error_code);
+            let url = format_window_url(handler.port);
+            let _ = open::that(&url);
             return 0;
         }
 
@@ -350,38 +354,109 @@ mod win32 {
         invoke: env_invoke,
     };
 
+    #[cfg(target_arch = "x86_64")]
+    const WEBVIEW2_LOADER_BYTES: &[u8] = include_bytes!("../assets/x64/WebView2Loader.dll");
+
+    #[cfg(target_arch = "x86")]
+    const WEBVIEW2_LOADER_BYTES: &[u8] = include_bytes!("../assets/x86/WebView2Loader.dll");
+
+    #[cfg(target_arch = "aarch64")]
+    const WEBVIEW2_LOADER_BYTES: &[u8] = include_bytes!("../assets/arm64/WebView2Loader.dll");
+
+    #[cfg(not(any(target_arch = "x86_64", target_arch = "x86", target_arch = "aarch64")))]
+    const WEBVIEW2_LOADER_BYTES: &[u8] = include_bytes!("../assets/x64/WebView2Loader.dll");
+
+    unsafe fn ensure_webview2_loader() -> windows_sys::Win32::Foundation::HMODULE {
+        // 1. Try standard library search path (e.g. adjacent to binary or system PATH)
+        let direct = LoadLibraryW(to_wide("WebView2Loader.dll").as_ptr());
+        if direct != 0 {
+            return direct;
+        }
+
+        // 2. Try adjacent to current executable (and extract if missing)
+        if let Ok(exe_path) = std::env::current_exe() {
+            if let Some(exe_dir) = exe_path.parent() {
+                let candidate = exe_dir.join("WebView2Loader.dll");
+                if candidate.exists() {
+                    let h = LoadLibraryW(to_wide(&candidate.to_string_lossy()).as_ptr());
+                    if h != 0 {
+                        return h;
+                    }
+                }
+                // Attempt self-extraction next to executable
+                if std::fs::write(&candidate, WEBVIEW2_LOADER_BYTES).is_ok() {
+                    let h = LoadLibraryW(to_wide(&candidate.to_string_lossy()).as_ptr());
+                    if h != 0 {
+                        return h;
+                    }
+                }
+            }
+        }
+
+        // 3. Fallback extraction: %TEMP%\baba-tts\WebView2Loader.dll
+        let temp_dir = std::env::temp_dir().join("baba-tts");
+        let _ = std::fs::create_dir_all(&temp_dir);
+        let temp_loader = temp_dir.join("WebView2Loader.dll");
+        if std::fs::write(&temp_loader, WEBVIEW2_LOADER_BYTES).is_ok() {
+            let h = LoadLibraryW(to_wide(&temp_loader.to_string_lossy()).as_ptr());
+            if h != 0 {
+                return h;
+            }
+        }
+
+        0
+    }
+
     unsafe fn attach_webview2(hwnd: HWND, port: u16) {
-        let loader = LoadLibraryW(to_wide("WebView2Loader.dll").as_ptr());
+        let loader = ensure_webview2_loader();
         if loader == 0 {
-            warn!("[Window] WebView2Loader.dll not found. Native window will operate as standard Win32 host.");
+            warn!("[Window] WebView2Loader.dll not available. Opening dashboard in default browser.");
+            let url = format_window_url(port);
+            let _ = open::that(&url);
             return;
         }
 
         let create_env = GetProcAddress(loader, b"CreateCoreWebView2EnvironmentWithOptions\0".as_ptr());
-        if let Some(proc) = create_env {
-            type CreateEnvFn = unsafe extern "system" fn(
-                *const u16,
-                *const u16,
-                *mut std::ffi::c_void,
-                *mut std::ffi::c_void,
-            ) -> i32;
-            let func: CreateEnvFn = std::mem::transmute(proc);
+        let Some(proc) = create_env else {
+            warn!("[Window] CreateCoreWebView2EnvironmentWithOptions symbol missing. Opening in default browser.");
+            let url = format_window_url(port);
+            let _ = open::that(&url);
+            return;
+        };
 
-            let handler = Box::new(EnvCompletedHandler {
-                vtbl: &ENV_HANDLER_VTBL,
-                hwnd,
-                port,
-            });
+        type CreateEnvFn = unsafe extern "system" fn(
+            *const u16,
+            *const u16,
+            *mut std::ffi::c_void,
+            *mut std::ffi::c_void,
+        ) -> i32;
+        let func: CreateEnvFn = std::mem::transmute(proc);
 
-            let res = func(
-                std::ptr::null(),
-                std::ptr::null(),
-                std::ptr::null_mut(),
-                Box::into_raw(handler) as _,
-            );
-            if res < 0 {
-                error!("[Window] CreateCoreWebView2EnvironmentWithOptions returned {:#x}", res);
-            }
+        // Resolve writable user data directory in LOCALAPPDATA or TEMP to avoid permissions failures
+        let user_data_dir = std::env::var("LOCALAPPDATA")
+            .map(std::path::PathBuf::from)
+            .unwrap_or_else(|_| std::env::temp_dir())
+            .join("baba-tts")
+            .join("WebView2Data");
+        let _ = std::fs::create_dir_all(&user_data_dir);
+        let wide_user_data = to_wide(&user_data_dir.to_string_lossy());
+
+        let handler = Box::new(EnvCompletedHandler {
+            vtbl: &ENV_HANDLER_VTBL,
+            hwnd,
+            port,
+        });
+
+        let res = func(
+            std::ptr::null(),
+            wide_user_data.as_ptr(),
+            std::ptr::null_mut(),
+            Box::into_raw(handler) as _,
+        );
+        if res < 0 {
+            error!("[Window] CreateCoreWebView2EnvironmentWithOptions returned {:#x}. Opening in default browser.", res);
+            let url = format_window_url(port);
+            let _ = open::that(&url);
         }
     }
 
@@ -482,7 +557,7 @@ mod win32 {
                     hInstance: h_instance,
                     hIcon: load_icon(),
                     hCursor: LoadCursorW(0, IDC_ARROW),
-                    hbrBackground: (COLOR_WINDOW + 1) as HBRUSH,
+                    hbrBackground: CreateSolidBrush(0x00190f0b),
                     lpszMenuName: std::ptr::null(),
                     lpszClassName: class_name.as_ptr(),
                 };
@@ -560,8 +635,14 @@ mod win32 {
         }
     }
 
-    pub fn restore_and_focus_window(_port: u16) -> bool {
-        focus_existing_window()
+    pub fn restore_and_focus_window(port: u16) -> bool {
+        if focus_existing_window() {
+            true
+        } else {
+            let url = format_window_url(port);
+            let _ = open::that(&url);
+            true
+        }
     }
 }
 

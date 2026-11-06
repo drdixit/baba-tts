@@ -33,7 +33,7 @@ pub fn create_router(state: AppState) -> Router {
         .route("/ws", get(ws_handler))
         .route("/api/info", get(get_info_handler))
         .route("/api/last-banned", get(get_last_banned_handler))
-        .route("/api/restart", post(restart_handler))
+        .route("/api/restart", get(restart_handler).post(restart_handler))
         .route("/api/skip-current", get(skip_current_handler).post(skip_current_handler))
         .route("/api/skip-ban-current", get(skip_ban_current_handler).post(skip_ban_current_handler))
         .route("/api/baba-say", post(baba_say_handler))
@@ -74,11 +74,16 @@ async fn restart_handler(
         return (StatusCode::FORBIDDEN, "Restart is only permitted from localhost").into_response();
     }
     tracing::info!("Server restart requested via /api/restart from {}", addr);
-    crate::tray::restart_process();
-    let _ = state.shutdown_tx.try_send(());
+    let shutdown_tx = state.shutdown_tx.clone();
+    tokio::spawn(async move {
+        // Sleep 300ms so the HTTP 200 response can be completely transmitted to the browser
+        tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+        crate::tray::restart_process();
+        let _ = shutdown_tx.try_send(());
+    });
     Json(serde_json::json!({
         "success": true,
-        "message": "Server restarting..."
+        "message": "Server restart initiated..."
     })).into_response()
 }
 
@@ -501,6 +506,7 @@ mod tests {
         local_req.extensions_mut().insert(ConnectInfo(SocketAddr::from(([127, 0, 0, 1], 55555))));
         let response = app.clone().oneshot(local_req).await.unwrap();
         assert_eq!(response.status(), StatusCode::OK);
+        tokio::time::sleep(std::time::Duration::from_millis(350)).await;
         assert!(shutdown_rx.try_recv().is_ok());
     }
 

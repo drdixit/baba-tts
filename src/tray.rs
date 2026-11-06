@@ -19,20 +19,37 @@ pub enum TrayCommand {
 
 pub fn restart_process() {
     tracing::info!("Initiating process restart...");
-    if let Ok(exe) = std::env::current_exe() {
+    if !cfg!(test) {
+        if let Ok(exe) = std::env::current_exe() {
         let exe_str = exe.to_string_lossy().to_string();
         #[cfg(target_os = "windows")]
+        let pid = std::process::id();
+        #[cfg(target_os = "windows")]
         {
-            let _ = std::process::Command::new("cmd")
-                .args(["/C", &format!("ping 127.0.0.1 -n 2 > nul && start \"\" \"{}\"", exe_str)])
+            // First attempt: use powershell to wait for current PID to exit, then launch with --restarting
+            let ps_script = format!(
+                "Wait-Process -Id {} -ErrorAction SilentlyContinue; Start-Sleep -Milliseconds 400; Start-Process -FilePath '{}' -ArgumentList '--restarting'",
+                pid,
+                exe_str.replace('\'', "''")
+            );
+            let spawned = std::process::Command::new("powershell")
+                .args(["-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden", "-Command", &ps_script])
                 .spawn();
+
+            if spawned.is_err() {
+                // Fallback: use cmd with timeout delay
+                let _ = std::process::Command::new("cmd")
+                    .args(["/C", &format!("ping 127.0.0.1 -n 3 > nul && start \"\" \"{}\" --restarting", exe_str)])
+                    .spawn();
+            }
         }
         #[cfg(not(target_os = "windows"))]
         {
             let _ = std::process::Command::new("sh")
-                .args(["-c", "sleep 0.5 && \"$0\" &", &exe_str])
+                .args(["-c", "sleep 0.8 && \"$0\" --restarting &", &exe_str])
                 .spawn();
         }
+    }
     }
 }
 
@@ -113,8 +130,12 @@ impl TrayCommand {
                 });
             }
             Self::RestartServer => {
-                restart_process();
-                let _ = shutdown_tx.try_send(());
+                let tx = shutdown_tx.clone();
+                runtime.spawn(async move {
+                    tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+                    restart_process();
+                    let _ = tx.try_send(());
+                });
             }
             Self::Exit => {
                 let _ = shutdown_tx.try_send(());
@@ -623,6 +644,7 @@ mod tests {
         // Test RestartServer command sends shutdown signal
         let (restart_tx, mut restart_rx) = tokio::sync::mpsc::channel(1);
         TrayCommand::RestartServer.execute(7060, &tts_handle, &restart_tx, &runtime);
+        tokio::time::sleep(std::time::Duration::from_millis(250)).await;
         assert!(restart_rx.try_recv().is_ok());
 
         // Test OpenDashboard and OpenSettings execute window restore/focus without panic

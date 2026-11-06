@@ -38,13 +38,37 @@ pub fn enforce_single_instance(instance: &SingleInstance) -> bool {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    // 1. Single-Instance Enforcement
-    let instance = SingleInstance::new("baba-tts-singleton-lock")
-        .map_err(|e| anyhow::anyhow!("Failed to check single instance lock: {}", e))?;
+    let is_restarting = std::env::args().any(|a| a == "--restarting");
 
-    if !enforce_single_instance(&instance) {
-        std::process::exit(0);
-    }
+    // 1. Single-Instance Enforcement
+    let _instance = if is_restarting {
+        let start = std::time::Instant::now();
+        let timeout = std::time::Duration::from_secs(6);
+        let mut acquired = None;
+        while start.elapsed() < timeout {
+            if let Ok(inst) = SingleInstance::new("baba-tts-singleton-lock") {
+                if inst.is_single() {
+                    acquired = Some(inst);
+                    break;
+                }
+            }
+            std::thread::sleep(std::time::Duration::from_millis(200));
+        }
+        match acquired {
+            Some(inst) => inst,
+            None => {
+                eprintln!("[BABA TTS] Restart timed out waiting for prior instance to exit.");
+                std::process::exit(1);
+            }
+        }
+    } else {
+        let inst = SingleInstance::new("baba-tts-singleton-lock")
+            .map_err(|e| anyhow::anyhow!("Failed to check single instance lock: {}", e))?;
+        if !enforce_single_instance(&inst) {
+            std::process::exit(0);
+        }
+        inst
+    };
 
     // 2. Logging & Environment
     tracing_subscriber::fmt()
@@ -82,13 +106,19 @@ async fn main() -> Result<()> {
     youtube_poller.start();
 
     // 6. Dynamic Port Selection & Server Binding
-    // Default to port 7060, fall back to next available port if 7060 is in use
+    // Default to port 7060. If restarting, allow port 7060 a few seconds to release TIME_WAIT.
     let mut port = 7060;
+    let bind_start = std::time::Instant::now();
     let listener = loop {
         let addr = SocketAddr::from(([0, 0, 0, 0], port));
         match tokio::net::TcpListener::bind(addr).await {
             Ok(l) => break l,
             Err(e) if e.kind() == std::io::ErrorKind::AddrInUse => {
+                if is_restarting && port == 7060 && bind_start.elapsed() < std::time::Duration::from_secs(5) {
+                    tracing::info!("Waiting for port 7060 to release after restart...");
+                    tokio::time::sleep(std::time::Duration::from_millis(250)).await;
+                    continue;
+                }
                 tracing::warn!("Port {} in use, trying next port {}", port, port + 1);
                 port += 1;
                 if port > 7100 {
