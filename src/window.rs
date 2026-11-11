@@ -18,7 +18,7 @@ mod win32 {
     use std::sync::mpsc::sync_channel;
     use tracing::{error, info, warn};
     use windows_sys::Win32::Foundation::{HWND, LPARAM, LRESULT, RECT, WPARAM};
-    use windows_sys::Win32::Graphics::Gdi::{CreateSolidBrush, COLOR_WINDOW, HBRUSH};
+    use windows_sys::Win32::Graphics::Gdi::CreateSolidBrush;
     use windows_sys::Win32::System::LibraryLoader::{GetModuleHandleW, GetProcAddress, LoadLibraryW};
     use windows_sys::Win32::UI::WindowsAndMessaging::{
         CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW, FindWindowW,
@@ -204,18 +204,19 @@ mod win32 {
     }
 
     unsafe extern "system" fn controller_query_interface(
-        _this: *mut std::ffi::c_void,
+        this: *mut std::ffi::c_void,
         _riid: *const std::ffi::c_void,
         ppv: *mut *mut std::ffi::c_void,
     ) -> i32 {
-        if !ppv.is_null() {
-            *ppv = std::ptr::null_mut();
+        if ppv.is_null() {
+            return 0x80004003u32 as i32; // E_POINTER
         }
-        0x80004002u32 as i32 // E_NOINTERFACE
+        *ppv = this;
+        0 // S_OK
     }
 
     unsafe extern "system" fn handler_add_ref(_this: *mut std::ffi::c_void) -> u32 {
-        1
+        2
     }
 
     unsafe extern "system" fn handler_release(_this: *mut std::ffi::c_void) -> u32 {
@@ -230,15 +231,17 @@ mod win32 {
         let handler = &*(this as *const ControllerCompletedHandler);
         if error_code < 0 || controller.is_null() {
             error!("[Window] Failed to create WebView2 controller: error_code = {:#x}. Opening in default browser.", error_code);
+            ShowWindow(handler.hwnd, SW_HIDE);
             let url = format_window_url(handler.port);
             let _ = open::that(&url);
             return 0;
         }
 
         info!("[Window] WebView2 controller created successfully");
-        CONTROLLER_PTR.store(controller as isize, Ordering::SeqCst);
-
         let ctrl_vtbl = *(controller as *mut *mut ICoreWebView2ControllerVtbl);
+        // Retain reference on controller for CONTROLLER_PTR global storage
+        ((*ctrl_vtbl).unknown.add_ref)(controller);
+        CONTROLLER_PTR.store(controller as isize, Ordering::SeqCst);
         ((*ctrl_vtbl).put_is_visible)(controller, 1);
 
         let mut rect: RECT = std::mem::zeroed();
@@ -322,6 +325,7 @@ mod win32 {
         let handler = &*(this as *const EnvCompletedHandler);
         if error_code < 0 || env.is_null() {
             error!("[Window] Failed to create WebView2 environment: error_code = {:#x}. Opening in default browser.", error_code);
+            ShowWindow(handler.hwnd, SW_HIDE);
             let url = format_window_url(handler.port);
             let _ = open::that(&url);
             return 0;
@@ -397,6 +401,12 @@ mod win32 {
         let temp_dir = std::env::temp_dir().join("baba-tts");
         let _ = std::fs::create_dir_all(&temp_dir);
         let temp_loader = temp_dir.join("WebView2Loader.dll");
+        if temp_loader.exists() {
+            let h = LoadLibraryW(to_wide(&temp_loader.to_string_lossy()).as_ptr());
+            if h != 0 {
+                return h;
+            }
+        }
         if std::fs::write(&temp_loader, WEBVIEW2_LOADER_BYTES).is_ok() {
             let h = LoadLibraryW(to_wide(&temp_loader.to_string_lossy()).as_ptr());
             if h != 0 {
@@ -411,6 +421,7 @@ mod win32 {
         let loader = ensure_webview2_loader();
         if loader == 0 {
             warn!("[Window] WebView2Loader.dll not available. Opening dashboard in default browser.");
+            ShowWindow(hwnd, SW_HIDE);
             let url = format_window_url(port);
             let _ = open::that(&url);
             return;
@@ -419,6 +430,7 @@ mod win32 {
         let create_env = GetProcAddress(loader, b"CreateCoreWebView2EnvironmentWithOptions\0".as_ptr());
         let Some(proc) = create_env else {
             warn!("[Window] CreateCoreWebView2EnvironmentWithOptions symbol missing. Opening in default browser.");
+            ShowWindow(hwnd, SW_HIDE);
             let url = format_window_url(port);
             let _ = open::that(&url);
             return;
@@ -455,6 +467,7 @@ mod win32 {
         );
         if res < 0 {
             error!("[Window] CreateCoreWebView2EnvironmentWithOptions returned {:#x}. Opening in default browser.", res);
+            ShowWindow(hwnd, SW_HIDE);
             let url = format_window_url(port);
             let _ = open::that(&url);
         }

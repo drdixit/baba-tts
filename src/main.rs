@@ -30,14 +30,72 @@ use tracing::info;
 pub fn enforce_single_instance(instance: &SingleInstance) -> bool {
     if !instance.is_single() {
         eprintln!("[BABA TTS] Another instance is already running! Focusing existing window...");
-        crate::window::focus_existing_window();
+        crate::window::restore_and_focus_window(7060);
         return false;
     }
     true
 }
 
+#[cfg(windows)]
+unsafe fn attach_parent_console() {
+    let kernel32 = windows_sys::Win32::System::LibraryLoader::GetModuleHandleW(
+        [b'k' as u16, b'e' as u16, b'r' as u16, b'n' as u16, b'e' as u16, b'l' as u16, b'3' as u16, b'2' as u16, b'.' as u16, b'd' as u16, b'l' as u16, b'l' as u16, 0].as_ptr()
+    );
+    if kernel32 != 0 {
+        let proc = windows_sys::Win32::System::LibraryLoader::GetProcAddress(kernel32, b"AttachConsole\0".as_ptr());
+        if let Some(attach_fn) = proc {
+            type AttachConsoleFn = unsafe extern "system" fn(u32) -> i32;
+            let func: AttachConsoleFn = std::mem::transmute(attach_fn);
+            func(u32::MAX); // ATTACH_PARENT_PROCESS
+        }
+    }
+}
+
 #[tokio::main]
-async fn main() -> Result<()> {
+async fn main() {
+    #[cfg(windows)]
+    unsafe {
+        attach_parent_console();
+    }
+
+    std::panic::set_hook(Box::new(|panic_info| {
+        let err_msg = format!("BABA TTS encountered an unexpected panic:\n\n{}", panic_info);
+        eprintln!("{}", err_msg);
+        #[cfg(windows)]
+        unsafe {
+            use std::os::windows::ffi::OsStrExt;
+            let to_wide = |s: &str| -> Vec<u16> {
+                std::ffi::OsStr::new(s).encode_wide().chain(std::iter::once(0)).collect()
+            };
+            windows_sys::Win32::UI::WindowsAndMessaging::MessageBoxW(
+                0,
+                to_wide(&err_msg).as_ptr(),
+                to_wide("BABA TTS - Error").as_ptr(),
+                windows_sys::Win32::UI::WindowsAndMessaging::MB_OK | windows_sys::Win32::UI::WindowsAndMessaging::MB_ICONERROR,
+            );
+        }
+    }));
+
+    if let Err(e) = real_main().await {
+        eprintln!("[BABA TTS] Fatal error: {:?}", e);
+        #[cfg(windows)]
+        unsafe {
+            use std::os::windows::ffi::OsStrExt;
+            let to_wide = |s: &str| -> Vec<u16> {
+                std::ffi::OsStr::new(s).encode_wide().chain(std::iter::once(0)).collect()
+            };
+            windows_sys::Win32::UI::WindowsAndMessaging::MessageBoxW(
+                0,
+                to_wide(&format!("BABA TTS failed to start:\n\n{:?}", e)).as_ptr(),
+                to_wide("BABA TTS - Startup Error").as_ptr(),
+                windows_sys::Win32::UI::WindowsAndMessaging::MB_OK | windows_sys::Win32::UI::WindowsAndMessaging::MB_ICONERROR,
+            );
+        }
+        std::process::exit(1);
+    }
+}
+
+async fn real_main() -> Result<()> {
     let is_restarting = std::env::args().any(|a| a == "--restarting");
 
     // 1. Single-Instance Enforcement
