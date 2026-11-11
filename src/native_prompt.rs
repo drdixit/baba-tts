@@ -331,21 +331,17 @@ mod win32 {
                     0
                 };
 
-                if fg_thread != 0 && fg_thread != cur_thread {
-                    let _guard = if AttachThreadInput(cur_thread, fg_thread, 1) != 0 {
-                        Some(ThreadInputGuard {
-                            cur: cur_thread,
-                            fg: fg_thread,
-                        })
-                    } else {
-                        None
-                    };
-                    SetForegroundWindow(hwnd);
-                    BringWindowToTop(hwnd);
+                let _guard = if fg_thread != 0 && fg_thread != cur_thread && AttachThreadInput(cur_thread, fg_thread, 1) != 0 {
+                    Some(ThreadInputGuard {
+                        cur: cur_thread,
+                        fg: fg_thread,
+                    })
                 } else {
-                    SetForegroundWindow(hwnd);
-                    BringWindowToTop(hwnd);
-                }
+                    None
+                };
+
+                SetForegroundWindow(hwnd);
+                BringWindowToTop(hwnd);
 
                 let edit = EDIT_HWND.load(Ordering::Acquire);
                 if edit != 0 {
