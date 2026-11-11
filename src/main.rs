@@ -191,7 +191,8 @@ async fn real_main() -> Result<()> {
     // 7. Concurrency & Graceful Shutdown Signaling
     let (shutdown_tx, shutdown_rx) = tokio::sync::mpsc::channel::<()>(1);
 
-    // 8. System Tray (Windows Native / Resilient to Explorer restarts)
+    // 8. System Tray & Native Prompt (Windows Native / Resilient to Explorer restarts)
+    crate::native_prompt::init_runtime_handle(tokio::runtime::Handle::current());
     let _tray_handle = crate::tray::start_tray(tts_handle.clone(), shutdown_tx.clone(), port);
 
     // 9. Embedded Axum Web Server & WebSockets

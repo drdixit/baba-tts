@@ -206,25 +206,35 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({ message, currentAu
       {/* ZONE E CHAT HISTORY */}
       <div className={`${hideHistory ? 'hidden' : ''} relative ${
         variant === 'inline'
-          ? 'px-3 py-2.5 rounded-xl hover:bg-gray-800/50 border border-gray-800/40 bg-gray-900/40'
+          ? `px-3.5 py-3 rounded-xl border transition-colors ${
+              isActive 
+                ? 'bg-indigo-50/80 border-indigo-200 shadow-xs' 
+                : 'bg-white hover:bg-slate-50/80 border-slate-200/80 shadow-xs'
+            }`
           : 'px-2 py-1 rounded bg-transparent'
       } flex items-center justify-between transition-all duration-300 ${
-        isFinished ? 'opacity-50' : 'opacity-100'
+        isFinished ? 'opacity-60' : 'opacity-100'
       }`}>
         <div className="flex items-center gap-3 min-w-0 flex-1">
           {message.authorProfileImageUrl && (
             <img 
               src={message.authorProfileImageUrl} 
               alt="" 
-              className={`${variant === 'inline' ? 'w-8 h-8' : 'w-14 h-14'} object-cover rounded-full shrink-0 border border-gray-600 bg-gray-800 shadow-md`}
+              className={`${variant === 'inline' ? 'w-8 h-8' : 'w-14 h-14'} object-cover rounded-full shrink-0 border ${
+                variant === 'inline' ? 'border-slate-200 bg-slate-100' : 'border-gray-600 bg-gray-800'
+              } shadow-xs`}
             />
           )}
-          <p className={`${variant === 'inline' ? 'text-sm md:text-base leading-snug' : 'text-[42px] leading-relaxed'} break-words font-semibold transition-all duration-300 origin-left drop-shadow-[1px_1px_2px_rgba(0,0,0,1)] ${
-            isFinished ? 'line-through text-gray-400' : 'text-gray-50'
-          } ${isActive ? 'text-green-300' : ''}`}>
+          <p className={`${
+            variant === 'inline'
+              ? 'text-sm font-medium leading-snug text-slate-800'
+              : 'text-[42px] leading-relaxed drop-shadow-[1px_1px_2px_rgba(0,0,0,1)] text-gray-50'
+          } break-words transition-all duration-300 origin-left ${
+            isFinished ? (variant === 'inline' ? 'line-through text-slate-400' : 'line-through text-gray-400') : ''
+          } ${isActive ? (variant === 'inline' ? 'text-indigo-950 font-bold' : 'text-green-300') : ''}`}>
             <span 
-              className="font-extrabold mr-2 drop-shadow-[1px_1px_2px_rgba(0,0,0,1)]"
-              style={{ color: message.authorColor || '#ffcc00' }}
+              className={`font-extrabold mr-2 ${variant === 'inline' ? '' : 'drop-shadow-[1px_1px_2px_rgba(0,0,0,1)]'}`}
+              style={{ color: message.authorColor || '#4f46e5' }}
             >
               {message.authorName}:
             </span>
@@ -234,8 +244,18 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({ message, currentAu
         
         {showBadge && (
           <span
-            className={`shrink-0 ${variant === 'inline' ? 'text-[9px]' : 'text-[10px]'} px-2 py-0.5 ml-2 rounded uppercase tracking-wider font-bold shadow-md ${
-              statusBadgeStyles[message.status]
+            className={`shrink-0 ${variant === 'inline' ? 'text-[10px] font-bold px-2 py-0.5 rounded-full' : 'text-[10px] px-2 py-0.5 rounded uppercase tracking-wider font-bold shadow-md'} ml-2 ${
+              variant === 'inline'
+                ? (message.status === 'speaking'
+                    ? 'bg-emerald-100 text-emerald-800 border border-emerald-300 animate-pulse'
+                    : message.status === 'processing'
+                    ? 'bg-amber-100 text-amber-800 border border-amber-300 animate-pulse'
+                    : message.status === 'queued'
+                    ? 'bg-indigo-100 text-indigo-800 border border-indigo-200'
+                    : message.status === 'skipped'
+                    ? 'bg-slate-100 text-slate-500 border border-slate-200'
+                    : statusBadgeStyles[message.status])
+                : statusBadgeStyles[message.status]
             }`}
           >
             {message.status}
