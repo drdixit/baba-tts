@@ -59,7 +59,7 @@ pub fn calculate_bottom_left_geometry(
 mod win32 {
     use super::*;
     use std::os::windows::ffi::OsStrExt;
-    use std::sync::atomic::{AtomicIsize, AtomicU16, AtomicU8, Ordering};
+    use std::sync::atomic::{AtomicIsize, AtomicU32, Ordering};
     use std::sync::{Once, OnceLock};
     use windows_sys::Win32::Foundation::{HWND, LPARAM, LRESULT, RECT, WPARAM};
     use windows_sys::Win32::Graphics::Gdi::{
@@ -80,15 +80,16 @@ mod win32 {
         WS_EX_TOPMOST, WS_POPUP, WS_TABSTOP, WS_VISIBLE,
     };
 
-    static ACTIVE_PORT: AtomicU16 = AtomicU16::new(7060);
+    // Bits 0..16: port (u16)
+    // Bits 16..24: mode (0 = User, 1 = Banned)
+    static PROMPT_STATE: AtomicU32 = AtomicU32::new(7060);
     static PROMPT_HWND: AtomicIsize = AtomicIsize::new(0);
     static EDIT_HWND: AtomicIsize = AtomicIsize::new(0);
     static ORIG_EDIT_PROC: AtomicIsize = AtomicIsize::new(0);
-    // 0 = User, 1 = Banned
-    static CURRENT_MODE: AtomicU8 = AtomicU8::new(0);
     static INIT_ONCE: Once = Once::new();
 
     static TOKIO_HANDLE: OnceLock<tokio::runtime::Handle> = OnceLock::new();
+    static HTTP_CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
 
     const WM_SHOW_PROMPT: u32 = WM_USER + 201;
 
@@ -107,6 +108,29 @@ mod win32 {
 
     pub fn init_runtime_handle(handle: tokio::runtime::Handle) {
         let _ = TOKIO_HANDLE.set(handle);
+    }
+
+    fn get_http_client() -> &'static reqwest::Client {
+        HTTP_CLIENT.get_or_init(reqwest::Client::new)
+    }
+
+    fn pack_prompt_state(port: u16, mode: PromptMode) -> u32 {
+        let mode_u8 = match mode {
+            PromptMode::User => 0u32,
+            PromptMode::Banned => 1u32,
+        };
+        (port as u32) | (mode_u8 << 16)
+    }
+
+    fn unpack_prompt_state(state: u32) -> (u16, PromptMode) {
+        let port = (state & 0xFFFF) as u16;
+        let mode_u8 = ((state >> 16) & 0xFF) as u8;
+        let mode = if mode_u8 == 0 {
+            PromptMode::User
+        } else {
+            PromptMode::Banned
+        };
+        (port, mode)
     }
 
     fn to_wide(s: &str) -> Vec<u16> {
@@ -135,16 +159,14 @@ mod win32 {
                             let text = String::from_utf16_lossy(&buf[..len as usize]);
                             let trimmed = text.trim();
                             if !trimmed.is_empty() {
-                                let port = ACTIVE_PORT.load(Ordering::Acquire);
-                                let mode_u8 = CURRENT_MODE.load(Ordering::Acquire);
-                                let is_user = mode_u8 == 0;
+                                let (port, mode) = unpack_prompt_state(PROMPT_STATE.load(Ordering::Acquire));
                                 let text_to_send = trimmed.to_string();
+                                let client = get_http_client().clone();
 
                                 // Non-blocking dispatch via Tokio Handle if initialized, or background OS thread
                                 if let Some(handle) = TOKIO_HANDLE.get() {
                                     handle.spawn(async move {
-                                        let client = reqwest::Client::new();
-                                        let url = if is_user {
+                                        let url = if mode == PromptMode::User {
                                             format!("http://127.0.0.1:{}/api/baba-say", port)
                                         } else {
                                             format!("http://127.0.0.1:{}/api/speak-as-banned", port)
@@ -162,8 +184,7 @@ mod win32 {
                                             .build()
                                         {
                                             rt.block_on(async move {
-                                                let client = reqwest::Client::new();
-                                                let url = if is_user {
+                                                let url = if mode == PromptMode::User {
                                                     format!("http://127.0.0.1:{}/api/baba-say", port)
                                                 } else {
                                                     format!("http://127.0.0.1:{}/api/speak-as-banned", port)
@@ -328,8 +349,7 @@ mod win32 {
 
                 let edit = EDIT_HWND.load(Ordering::Acquire);
                 if edit != 0 {
-                    let mode_u8 = CURRENT_MODE.load(Ordering::Acquire);
-                    let mode = if mode_u8 == 0 { PromptMode::User } else { PromptMode::Banned };
+                    let (_, mode) = unpack_prompt_state(PROMPT_STATE.load(Ordering::Acquire));
                     SetWindowTextW(hwnd, to_wide(mode.prompt_title()).as_ptr());
                     SetWindowTextW(edit, to_wide("").as_ptr());
                     SetFocus(edit);
@@ -353,11 +373,18 @@ mod win32 {
                 0
             }
             WM_DESTROY => {
+                let edit_hwnd = EDIT_HWND.load(Ordering::Acquire);
+                let orig_proc = ORIG_EDIT_PROC.load(Ordering::Acquire);
+                if edit_hwnd != 0 && orig_proc != 0 {
+                    SetWindowLongPtrW(edit_hwnd, GWLP_WNDPROC, orig_proc);
+                }
                 if LIGHT_BRUSH != 0 {
                     DeleteObject(LIGHT_BRUSH as _);
+                    LIGHT_BRUSH = 0;
                 }
                 if EDIT_BRUSH != 0 {
                     DeleteObject(EDIT_BRUSH as _);
+                    EDIT_BRUSH = 0;
                 }
                 0
             }
@@ -428,12 +455,7 @@ mod win32 {
     }
 
     pub fn show_native_prompt(port: u16, mode: PromptMode) {
-        ACTIVE_PORT.store(port, Ordering::Release);
-        let mode_u8 = match mode {
-            PromptMode::User => 0,
-            PromptMode::Banned => 1,
-        };
-        CURRENT_MODE.store(mode_u8, Ordering::Release);
+        PROMPT_STATE.store(pack_prompt_state(port, mode), Ordering::Release);
         ensure_window_initialized();
 
         let hwnd = PROMPT_HWND.load(Ordering::Acquire);
