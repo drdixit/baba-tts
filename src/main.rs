@@ -51,11 +51,64 @@ unsafe fn attach_parent_console() {
     }
 }
 
+#[cfg(windows)]
+unsafe fn enable_dpi_awareness() {
+    let user32 = windows_sys::Win32::System::LibraryLoader::GetModuleHandleW(
+        [b'u' as u16, b's' as u16, b'e' as u16, b'r' as u16, b'3' as u16, b'2' as u16, b'.' as u16, b'd' as u16, b'l' as u16, b'l' as u16, 0].as_ptr()
+    );
+    // 1. Try SetProcessDpiAwarenessContext (Windows 10 1703+) -> DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2 (-4)
+    if user32 != 0 {
+        let set_ctx = windows_sys::Win32::System::LibraryLoader::GetProcAddress(
+            user32,
+            b"SetProcessDpiAwarenessContext\0".as_ptr(),
+        );
+        if let Some(set_ctx_fn) = set_ctx {
+            type SetProcessDpiAwarenessContextFn = unsafe extern "system" fn(isize) -> i32;
+            let func: SetProcessDpiAwarenessContextFn = std::mem::transmute(set_ctx_fn);
+            if func(-4) != 0 {
+                return;
+            }
+        }
+    }
+
+    // 2. Try SetProcessDpiAwareness in shcore.dll (Windows 8.1+) -> PROCESS_PER_MONITOR_DPI_AWARE (2)
+    let shcore = windows_sys::Win32::System::LibraryLoader::LoadLibraryW(
+        [b's' as u16, b'h' as u16, b'c' as u16, b'o' as u16, b'r' as u16, b'e' as u16, b'.' as u16, b'd' as u16, b'l' as u16, b'l' as u16, 0].as_ptr()
+    );
+    if shcore != 0 {
+        let set_aware = windows_sys::Win32::System::LibraryLoader::GetProcAddress(
+            shcore,
+            b"SetProcessDpiAwareness\0".as_ptr(),
+        );
+        if let Some(set_aware_fn) = set_aware {
+            type SetProcessDpiAwarenessFn = unsafe extern "system" fn(u32) -> i32;
+            let func: SetProcessDpiAwarenessFn = std::mem::transmute(set_aware_fn);
+            if func(2 /* PROCESS_PER_MONITOR_DPI_AWARE */) == 0 {
+                return;
+            }
+        }
+    }
+
+    // 3. Fallback to SetProcessDPIAware in user32.dll (Windows Vista+)
+    if user32 != 0 {
+        let set_aware_legacy = windows_sys::Win32::System::LibraryLoader::GetProcAddress(
+            user32,
+            b"SetProcessDPIAware\0".as_ptr(),
+        );
+        if let Some(set_aware_legacy_fn) = set_aware_legacy {
+            type SetProcessDPIAwareFn = unsafe extern "system" fn() -> i32;
+            let func: SetProcessDPIAwareFn = std::mem::transmute(set_aware_legacy_fn);
+            let _ = func();
+        }
+    }
+}
+
 #[tokio::main]
 async fn main() {
     #[cfg(windows)]
     unsafe {
         attach_parent_console();
+        enable_dpi_awareness();
     }
 
     std::panic::set_hook(Box::new(|panic_info| {

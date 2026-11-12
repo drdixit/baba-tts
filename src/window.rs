@@ -23,16 +23,17 @@ mod win32 {
     use windows_sys::Win32::UI::WindowsAndMessaging::{
         CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW, FindWindowW,
         GetClientRect, GetMessageW, LoadCursorW, LoadIconW, LoadImageW, PostMessageW,
-        PostQuitMessage, RegisterClassW, SetForegroundWindow, ShowWindow, TranslateMessage,
-        CW_USEDEFAULT, IDC_ARROW, IDI_APPLICATION, IMAGE_ICON, LR_LOADFROMFILE, MSG, SW_HIDE,
-        SW_RESTORE, SW_SHOW, WM_CLOSE, WM_CREATE, WM_DESTROY, WM_SIZE, WM_USER, WNDCLASSW,
-        WS_OVERLAPPEDWINDOW, WS_VISIBLE,
+        PostQuitMessage, RegisterClassW, SetForegroundWindow, SetWindowPos, ShowWindow,
+        TranslateMessage, CW_USEDEFAULT, IDC_ARROW, IDI_APPLICATION, IMAGE_ICON, LR_LOADFROMFILE,
+        MSG, SW_HIDE, SW_RESTORE, SW_SHOW, SWP_NOACTIVATE, SWP_NOZORDER, WM_CLOSE, WM_CREATE,
+        WM_DESTROY, WM_SIZE, WM_USER, WNDCLASSW, WS_OVERLAPPEDWINDOW, WS_VISIBLE,
     };
 
     pub const WINDOW_CLASS_NAME: &str = "BabaTtsMainWindowClass";
     pub const WINDOW_TITLE: &str = "BABA TTS - Streamer Control Panel";
     pub const WM_USER_FOCUS_WINDOW: u32 = WM_USER + 101;
     pub const WM_USER_CLOSE: u32 = WM_USER + 102;
+    pub const WM_DPICHANGED: u32 = 0x02E0;
 
     // Global controller storage for resizing and lifecycle
     static CONTROLLER_PTR: AtomicIsize = AtomicIsize::new(0);
@@ -491,6 +492,23 @@ mod win32 {
                     let mut rect: RECT = std::mem::zeroed();
                     GetClientRect(hwnd, &mut rect);
                     ((*ctrl_vtbl).put_bounds)(ctrl_ptr, rect);
+                    ((*ctrl_vtbl).notify_parent_window_position_changed)(ctrl_ptr);
+                }
+                0
+            }
+            WM_DPICHANGED => {
+                let suggested_rect = lparam as *const RECT;
+                if !suggested_rect.is_null() {
+                    let r = *suggested_rect;
+                    SetWindowPos(
+                        hwnd,
+                        0,
+                        r.left,
+                        r.top,
+                        r.right - r.left,
+                        r.bottom - r.top,
+                        SWP_NOZORDER | SWP_NOACTIVATE,
+                    );
                 }
                 0
             }
@@ -542,6 +560,21 @@ mod win32 {
         }
     }
 
+    unsafe fn get_system_dpi() -> u32 {
+        let user32 = GetModuleHandleW(to_wide("user32.dll").as_ptr());
+        if user32 != 0 {
+            if let Some(proc) = GetProcAddress(user32, b"GetDpiForSystem\0".as_ptr()) {
+                type GetDpiForSystemFn = unsafe extern "system" fn() -> u32;
+                let func: GetDpiForSystemFn = std::mem::transmute(proc);
+                let dpi = func();
+                if dpi > 0 {
+                    return dpi;
+                }
+            }
+        }
+        96
+    }
+
     pub fn create_desktop_window(port: u16) -> Result<DesktopWindow> {
         let (tx, rx) = sync_channel::<HWND>(1);
 
@@ -577,7 +610,10 @@ mod win32 {
 
                 RegisterClassW(&wc);
 
-                let (width, height) = default_window_size();
+                let (base_width, base_height) = default_window_size();
+                let dpi = get_system_dpi();
+                let width = ((base_width as u32 * dpi) / 96) as i32;
+                let height = ((base_height as u32 * dpi) / 96) as i32;
                 let hwnd = CreateWindowExW(
                     0,
                     class_name.as_ptr(),

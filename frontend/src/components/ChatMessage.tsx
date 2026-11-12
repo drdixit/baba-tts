@@ -67,18 +67,20 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({ message, currentAu
           <div 
             className={`${
               variant === 'inline'
-                ? 'relative w-full p-4 rounded-2xl flex flex-row items-center gap-4 text-left overflow-hidden shadow-xl border border-gray-700/80'
+                ? 'relative w-full p-4 rounded-2xl flex flex-row items-center gap-4 text-left overflow-hidden shadow-sm border border-slate-200/90 bg-white'
                 : 'fixed bottom-[630px] left-[49px] right-[51px] z-50 p-6 rounded-3xl animate-spotlight flex flex-row items-center gap-8 text-left overflow-hidden shadow-2xl'
             } ${message.theme === 'pro-clean' ? 'border-l-[6px]' : ''}`}
             style={{ 
-              background: `color-mix(in srgb, ${message.authorColor || '#4ade80'} 15%, #0f172a)`,
+              background: variant === 'inline'
+                ? `color-mix(in srgb, ${message.authorColor || '#4f46e5'} 6%, #ffffff)`
+                : `color-mix(in srgb, ${message.authorColor || '#4ade80'} 15%, #0f172a)`,
               borderLeftColor: message.theme === 'pro-clean' ? (message.authorColor || '#4ade80') : undefined
             }}
           >
             {/* Background Sweep effect */}
             {message.theme === 'subtitle-sweep' && message.status === 'speaking' && (
               <div 
-                className="absolute top-0 left-0 bottom-0 bg-white/15 rounded-3xl pointer-events-none -z-10"
+                className={`absolute top-0 left-0 bottom-0 rounded-3xl pointer-events-none -z-10 ${variant === 'inline' ? 'bg-indigo-100/50' : 'bg-white/15'}`}
                 style={{
                   width: (() => {
                     if (!messageBoundaries || messageBoundaries.length === 0 || currentAudioTime === undefined) return '0%';
@@ -96,15 +98,15 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({ message, currentAu
               ></div>
             )}
             
-            <div className={`flex flex-col items-center justify-center gap-3 shrink-0 ${variant === 'inline' ? 'w-20' : 'w-36'}`}>
+            <div className={`flex flex-col items-center justify-center gap-2 shrink-0 ${variant === 'inline' ? 'w-16' : 'w-36'}`}>
               {message.authorProfileImageUrl && (
                 <img 
                   src={message.authorProfileImageUrl} 
                   alt={`${message.authorName}'s avatar`} onError={(e) => { e.currentTarget.src = `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(message.authorName)}`; }} 
-                  className={`${variant === 'inline' ? 'w-16 h-16' : 'w-24 h-24'} rounded-full shadow-lg bg-gray-800 object-cover z-10 transition-all duration-300
-                    ${message.status === 'speaking' ? (message.theme === 'pro-clean' ? 'scale-110 border-4' : 'animate-avatar-speak border-2') : ''}
+                  className={`${variant === 'inline' ? 'w-12 h-12 shadow-xs' : 'w-24 h-24 shadow-lg bg-gray-800'} rounded-full object-cover z-10 transition-all duration-300
+                    ${message.status === 'speaking' ? (message.theme === 'pro-clean' ? 'scale-110 border-3' : 'animate-avatar-speak border-2') : ''}
                     ${message.status === 'processing' ? 'animate-avatar-process border-2' : ''}
-                    ${message.status !== 'speaking' && message.status !== 'processing' ? 'border-2 border-gray-700 animate-avatar-float' : ''}
+                    ${message.status !== 'speaking' && message.status !== 'processing' ? 'border border-slate-200 animate-avatar-float' : ''}
                   `}
                   style={message.status === 'speaking' ? { borderColor: message.authorColor || '#4ade80', '--author-color': message.authorColor || '#4ade80' } as React.CSSProperties : undefined}
                 />
@@ -113,16 +115,16 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({ message, currentAu
 
             <div className="flex flex-col flex-1 min-w-0 z-10">
               <span 
-                className={`block ${variant === 'inline' ? 'text-base font-bold mb-1' : 'text-3xl font-black mb-2'} uppercase tracking-widest transition-all duration-200 ${isAuthorSpeaking ? 'opacity-100 scale-105 origin-left' : 'opacity-90'}`} 
+                className={`block ${variant === 'inline' ? 'text-xs font-black uppercase tracking-wider mb-0.5' : 'text-3xl font-black mb-2 uppercase tracking-widest'} transition-all duration-200 ${isAuthorSpeaking ? 'opacity-100 scale-105 origin-left' : 'opacity-90'}`} 
                 style={{ 
-                  color: message.authorColor || '#ffcc00',
-                  textShadow: '0 2px 4px rgba(0,0,0,0.8), 0 0 4px rgba(0,0,0,0.9), 0 0 1px rgba(0,0,0,1)'
+                  color: message.authorColor || (variant === 'inline' ? '#4f46e5' : '#ffcc00'),
+                  textShadow: variant === 'inline' ? 'none' : '0 2px 4px rgba(0,0,0,0.8), 0 0 4px rgba(0,0,0,0.9), 0 0 1px rgba(0,0,0,1)'
                 }}
               >
                 {message.authorName}
               </span>
               
-              <p className={`${variant === 'inline' ? 'text-lg font-bold leading-normal' : 'text-5xl font-bold leading-tight'} text-white drop-shadow-[0_2px_4px_rgba(0,0,0,1)] transition-all duration-700 flex flex-wrap gap-x-3 gap-y-2`}>
+              <p className={`${variant === 'inline' ? 'text-base font-bold leading-snug text-slate-900' : 'text-5xl font-bold leading-tight text-white drop-shadow-[0_2px_4px_rgba(0,0,0,1)]'} transition-all duration-700 flex flex-wrap gap-x-2.5 gap-y-1`}>
                 {(() => {
                     let activeWordIndex = -1;
                     if (message.status === 'speaking' && currentAudioTime !== undefined) {
@@ -139,13 +141,17 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({ message, currentAu
                       const isPast = i < activeWordIndex;
                       const isRead = isHighlighted || isPast;
 
-                      if (message.theme === 'subtitle-karaoke') {
+                      if (message.theme === 'subtitle-karaoke' || !message.theme) {
                         return (
                           <span 
                             key={i}
-                            className={isRead ? '' : 'text-gray-600'}
+                            className={`transition-colors duration-150 ${
+                              variant === 'inline'
+                                ? (isRead ? 'font-bold' : 'text-slate-400')
+                                : (isRead ? '' : 'text-gray-600')
+                            }`}
                             style={{
-                              color: isRead ? (message.authorColor || '#ffcc00') : undefined,
+                              color: isRead ? (message.authorColor || (variant === 'inline' ? '#4338ca' : '#ffcc00')) : undefined,
                             } as React.CSSProperties}
                           >
                             {word.text}
@@ -157,10 +163,14 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({ message, currentAu
                         return (
                           <span 
                             key={i}
-                            className={`inline-block px-2 py-0.5 mx-0.5 rounded-lg transition-all ${isHighlighted ? 'duration-75 scale-110 font-bold shadow-lg' : 'duration-0 scale-100 ' + (isPast || message.status === 'done' || message.status === 'skipped' ? 'text-[#f0fdf4]' : 'text-gray-500')}`}
+                            className={`inline-block px-1.5 py-0.5 mx-0.5 rounded-md transition-all ${
+                              isHighlighted 
+                                ? 'scale-105 font-bold shadow-xs' 
+                                : 'scale-100 ' + (isPast || message.status === 'done' || message.status === 'skipped' ? (variant === 'inline' ? 'text-slate-800' : 'text-[#f0fdf4]') : (variant === 'inline' ? 'text-slate-400' : 'text-gray-500'))
+                            }`}
                             style={{
-                              backgroundColor: isHighlighted ? (message.authorColor || '#4ade80') : 'transparent',
-                              color: isHighlighted ? '#000' : undefined,
+                              backgroundColor: isHighlighted ? (message.authorColor || (variant === 'inline' ? '#e0e7ff' : '#4ade80')) : 'transparent',
+                              color: isHighlighted ? (variant === 'inline' ? '#312e81' : '#000') : undefined,
                             } as React.CSSProperties}
                           >
                             {word.text}
@@ -174,9 +184,9 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({ message, currentAu
                             key={i}
                             className="px-1 transition-all duration-100"
                             style={{
-                              color: isHighlighted ? (message.authorColor || '#4ade80') : '#f9fafb',
-                              transform: isHighlighted ? 'scale(1.1)' : 'scale(1)',
-                              textShadow: isHighlighted ? `0 0 12px ${message.authorColor || '#4ade80'}` : 'none'
+                              color: isHighlighted ? (message.authorColor || '#4f46e5') : (variant === 'inline' ? '#1e293b' : '#f9fafb'),
+                              transform: isHighlighted ? 'scale(1.05)' : 'scale(1)',
+                              textShadow: isHighlighted ? (variant === 'inline' ? 'none' : `0 0 12px ${message.authorColor || '#4ade80'}`) : 'none'
                             } as React.CSSProperties}
                           >
                             {word.text}
@@ -188,14 +198,14 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({ message, currentAu
                         return (
                           <span 
                             key={i}
-                            className={isRead ? 'text-white' : 'text-gray-500'}
+                            className={isRead ? (variant === 'inline' ? 'text-slate-900 font-bold' : 'text-white') : (variant === 'inline' ? 'text-slate-400' : 'text-gray-500')}
                           >
                             {word.text}
                           </span>
                         );
                       }
 
-                      return <span key={i} className="text-white">{word.text}</span>;
+                      return <span key={i} className={variant === 'inline' ? 'text-slate-900' : 'text-white'}>{word.text}</span>;
                     });
                 })()}
               </p>
