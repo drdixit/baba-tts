@@ -1,5 +1,6 @@
 import React from 'react';
 import type { ChatMessage as ChatMessageType } from '../../../src/shared/types';
+import { getDeterministicColor } from '../../../src/shared/colors';
 
 interface ChatMessageProps {
   message: ChatMessageType;
@@ -25,6 +26,13 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({ message, currentAu
   const isProcessing = message.status === 'processing';
   const showBadge = message.status !== 'default' && message.status !== 'done';
   const isActive = isSpeaking || isProcessing;
+
+  const authorColor = React.useMemo(() => {
+    if (variant === 'inline') {
+      return getDeterministicColor(message.authorName, 'light');
+    }
+    return message.authorColor || getDeterministicColor(message.authorName, 'dark');
+  }, [message.authorName, message.authorColor, variant]);
 
   const boundaries = React.useMemo(() => {
     return (message.wordBoundaries && message.wordBoundaries.length > 0)
@@ -72,9 +80,9 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({ message, currentAu
             } ${message.theme === 'pro-clean' ? 'border-l-[6px]' : ''}`}
             style={{ 
               background: variant === 'inline'
-                ? `color-mix(in srgb, ${message.authorColor || '#4f46e5'} 6%, #ffffff)`
-                : `color-mix(in srgb, ${message.authorColor || '#4ade80'} 15%, #0f172a)`,
-              borderLeftColor: message.theme === 'pro-clean' ? (message.authorColor || '#4ade80') : undefined
+                ? `color-mix(in srgb, ${authorColor} 6%, #ffffff)`
+                : `color-mix(in srgb, ${authorColor} 15%, #0f172a)`,
+              borderLeftColor: message.theme === 'pro-clean' ? authorColor : undefined
             }}
           >
             {/* Background Sweep effect */}
@@ -108,7 +116,7 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({ message, currentAu
                     ${message.status === 'processing' ? 'animate-avatar-process border-2' : ''}
                     ${message.status !== 'speaking' && message.status !== 'processing' ? 'border border-slate-200 animate-avatar-float' : ''}
                   `}
-                  style={message.status === 'speaking' ? { borderColor: message.authorColor || '#4ade80', '--author-color': message.authorColor || '#4ade80' } as React.CSSProperties : undefined}
+                  style={message.status === 'speaking' ? { borderColor: authorColor, '--author-color': authorColor } as React.CSSProperties : undefined}
                 />
               )}
             </div>
@@ -117,7 +125,7 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({ message, currentAu
               <span 
                 className={`block ${variant === 'inline' ? 'text-xs font-black uppercase tracking-wider mb-0.5' : 'text-3xl font-black mb-2 uppercase tracking-widest'} transition-all duration-200 ${isAuthorSpeaking ? 'opacity-100 scale-105 origin-left' : 'opacity-90'}`} 
                 style={{ 
-                  color: message.authorColor || (variant === 'inline' ? '#4f46e5' : '#ffcc00'),
+                  color: authorColor,
                   textShadow: variant === 'inline' ? 'none' : '0 2px 4px rgba(0,0,0,0.8), 0 0 4px rgba(0,0,0,0.9), 0 0 1px rgba(0,0,0,1)'
                 }}
               >
@@ -151,7 +159,7 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({ message, currentAu
                                 : (isRead ? '' : 'text-gray-600')
                             }`}
                             style={{
-                              color: isRead ? (message.authorColor || (variant === 'inline' ? '#4338ca' : '#ffcc00')) : undefined,
+                              color: isRead ? authorColor : undefined,
                             } as React.CSSProperties}
                           >
                             {word.text}
@@ -169,8 +177,8 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({ message, currentAu
                                 : 'scale-100 ' + (isPast || message.status === 'done' || message.status === 'skipped' ? (variant === 'inline' ? 'text-slate-800' : 'text-[#f0fdf4]') : (variant === 'inline' ? 'text-slate-400' : 'text-gray-500'))
                             }`}
                             style={{
-                              backgroundColor: isHighlighted ? (message.authorColor || (variant === 'inline' ? '#e0e7ff' : '#4ade80')) : 'transparent',
-                              color: isHighlighted ? (variant === 'inline' ? '#312e81' : '#000') : undefined,
+                              backgroundColor: isHighlighted ? authorColor : 'transparent',
+                              color: isHighlighted ? (variant === 'inline' ? '#ffffff' : '#000') : undefined,
                             } as React.CSSProperties}
                           >
                             {word.text}
@@ -184,9 +192,9 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({ message, currentAu
                             key={i}
                             className="px-1 transition-all duration-100"
                             style={{
-                              color: isHighlighted ? (message.authorColor || '#4f46e5') : (variant === 'inline' ? '#1e293b' : '#f9fafb'),
+                              color: isHighlighted ? authorColor : (variant === 'inline' ? '#1e293b' : '#f9fafb'),
                               transform: isHighlighted ? 'scale(1.05)' : 'scale(1)',
-                              textShadow: isHighlighted ? (variant === 'inline' ? 'none' : `0 0 12px ${message.authorColor || '#4ade80'}`) : 'none'
+                              textShadow: isHighlighted ? (variant === 'inline' ? 'none' : `0 0 12px ${authorColor}`) : 'none'
                             } as React.CSSProperties}
                           >
                             {word.text}

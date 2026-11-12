@@ -603,7 +603,7 @@ mod win32 {
                     hInstance: h_instance,
                     hIcon: load_icon(),
                     hCursor: LoadCursorW(0, IDC_ARROW),
-                    hbrBackground: CreateSolidBrush(0x00190f0b),
+                    hbrBackground: CreateSolidBrush(0x00FCFAF8),
                     lpszMenuName: std::ptr::null(),
                     lpszClassName: class_name.as_ptr(),
                 };

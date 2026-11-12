@@ -15,14 +15,32 @@ export const CHAT_COLORS = [
   '#fb923c', // orange-400
 ];
 
-export function getDeterministicColor(username: string): string {
-  if (!username) return CHAT_COLORS[0];
+export const CHAT_COLORS_LIGHT = [
+  '#dc2626', // red-600
+  '#e11d48', // rose-600
+  '#db2777', // pink-600
+  '#9333ea', // purple-600
+  '#7c3aed', // violet-600
+  '#4f46e5', // indigo-600
+  '#2563eb', // blue-600
+  '#0284c7', // sky-600
+  '#0d9488', // teal-600
+  '#16a34a', // green-600
+  '#65a30d', // lime-600
+  '#ca8a04', // yellow-600
+  '#d97706', // amber-600
+  '#ea580c', // orange-600
+];
+
+export function getDeterministicColor(username: string, mode: 'dark' | 'light' = 'dark'): string {
+  const palette = mode === 'light' ? CHAT_COLORS_LIGHT : CHAT_COLORS;
+  if (!username) return palette[0];
   
   let hash = 0;
   for (let i = 0; i < username.length; i++) {
     hash = username.charCodeAt(i) + ((hash << 5) - hash);
   }
   
-  const index = Math.abs(hash) % CHAT_COLORS.length;
-  return CHAT_COLORS[index];
+  const index = Math.abs(hash) % palette.length;
+  return palette[index];
 }
