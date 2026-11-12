@@ -385,7 +385,7 @@ function DesktopApp() {
         {activeTab === 'monitor' && (
           <div className="flex-1 flex flex-col md:flex-row min-h-0 overflow-hidden">
             {/* Left Column: Currently Speaking Spotlight & Manual Speech Controls */}
-            <div className="w-full md:w-[360px] lg:w-[400px] xl:w-[440px] flex flex-col gap-3.5 p-4 sm:p-5 border-r border-slate-200 bg-white overflow-y-auto shrink-0">
+            <div className="w-full md:w-[360px] lg:w-[400px] xl:w-[440px] max-h-[46vh] md:max-h-none flex flex-col gap-3.5 p-4 sm:p-5 border-b md:border-b-0 md:border-r border-slate-200 bg-white overflow-y-auto shrink-0">
               {/* CURRENTLY SPEAKING CARD */}
               <div className="flex flex-col gap-2">
                 <div className="flex items-center justify-between">

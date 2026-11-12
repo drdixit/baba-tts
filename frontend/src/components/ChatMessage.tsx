@@ -216,14 +216,14 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({ message, currentAu
       {/* ZONE E CHAT HISTORY */}
       <div className={`${hideHistory ? 'hidden' : ''} relative ${
         variant === 'inline'
-          ? `px-3.5 py-3 rounded-xl border transition-colors ${
+          ? `px-3.5 py-2.5 rounded-xl border transition-colors ${
               isActive 
-                ? 'bg-indigo-50/80 border-indigo-200 shadow-xs' 
+                ? 'bg-indigo-50/80 border-indigo-200 shadow-xs ring-1 ring-indigo-200/50' 
                 : 'bg-white hover:bg-slate-50/80 border-slate-200/80 shadow-xs'
             }`
           : 'px-2 py-1 rounded bg-transparent'
       } flex items-center justify-between transition-all duration-300 ${
-        isFinished ? 'opacity-60' : 'opacity-100'
+        isFinished ? (variant === 'inline' ? 'opacity-75' : 'opacity-60') : 'opacity-100'
       }`}>
         <div className="flex items-center gap-3 min-w-0 flex-1">
           {message.authorProfileImageUrl && (
@@ -240,7 +240,11 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({ message, currentAu
               ? 'text-sm font-medium leading-snug text-slate-800'
               : 'text-[42px] leading-relaxed drop-shadow-[1px_1px_2px_rgba(0,0,0,1)] text-gray-50'
           } break-words transition-all duration-300 origin-left ${
-            isFinished ? (variant === 'inline' ? 'line-through text-slate-400' : 'line-through text-gray-400') : ''
+            message.status === 'skipped'
+              ? (variant === 'inline' ? 'line-through text-rose-500/80' : 'line-through text-rose-400')
+              : message.status === 'done'
+                ? (variant === 'inline' ? 'text-slate-600' : 'text-gray-300')
+                : ''
           } ${isActive ? (variant === 'inline' ? 'text-indigo-950 font-bold' : 'text-green-300') : ''}`}>
             <span 
               className={`font-extrabold mr-2 ${variant === 'inline' ? '' : 'drop-shadow-[1px_1px_2px_rgba(0,0,0,1)]'}`}

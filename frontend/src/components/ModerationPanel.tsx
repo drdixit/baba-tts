@@ -47,7 +47,7 @@ const ModerationPanel: React.FC<ModerationPanelProps> = ({ onBanUser, onUnbanUse
               >
                 <div className="flex items-center gap-3 overflow-hidden">
                   <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center font-bold text-xs text-slate-700 shrink-0">
-                    {user.displayName.slice(0, 1).toUpperCase()}
+                    {(Array.from(user.displayName)[0] || '?').toUpperCase()}
                   </div>
                   <span
                     className="text-base font-bold truncate text-slate-800 tracking-wide"
