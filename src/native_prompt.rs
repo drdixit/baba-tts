@@ -67,8 +67,8 @@ mod win32 {
         DEFAULT_GUI_FONT, HBRUSH, HDC,
     };
     use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
-    use windows_sys::Win32::System::Threading::GetCurrentThreadId;
-    use windows_sys::Win32::UI::Input::KeyboardAndMouse::{AttachThreadInput, SetFocus};
+    use windows_sys::Win32::System::Threading::{AttachThreadInput, GetCurrentThreadId};
+    use windows_sys::Win32::UI::Input::KeyboardAndMouse::SetFocus;
     use windows_sys::Win32::UI::WindowsAndMessaging::{
         BringWindowToTop, CallWindowProcW, CreateWindowExW, DefWindowProcW, DispatchMessageW,
         GetForegroundWindow, GetMessageW, GetWindowTextLengthW, GetWindowTextW,
