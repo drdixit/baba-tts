@@ -244,130 +244,137 @@ function DesktopApp() {
       )}
 
       {/* Top Application Header */}
-      <header className="w-full h-16 bg-white/95 backdrop-blur border-b border-slate-200 px-5 flex items-center justify-between shrink-0 z-40 select-none shadow-xs">
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2.5">
+      <header className="w-full min-h-16 bg-white/95 backdrop-blur border-b border-slate-200 px-3 sm:px-5 py-2 sm:py-0 flex flex-wrap md:flex-nowrap items-center justify-between gap-3 shrink-0 z-40 select-none shadow-xs">
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             <div className="p-2 rounded-xl bg-indigo-50 border border-indigo-200 text-indigo-600 shadow-xs">
               <Volume2 className="w-5 h-5" />
             </div>
             <div>
               <span className="text-lg font-black tracking-wider text-slate-900">BABA TTS</span>
-              <span className="ml-2 text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200 uppercase tracking-wider">
+              <span className="ml-1.5 text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200 uppercase tracking-wider hidden sm:inline-block">
                 Desktop
               </span>
             </div>
           </div>
 
           {/* Status Badges */}
-          <div className="hidden sm:flex items-center gap-2">
-            <div className="flex items-center gap-2 px-3 py-1 rounded-lg bg-emerald-50 border border-emerald-200 text-xs font-semibold text-emerald-700 shadow-xs">
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 border border-emerald-200 text-xs font-semibold text-emerald-700 shadow-xs">
               <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-emerald-500 animate-pulse' : 'bg-amber-400'}`} />
-              <span>{isConnected ? `Port ${port} Active` : `Connecting (${port})...`}</span>
+              <span className="hidden sm:inline">{isConnected ? `Port ${port} Active` : `Connecting (${port})...`}</span>
+              <span className="sm:hidden">{isConnected ? `:${port}` : '...'}</span>
             </div>
 
-            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 border border-slate-200 text-xs font-semibold text-slate-700">
-              <span className="text-slate-500">Queue:</span>
+            <div className="flex items-center gap-1 px-2 py-1 rounded-lg bg-slate-100 border border-slate-200 text-xs font-semibold text-slate-700">
+              <span className="text-slate-500 hidden sm:inline">Queue:</span>
               <span className={`font-bold ${activeQueueCount > 0 ? 'text-indigo-600' : 'text-slate-600'}`}>
-                {activeQueueCount}
+                Q:{activeQueueCount}
               </span>
             </div>
 
-            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-rose-50 border border-rose-200 text-xs font-semibold text-rose-700">
-              <span className="text-rose-500">Banned:</span>
-              <span className="font-bold text-rose-700">
-                {bannedUsers.length}
-              </span>
-            </div>
+            {bannedUsers.length > 0 && (
+              <div className="flex items-center gap-1 px-2 py-1 rounded-lg bg-rose-50 border border-rose-200 text-xs font-semibold text-rose-700">
+                <span className="text-rose-500 hidden sm:inline">Banned:</span>
+                <span className="font-bold text-rose-700">
+                  B:{bannedUsers.length}
+                </span>
+              </div>
+            )}
           </div>
-
-          {/* Navigation Tabs */}
-          <nav className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200">
-            <button
-              onClick={() => setActiveTab('monitor')}
-              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                activeTab === 'monitor'
-                  ? 'bg-white text-indigo-700 shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
-              }`}
-            >
-              <LayoutDashboard className="w-4 h-4" />
-              <span>Live Monitor</span>
-            </button>
-
-            <button
-              onClick={() => setActiveTab('moderation')}
-              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                activeTab === 'moderation'
-                  ? 'bg-white text-indigo-700 shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
-              }`}
-            >
-              <ShieldAlert className="w-4 h-4" />
-              <span>Moderation</span>
-            </button>
-
-            <button
-              onClick={() => setActiveTab('settings')}
-              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                activeTab === 'settings'
-                  ? 'bg-white text-indigo-700 shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
-              }`}
-            >
-              <Sliders className="w-4 h-4" />
-              <span>Settings</span>
-            </button>
-
-            <button
-              onClick={() => setActiveTab('obs')}
-              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                activeTab === 'obs'
-                  ? 'bg-white text-indigo-700 shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
-              }`}
-            >
-              <Tv className="w-4 h-4" />
-              <span>OBS Overlays</span>
-            </button>
-          </nav>
         </div>
 
+        {/* Navigation Tabs */}
+        <nav className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200 order-last md:order-none w-full md:w-auto justify-center">
+          <button
+            onClick={() => setActiveTab('monitor')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+              activeTab === 'monitor'
+                ? 'bg-white text-indigo-700 shadow-xs'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+            }`}
+            title="Live Monitor"
+          >
+            <LayoutDashboard className="w-4 h-4 shrink-0" />
+            <span className="hidden sm:inline">Live Monitor</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('moderation')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+              activeTab === 'moderation'
+                ? 'bg-white text-indigo-700 shadow-xs'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+            }`}
+            title="Moderation"
+          >
+            <ShieldAlert className="w-4 h-4 shrink-0" />
+            <span className="hidden sm:inline">Moderation</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('settings')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+              activeTab === 'settings'
+                ? 'bg-white text-indigo-700 shadow-xs'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+            }`}
+            title="Settings"
+          >
+            <Sliders className="w-4 h-4 shrink-0" />
+            <span className="hidden sm:inline">Settings</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('obs')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+              activeTab === 'obs'
+                ? 'bg-white text-indigo-700 shadow-xs'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+            }`}
+            title="OBS Overlays"
+          >
+            <Tv className="w-4 h-4 shrink-0" />
+            <span className="hidden sm:inline">OBS Overlays</span>
+          </button>
+        </nav>
+
         {/* Quick Action Toolbar */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
           <button
             onClick={handleSkipCurrent}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 border border-amber-200 text-xs font-bold text-amber-800 transition-colors shadow-xs"
+            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 border border-amber-200 text-xs font-bold text-amber-800 transition-colors shadow-xs"
             title="Skip current speaking message"
           >
             <RotateCcw className="w-3.5 h-3.5 text-amber-600" />
-            <span className="hidden md:inline">Skip</span>
+            <span className="hidden lg:inline">Skip</span>
           </button>
 
           <button
             onClick={handleBanCurrent}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 border border-rose-200 text-xs font-bold text-rose-800 transition-colors shadow-xs"
+            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 border border-rose-200 text-xs font-bold text-rose-800 transition-colors shadow-xs"
             title="Ban and skip current speaker"
           >
             <ShieldAlert className="w-3.5 h-3.5 text-rose-600" />
-            <span className="hidden md:inline">Ban Speaker</span>
+            <span className="hidden lg:inline">Ban Speaker</span>
           </button>
 
           <button
             onClick={handleClearQueue}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-200 text-xs font-bold text-slate-700 transition-colors shadow-xs"
+            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-200 text-xs font-bold text-slate-700 transition-colors shadow-xs"
             title="Clear all queued messages"
           >
             <Trash2 className="w-3.5 h-3.5 text-slate-500" />
-            <span className="hidden md:inline">Clear Queue</span>
+            <span className="hidden lg:inline">Clear Queue</span>
           </button>
 
           <button
             onClick={handleRestart}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-200 text-xs font-bold text-slate-700 transition-colors shadow-xs"
+            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-200 text-xs font-bold text-slate-700 transition-colors shadow-xs"
             title="Restart BABA TTS Server"
           >
             <RefreshCw className="w-3.5 h-3.5 text-slate-500" />
-            <span className="hidden lg:inline">Restart</span>
+            <span className="hidden xl:inline">Restart</span>
           </button>
         </div>
       </header>
@@ -378,7 +385,7 @@ function DesktopApp() {
         {activeTab === 'monitor' && (
           <div className="flex-1 flex flex-col md:flex-row min-h-0 overflow-hidden">
             {/* Left Column: Currently Speaking Spotlight & Manual Speech Controls */}
-            <div className="w-full md:w-[420px] lg:w-[460px] flex flex-col gap-4 p-5 border-r border-slate-200 bg-white overflow-y-auto">
+            <div className="w-full md:w-[360px] lg:w-[400px] xl:w-[440px] flex flex-col gap-3.5 p-4 sm:p-5 border-r border-slate-200 bg-white overflow-y-auto shrink-0">
               {/* CURRENTLY SPEAKING CARD */}
               <div className="flex flex-col gap-2">
                 <div className="flex items-center justify-between">
@@ -419,54 +426,58 @@ function DesktopApp() {
               </div>
 
               {/* MANUAL INPUT & TEST BAR */}
-              <div className="flex flex-col gap-3 p-4 rounded-2xl bg-slate-50 border border-slate-200 shadow-xs mt-auto">
+              <div className="flex flex-col gap-2.5 p-3.5 rounded-2xl bg-slate-50 border border-slate-200/90 shadow-xs mt-auto">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-extrabold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
                     <Send className="w-3.5 h-3.5 text-indigo-600" />
                     Quick Manual Speech
                   </span>
-                  <span className="text-[10px] text-slate-500 font-mono">Num 2 / Num 4</span>
+                  <span className="text-[10px] text-slate-400 font-mono hidden sm:inline">Num 2 / Num 4</span>
                 </div>
 
                 <div className="flex flex-col gap-2">
-                  <input
-                    type="text"
-                    value={manualText}
-                    onChange={(e) => setManualText(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        handleManualSpeakBaba();
-                      }
-                    }}
-                    placeholder="Type words to speak aloud..."
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-slate-300 focus:border-indigo-600 text-sm text-slate-900 placeholder-slate-400 outline-none transition-colors shadow-xs"
-                  />
-
-                  <div className="flex items-center gap-2">
+                  <div className="flex gap-1.5">
+                    <input
+                      type="text"
+                      value={manualText}
+                      onChange={(e) => setManualText(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleManualSpeakBaba();
+                        }
+                      }}
+                      placeholder="Type words to speak aloud..."
+                      className="flex-1 min-w-0 px-3 py-2 rounded-xl bg-white border border-slate-300 focus:border-indigo-600 text-sm text-slate-900 placeholder-slate-400 outline-none transition-colors shadow-xs"
+                    />
                     <button
                       onClick={handleManualSpeakBaba}
-                      className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition-colors shadow-xs"
+                      className="flex items-center gap-1 px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition-colors shadow-xs shrink-0"
+                      title="Speak as BABA"
                     >
                       <Volume2 className="w-3.5 h-3.5" />
-                      <span>Speak BABA</span>
-                    </button>
-
-                    <button
-                      onClick={handleSpeakAsBanned}
-                      className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-white hover:bg-slate-100 border border-slate-300 text-slate-700 text-xs font-bold transition-colors shadow-xs"
-                    >
-                      <span>Speak Banned</span>
+                      <span>Speak</span>
                     </button>
                   </div>
 
-                  <button
-                    onClick={simulateGoodMessage}
-                    className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-white hover:bg-slate-100 border border-slate-200 text-slate-600 hover:text-slate-800 text-xs font-semibold transition-colors shadow-xs"
-                  >
-                    <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-                    <span>Simulate Test Viewer Chat</span>
-                  </button>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      onClick={handleSpeakAsBanned}
+                      className="flex-1 flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-lg bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 text-xs font-semibold transition-colors shadow-xs"
+                      title="Test speech with banned filter persona"
+                    >
+                      <span>Speak Banned</span>
+                    </button>
+
+                    <button
+                      onClick={simulateGoodMessage}
+                      className="flex-1 flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-lg bg-white hover:bg-slate-100 border border-slate-200 text-slate-600 hover:text-slate-800 text-xs font-semibold transition-colors shadow-xs"
+                      title="Simulate a chat message from viewer"
+                    >
+                      <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                      <span className="truncate">Simulate Chat</span>
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
