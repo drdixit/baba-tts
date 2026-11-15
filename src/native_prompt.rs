@@ -63,10 +63,11 @@ mod win32 {
     use std::sync::{Once, OnceLock};
     use windows_sys::Win32::Foundation::{HWND, LPARAM, LRESULT, RECT, WPARAM};
     use windows_sys::Win32::Graphics::Gdi::{
-        CreateFontW, CreateSolidBrush, DeleteObject, FillRect, GetStockObject, SetBkColor,
-        SetTextColor, DEFAULT_GUI_FONT, HBRUSH, HDC,
+        CreateFontW, CreateSolidBrush, DeleteObject, FillRect, FrameRect, GetMonitorInfoW,
+        GetStockObject, MonitorFromWindow, SetBkColor, SetTextColor, DEFAULT_GUI_FONT, HBRUSH, HDC,
+        HFONT, MONITORINFO, MONITOR_DEFAULTTONEAREST,
     };
-    use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
+    use windows_sys::Win32::System::LibraryLoader::{GetModuleHandleW, GetProcAddress, LoadLibraryW};
     use windows_sys::Win32::System::Threading::{AttachThreadInput, GetCurrentThreadId};
     use windows_sys::Win32::UI::Input::KeyboardAndMouse::SetFocus;
     use windows_sys::Win32::UI::WindowsAndMessaging::{
@@ -75,10 +76,10 @@ mod win32 {
         GetWindowThreadProcessId, IsChild, PostMessageW, RegisterClassW, SendMessageW,
         SetForegroundWindow, SetWindowLongPtrW, SetWindowPos, SetWindowTextW, ShowWindow,
         SystemParametersInfoW, TranslateMessage, CS_DROPSHADOW, ES_AUTOHSCROLL, GWLP_WNDPROC, MSG,
-        SPI_GETWORKAREA, SWP_SHOWWINDOW, SW_HIDE, SW_SHOW, WM_ACTIVATE, WM_CLOSE, WM_CTLCOLOREDIT,
-        WM_CTLCOLORSTATIC, WM_DESTROY, WM_ERASEBKGND, WM_KEYDOWN, WM_LBUTTONDOWN, WM_USER,
-        WNDCLASSW, WNDPROC, WS_CHILD, WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_POPUP, WS_TABSTOP,
-        WS_VISIBLE,
+        SPI_GETWORKAREA, SWP_NOZORDER, SWP_SHOWWINDOW, SW_HIDE, SW_SHOW, WM_ACTIVATE, WM_CHAR,
+        WM_CLOSE, WM_CTLCOLOREDIT, WM_CTLCOLORSTATIC, WM_DESTROY, WM_ERASEBKGND, WM_KEYDOWN,
+        WM_LBUTTONDOWN, WM_USER, WNDCLASSW, WNDPROC, WS_CHILD, WS_EX_TOOLWINDOW, WS_EX_TOPMOST,
+        WS_POPUP, WS_TABSTOP, WS_VISIBLE,
     };
 
     // Bits 0..16: port (u16)
@@ -139,6 +140,43 @@ mod win32 {
             .encode_wide()
             .chain(std::iter::once(0))
             .collect()
+    }
+
+    unsafe fn get_window_dpi(hwnd: HWND) -> u32 {
+        let user32 = GetModuleHandleW(to_wide("user32.dll").as_ptr());
+        if user32 != 0 {
+            if let Some(proc) = GetProcAddress(user32, b"GetDpiForWindow\0".as_ptr()) {
+                type GetDpiForWindowFn = unsafe extern "system" fn(HWND) -> u32;
+                let func: GetDpiForWindowFn = std::mem::transmute(proc);
+                let dpi = func(hwnd);
+                if dpi > 0 {
+                    return dpi;
+                }
+            }
+        }
+        96
+    }
+
+    unsafe fn apply_dwm_rounded_corners(hwnd: HWND) {
+        let dwm = LoadLibraryW(to_wide("dwmapi.dll").as_ptr());
+        if dwm != 0 {
+            if let Some(proc) = GetProcAddress(dwm, b"DwmSetWindowAttribute\0".as_ptr()) {
+                type DwmSetWindowAttributeFn = unsafe extern "system" fn(
+                    HWND,
+                    u32,
+                    *const std::ffi::c_void,
+                    u32,
+                ) -> i32;
+                let func: DwmSetWindowAttributeFn = std::mem::transmute(proc);
+                let preference: u32 = 2; // DWMWCP_ROUND (Windows 11 rounded corners)
+                let _ = func(
+                    hwnd,
+                    33, // DWMWA_WINDOW_CORNER_PREFERENCE
+                    &preference as *const u32 as *const std::ffi::c_void,
+                    std::mem::size_of::<u32>() as u32,
+                );
+            }
+        }
     }
 
     unsafe extern "system" fn edit_subclass_proc(
@@ -221,6 +259,9 @@ mod win32 {
                     }
                     _ => {}
                 }
+            } else if msg == WM_CHAR && wparam == 0x0D {
+                // Prevent acoustic beep on Enter in single-line edit control
+                return 0;
             } else if msg == WM_KILLFOCUS {
                 // If focus leaves the edit box to another window outside prompt hierarchy, auto-hide
                 let new_focus = wparam as HWND;
@@ -250,12 +291,17 @@ mod win32 {
     ) -> LRESULT {
         static mut LIGHT_BRUSH: HBRUSH = 0;
         static mut EDIT_BRUSH: HBRUSH = 0;
+        static mut BORDER_BRUSH: HBRUSH = 0;
+        static mut PROMPT_FONT: HFONT = 0;
 
         let res = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| match msg {
             windows_sys::Win32::UI::WindowsAndMessaging::WM_CREATE => {
                 // Modern Windows 11 Flyout background (#F3F3F3) & White input box (#FFFFFF)
                 LIGHT_BRUSH = CreateSolidBrush(0x00F3F3F3);
                 EDIT_BRUSH = CreateSolidBrush(0x00FFFFFF);
+                BORDER_BRUSH = CreateSolidBrush(0x00D0D0D0);
+                apply_dwm_rounded_corners(hwnd);
+
                 let h_instance = GetModuleHandleW(std::ptr::null());
 
                 // Create inner Edit control
@@ -280,6 +326,7 @@ mod win32 {
                         to_wide("Segoe UI Variable Text").as_ptr(),
                     );
                     let font = if seg_font != 0 {
+                        PROMPT_FONT = seg_font as _;
                         seg_font as _
                     } else {
                         GetStockObject(DEFAULT_GUI_FONT as _)
@@ -300,6 +347,9 @@ mod win32 {
                 let mut rect: RECT = std::mem::zeroed();
                 GetClientRect(hwnd, &mut rect);
                 FillRect(hdc, &rect, LIGHT_BRUSH);
+                if BORDER_BRUSH != 0 {
+                    FrameRect(hdc, &rect, BORDER_BRUSH);
+                }
                 1
             }
             WM_CTLCOLOREDIT => {
@@ -315,21 +365,41 @@ mod win32 {
                 LIGHT_BRUSH as LRESULT
             }
             WM_SHOW_PROMPT => {
-                let mut workarea: RECT = std::mem::zeroed();
-                SystemParametersInfoW(
-                    SPI_GETWORKAREA,
-                    0,
-                    &mut workarea as *mut _ as _,
-                    0,
-                );
+                // Determine work area of active/foreground monitor for multi-monitor setups
+                let fg = GetForegroundWindow();
+                let mut monitor_info: MONITORINFO = std::mem::zeroed();
+                monitor_info.cbSize = std::mem::size_of::<MONITORINFO>() as u32;
+
+                let h_monitor = MonitorFromWindow(fg, MONITOR_DEFAULTTONEAREST);
+                let workarea = if h_monitor != 0 && GetMonitorInfoW(h_monitor, &mut monitor_info) != 0 {
+                    monitor_info.rcWork
+                } else {
+                    let mut wa: RECT = std::mem::zeroed();
+                    SystemParametersInfoW(
+                        SPI_GETWORKAREA,
+                        0,
+                        &mut wa as *mut _ as _,
+                        0,
+                    );
+                    wa
+                };
+
+                // Scale dimensions according to Per-Monitor V2 DPI
+                let dpi = get_window_dpi(hwnd);
+                let scale = |v: i32| -> i32 { (v * dpi as i32 + 48) / 96 };
+
+                let width = scale(480);
+                let height = scale(48);
+                let margin_x = scale(24);
+                let margin_y = scale(24);
 
                 let geom = calculate_bottom_left_geometry(
                     workarea.left,
                     workarea.bottom,
-                    480,
-                    48,
-                    24,
-                    24,
+                    width,
+                    height,
+                    margin_x,
+                    margin_y,
                 );
 
                 SetWindowPos(
@@ -342,10 +412,32 @@ mod win32 {
                     SWP_SHOWWINDOW,
                 );
 
+                // Resize and reposition inner edit control for target DPI
+                let edit = EDIT_HWND.load(Ordering::Acquire);
+                if edit != 0 {
+                    let pad_x = scale(10);
+                    let pad_y = scale(9);
+                    let edit_w = width - (pad_x * 2);
+                    let edit_h = height - (pad_y * 2);
+                    SetWindowPos(edit, 0, pad_x, pad_y, edit_w, edit_h, SWP_NOZORDER);
+
+                    let font_h = scale(15);
+                    let seg_font = CreateFontW(
+                        -font_h, 0, 0, 0, 400, 0, 0, 0, 1, 0, 0, 5, 0,
+                        to_wide("Segoe UI Variable Text").as_ptr(),
+                    );
+                    if seg_font != 0 {
+                        if PROMPT_FONT != 0 {
+                            DeleteObject(PROMPT_FONT as _);
+                        }
+                        PROMPT_FONT = seg_font as _;
+                        SendMessageW(edit, 0x0030 /* WM_SETFONT */, PROMPT_FONT as _, 1);
+                    }
+                }
+
                 ShowWindow(hwnd, SW_SHOW);
 
                 // Safely attach thread input with RAII guard to guarantee focus without freezing
-                let fg = GetForegroundWindow();
                 let cur_thread = GetCurrentThreadId();
                 let fg_thread = if fg != 0 {
                     GetWindowThreadProcessId(fg, std::ptr::null_mut())
@@ -365,7 +457,6 @@ mod win32 {
                 SetForegroundWindow(hwnd);
                 BringWindowToTop(hwnd);
 
-                let edit = EDIT_HWND.load(Ordering::Acquire);
                 if edit != 0 {
                     let (_, mode) = unpack_prompt_state(PROMPT_STATE.load(Ordering::Acquire));
                     SetWindowTextW(hwnd, to_wide(mode.prompt_title()).as_ptr());
@@ -392,6 +483,12 @@ mod win32 {
                     if activating_hwnd != hwnd && activating_hwnd != edit_hwnd {
                         ShowWindow(hwnd, SW_HIDE);
                     }
+                } else {
+                    // Window becoming active: ensure edit control holds keyboard focus
+                    let edit = EDIT_HWND.load(Ordering::Acquire);
+                    if edit != 0 {
+                        SetFocus(edit);
+                    }
                 }
                 DefWindowProcW(hwnd, msg, wparam, lparam)
             }
@@ -405,6 +502,10 @@ mod win32 {
                 if edit_hwnd != 0 && orig_proc != 0 {
                     SetWindowLongPtrW(edit_hwnd, GWLP_WNDPROC, orig_proc);
                 }
+                if PROMPT_FONT != 0 {
+                    DeleteObject(PROMPT_FONT as _);
+                    PROMPT_FONT = 0;
+                }
                 if LIGHT_BRUSH != 0 {
                     DeleteObject(LIGHT_BRUSH as _);
                     LIGHT_BRUSH = 0;
@@ -412,6 +513,10 @@ mod win32 {
                 if EDIT_BRUSH != 0 {
                     DeleteObject(EDIT_BRUSH as _);
                     EDIT_BRUSH = 0;
+                }
+                if BORDER_BRUSH != 0 {
+                    DeleteObject(BORDER_BRUSH as _);
+                    BORDER_BRUSH = 0;
                 }
                 0
             }

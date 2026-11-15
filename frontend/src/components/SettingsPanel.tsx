@@ -201,7 +201,7 @@ export default function SettingsPanel() {
   if (loading) {
     return (
       <div className="w-full h-72 flex flex-col items-center justify-center gap-3 text-slate-500">
-        <Loader2 className="w-8 h-8 text-indigo-600 animate-spin" />
+        <Loader2 className="w-8 h-8 text-[#0067C0] animate-spin" />
         <span className="text-xs font-semibold">Loading settings from database...</span>
       </div>
     );
@@ -233,10 +233,10 @@ export default function SettingsPanel() {
           <div className="flex items-center justify-between pb-3 border-b border-black/[0.06]">
             <h2 className="text-xs font-semibold text-slate-800 flex items-center gap-2">
               <KeyRound className="w-4 h-4 text-[#0067C0]" />
-              Azure Speech Service
+              Azure speech service
             </h2>
             <span className="text-[10px] font-medium px-2 py-0.5 rounded-[3px] bg-[#0067C0]/10 text-[#0067C0] border border-[#0067C0]/20">
-              TTS Engine
+              TTS engine
             </span>
           </div>
 
@@ -244,7 +244,7 @@ export default function SettingsPanel() {
           <div>
             <div className="flex items-center justify-between mb-1.5">
               <label className="text-xs font-medium text-slate-700">
-                Speech Subscription Key
+                Speech subscription key
               </label>
               <span className="text-[10px] text-slate-400">Azure AI Portal</span>
             </div>
@@ -254,12 +254,12 @@ export default function SettingsPanel() {
                 value={settings.azure_speech_key}
                 onChange={(e) => updateField('azure_speech_key', e.target.value)}
                 placeholder="Paste your 32-character Azure Speech Key"
-                className="w-full h-8 px-2.5 pr-8 bg-white border border-black/[0.15] border-b-black/[0.3] rounded-[4px] text-slate-900 placeholder-slate-400 focus:outline-none focus:border-[#0067C0] font-mono text-xs transition-colors"
+                className="w-full h-8 px-2.5 pr-8 bg-white border border-black/[0.15] border-b-black/[0.3] rounded-[4px] text-slate-900 placeholder-slate-400 focus:outline-none focus:border-[#0067C0] focus-visible:ring-2 focus-visible:ring-[#0067C0] focus-visible:outline-none font-mono text-xs transition-colors"
               />
               <button
                 type="button"
                 onClick={() => setShowKey(!showKey)}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 p-1 rounded-[3px]"
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 p-1 rounded-[3px] focus-visible:ring-2 focus-visible:ring-[#0067C0] focus-visible:outline-none"
                 title={showKey ? 'Hide key' : 'Show key'}
               >
                 {showKey ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
@@ -274,7 +274,7 @@ export default function SettingsPanel() {
           <div>
             <div className="flex items-center justify-between mb-1.5">
               <label className="text-xs font-medium text-slate-700">
-                Speech Region
+                Speech region
               </label>
               <span className="text-[10px] text-slate-400 font-mono">e.g. centralindia</span>
             </div>
@@ -283,7 +283,7 @@ export default function SettingsPanel() {
               value={settings.azure_speech_region}
               onChange={(e) => updateField('azure_speech_region', e.target.value)}
               placeholder="e.g. centralindia, eastus, westeurope"
-              className={`w-full h-8 px-2.5 bg-white border border-b-black/[0.3] rounded-[4px] text-slate-900 placeholder-slate-400 focus:outline-none font-mono text-xs transition-colors ${
+              className={`w-full h-8 px-2.5 bg-white border border-b-black/[0.3] rounded-[4px] text-slate-900 placeholder-slate-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0067C0] focus-visible:outline-none font-mono text-xs transition-colors ${
                 fieldErrors.azure_speech_region
                   ? 'border-rose-500 focus:border-rose-500'
                   : 'border-black/[0.15] focus:border-[#0067C0]'
@@ -302,7 +302,7 @@ export default function SettingsPanel() {
                   key={region}
                   type="button"
                   onClick={() => updateField('azure_speech_region', region)}
-                  className={`text-[10px] px-2 py-0.5 rounded-[3px] border font-mono transition-colors ${
+                  className={`text-[10px] px-2 py-0.5 rounded-[3px] border font-mono transition-colors focus-visible:ring-2 focus-visible:ring-[#0067C0] focus-visible:outline-none ${
                     settings.azure_speech_region === region
                       ? 'bg-[#0067C0]/10 text-[#0067C0] border-[#0067C0]/30 font-medium'
                       : 'bg-slate-50 text-slate-600 border-black/[0.08] hover:bg-slate-100'
@@ -318,16 +318,16 @@ export default function SettingsPanel() {
           <div>
             <div className="flex items-center justify-between mb-1.5">
               <label className="text-xs font-medium text-slate-700">
-                Default Neural Voice
+                Default neural voice
               </label>
-              <span className="text-[10px] text-slate-400">Neural Voice Name</span>
+              <span className="text-[10px] text-slate-400">Neural voice name</span>
             </div>
             <input
               type="text"
               value={settings.azure_speech_voice}
               onChange={(e) => updateField('azure_speech_voice', e.target.value)}
               placeholder="hi-IN-MadhurNeural"
-              className="w-full h-8 px-2.5 bg-white border border-black/[0.15] border-b-black/[0.3] rounded-[4px] text-slate-900 placeholder-slate-400 focus:outline-none focus:border-[#0067C0] font-mono text-xs transition-colors"
+              className="w-full h-8 px-2.5 bg-white border border-black/[0.15] border-b-black/[0.3] rounded-[4px] text-slate-900 placeholder-slate-400 focus:outline-none focus:border-[#0067C0] focus-visible:ring-2 focus-visible:ring-[#0067C0] focus-visible:outline-none font-mono text-xs transition-colors"
             />
             {/* Voice presets */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 mt-2">
@@ -336,7 +336,7 @@ export default function SettingsPanel() {
                   key={preset.value}
                   type="button"
                   onClick={() => updateField('azure_speech_voice', preset.value)}
-                  className={`text-left text-xs px-2.5 py-1.5 rounded-[4px] border transition-colors flex items-center justify-between ${
+                  className={`text-left text-xs px-2.5 py-1.5 rounded-[4px] border transition-colors flex items-center justify-between focus-visible:ring-2 focus-visible:ring-[#0067C0] focus-visible:outline-none ${
                     settings.azure_speech_voice === preset.value
                       ? 'bg-[#0067C0]/10 text-[#0067C0] border-[#0067C0]/30 font-medium'
                       : 'bg-white text-slate-700 border-black/[0.08] hover:bg-slate-50'
@@ -357,7 +357,7 @@ export default function SettingsPanel() {
           <div className="flex items-center justify-between pb-3 border-b border-black/[0.06]">
             <h2 className="text-xs font-semibold text-slate-800 flex items-center gap-2">
               <Tv className="w-4 h-4 text-[#0067C0]" />
-              YouTube Live Stream
+              YouTube live stream
             </h2>
 
             {/* Toggle Switch */}
@@ -368,7 +368,7 @@ export default function SettingsPanel() {
               <button
                 type="button"
                 onClick={() => updateField('enable_youtube', !settings.enable_youtube)}
-                className={`relative w-9 h-5 rounded-full transition-colors duration-150 focus:outline-none ${
+                className={`relative w-9 h-5 rounded-full transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0067C0] focus-visible:outline-none ${
                   settings.enable_youtube ? 'bg-[#0067C0]' : 'bg-slate-300'
                 }`}
                 aria-label="Toggle YouTube live listener"
@@ -386,7 +386,7 @@ export default function SettingsPanel() {
           <div>
             <div className="flex items-center justify-between mb-1.5">
               <label className="text-xs font-medium text-slate-700">
-                YouTube Channel ID
+                YouTube channel ID
               </label>
               <span className="text-[10px] text-slate-400">24-char ID (UC...)</span>
             </div>
@@ -395,7 +395,7 @@ export default function SettingsPanel() {
               value={settings.youtube_channel_id}
               onChange={(e) => updateField('youtube_channel_id', e.target.value)}
               placeholder="e.g. UCiz4lqlVpaB4PpK-1aecMgQ"
-              className={`w-full h-8 px-2.5 bg-white border border-b-black/[0.3] rounded-[4px] text-slate-900 placeholder-slate-400 focus:outline-none font-mono text-xs transition-colors ${
+              className={`w-full h-8 px-2.5 bg-white border border-b-black/[0.3] rounded-[4px] text-slate-900 placeholder-slate-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0067C0] focus-visible:outline-none font-mono text-xs transition-colors ${
                 fieldErrors.youtube_channel_id
                   ? 'border-rose-500 focus:border-rose-500'
                   : 'border-black/[0.15] focus:border-[#0067C0]'
@@ -417,7 +417,7 @@ export default function SettingsPanel() {
           <div>
             <div className="flex items-center justify-between mb-1.5">
               <label className="text-xs font-medium text-slate-700">
-                Live Video ID Override
+                Live video ID override
               </label>
               <span className="text-[10px] text-slate-400 font-mono">Optional</span>
             </div>
@@ -426,7 +426,7 @@ export default function SettingsPanel() {
               value={settings.youtube_live_id ?? ''}
               onChange={(e) => updateField('youtube_live_id', e.target.value || null)}
               placeholder="e.g. jfKfPfyJRdk (leave empty for auto-detect)"
-              className="w-full h-8 px-2.5 bg-white border border-black/[0.15] border-b-black/[0.3] rounded-[4px] text-slate-900 placeholder-slate-400 focus:outline-none focus:border-[#0067C0] font-mono text-xs transition-colors"
+              className="w-full h-8 px-2.5 bg-white border border-black/[0.15] border-b-black/[0.3] rounded-[4px] text-slate-900 placeholder-slate-400 focus:outline-none focus:border-[#0067C0] focus-visible:ring-2 focus-visible:ring-[#0067C0] focus-visible:outline-none font-mono text-xs transition-colors"
             />
             <p className="text-[11px] text-slate-500 mt-1">
               Specify this only if you want to lock BABA TTS to a specific broadcast or scheduled stream URL.
@@ -442,7 +442,7 @@ export default function SettingsPanel() {
             />
             <div>
               <span className="font-medium text-slate-800">
-                {settings.enable_youtube ? 'Live Listener Active' : 'Live Listener Inactive'}
+                {settings.enable_youtube ? 'Live listener active' : 'Live listener inactive'}
               </span>
               <span className="block text-[11px] text-slate-500">
                 {settings.enable_youtube
@@ -467,18 +467,18 @@ export default function SettingsPanel() {
           <button
             type="button"
             onClick={handleResetDefaults}
-            className="h-8 px-3 rounded-[4px] bg-white hover:bg-slate-100 border border-black/[0.15] text-xs font-medium text-slate-700 transition-colors flex items-center gap-1.5"
+            className="h-8 px-3 rounded-[4px] bg-white hover:bg-slate-100 border border-black/[0.15] text-xs font-medium text-slate-700 transition-colors flex items-center gap-1.5 focus-visible:ring-2 focus-visible:ring-[#0067C0] focus-visible:outline-none"
             title="Reset form fields to default values"
           >
             <RotateCcw className="w-3.5 h-3.5 text-slate-500" />
-            <span>Reset Defaults</span>
+            <span>Reset defaults</span>
           </button>
 
           <button
             type="button"
             onClick={handleSave}
             disabled={saving}
-            className={`h-8 px-4 rounded-[4px] text-xs font-medium transition-all shadow-[0_1px_2px_rgba(0,0,0,0.08)] flex items-center justify-center gap-1.5 ${
+            className={`h-8 px-4 rounded-[4px] text-xs font-medium transition-all shadow-[0_1px_2px_rgba(0,0,0,0.08)] flex items-center justify-center gap-1.5 focus-visible:ring-2 focus-visible:ring-[#0067C0] focus-visible:outline-none ${
               justSaved
                 ? 'bg-[#107C41] text-white'
                 : 'bg-[#0067C0] hover:bg-[#1879CD] text-white disabled:bg-slate-200 disabled:text-slate-400'
@@ -497,7 +497,7 @@ export default function SettingsPanel() {
             ) : (
               <>
                 <Save className="w-3.5 h-3.5" />
-                <span>Save Settings</span>
+                <span>Save settings</span>
               </>
             )}
           </button>

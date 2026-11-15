@@ -12,7 +12,7 @@ interface ChatMessageProps {
 
 const statusBadgeStyles: Record<ChatMessageType['status'], string> = {
   default: '', // hidden
-  queued: 'bg-purple-600/90 text-white',
+  queued: 'bg-[#0067C0]/90 text-white',
   processing: 'bg-yellow-500/90 text-black animate-pulse',
   speaking: 'bg-green-500/90 text-black animate-bounce shadow-[0_0_8px_rgba(34,197,94,0.8)]',
   skipped: 'bg-red-600/90 text-white',
@@ -155,7 +155,7 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({ message, currentAu
                             key={i}
                             className={`transition-colors duration-150 ${
                               variant === 'inline'
-                                ? (isRead ? 'font-bold' : 'text-slate-400')
+                                ? (isRead ? 'font-bold' : 'text-slate-500')
                                 : (isRead ? '' : 'text-gray-600')
                             }`}
                             style={{
@@ -174,7 +174,7 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({ message, currentAu
                             className={`inline-block px-1.5 py-0.5 mx-0.5 rounded-md transition-all ${
                               isHighlighted 
                                 ? 'scale-105 font-bold shadow-xs' 
-                                : 'scale-100 ' + (isPast || message.status === 'done' || message.status === 'skipped' ? (variant === 'inline' ? 'text-slate-800' : 'text-[#f0fdf4]') : (variant === 'inline' ? 'text-slate-400' : 'text-gray-500'))
+                                : 'scale-100 ' + (isPast || message.status === 'done' || message.status === 'skipped' ? (variant === 'inline' ? 'text-slate-800' : 'text-[#f0fdf4]') : (variant === 'inline' ? 'text-slate-500' : 'text-gray-500'))
                             }`}
                             style={{
                               backgroundColor: isHighlighted ? authorColor : 'transparent',

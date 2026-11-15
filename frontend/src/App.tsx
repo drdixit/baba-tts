@@ -299,20 +299,26 @@ function DesktopApp() {
         </div>
 
         {/* Center Section: Windows 11 Native TabStrip */}
-        <nav className="h-full flex items-center gap-0.5 order-last md:order-none w-full md:w-auto justify-center border-t md:border-t-0 border-slate-200/60 pt-1 md:pt-0">
+        <nav
+          role="tablist"
+          aria-label="Application sections"
+          className="h-full flex items-center gap-0.5 order-last md:order-none w-full md:w-auto justify-center border-t md:border-t-0 border-slate-200/60 pt-1 md:pt-0"
+        >
           {[
-            { id: 'monitor' as const, label: 'Live Monitor', icon: LayoutDashboard },
+            { id: 'monitor' as const, label: 'Live monitor', icon: LayoutDashboard },
             { id: 'moderation' as const, label: 'Moderation', icon: ShieldAlert },
             { id: 'settings' as const, label: 'Settings', icon: Sliders },
-            { id: 'obs' as const, label: 'OBS Overlays', icon: Tv },
+            { id: 'obs' as const, label: 'OBS overlays', icon: Tv },
           ].map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
             return (
               <button
                 key={tab.id}
+                role="tab"
+                aria-selected={isActive}
                 onClick={() => setActiveTab(tab.id)}
-                className={`relative h-8 md:h-full px-2.5 sm:px-3 flex items-center gap-1.5 text-xs font-medium transition-colors cursor-pointer rounded-t-[4px] md:rounded-none ${
+                className={`relative h-8 md:h-full px-2.5 sm:px-3 flex items-center gap-1.5 text-xs font-medium transition-colors cursor-pointer rounded-t-[4px] md:rounded-none focus-visible:ring-2 focus-visible:ring-[#0067C0] focus-visible:outline-none ${
                   isActive
                     ? 'text-slate-900 bg-black/[0.03] font-semibold'
                     : 'text-slate-600 hover:text-slate-900 hover:bg-black/[0.04]'
@@ -334,7 +340,7 @@ function DesktopApp() {
         <div className="flex items-center gap-1 shrink-0">
           <button
             onClick={handleSkipCurrent}
-            className="h-7 px-2 flex items-center gap-1.5 rounded-[4px] bg-white hover:bg-slate-50 active:bg-slate-100 border border-slate-200/90 text-xs font-medium text-amber-800 shadow-[0_1px_1px_rgba(0,0,0,0.02)] transition-colors cursor-pointer"
+            className="h-7 px-2 flex items-center gap-1.5 rounded-[4px] bg-white hover:bg-slate-50 active:bg-slate-100 border border-slate-200/90 text-xs font-medium text-amber-800 shadow-[0_1px_1px_rgba(0,0,0,0.02)] transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-[#0067C0] focus-visible:outline-none"
             title="Skip currently playing TTS message"
           >
             <RotateCcw className="w-3 h-3 text-amber-600" />
@@ -343,25 +349,25 @@ function DesktopApp() {
 
           <button
             onClick={handleBanCurrent}
-            className="h-7 px-2 flex items-center gap-1.5 rounded-[4px] bg-white hover:bg-slate-50 active:bg-slate-100 border border-slate-200/90 text-xs font-medium text-rose-800 shadow-[0_1px_1px_rgba(0,0,0,0.02)] transition-colors cursor-pointer"
+            className="h-7 px-2 flex items-center gap-1.5 rounded-[4px] bg-white hover:bg-slate-50 active:bg-slate-100 border border-slate-200/90 text-xs font-medium text-rose-800 shadow-[0_1px_1px_rgba(0,0,0,0.02)] transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-[#0067C0] focus-visible:outline-none"
             title="Ban & skip currently speaking user"
           >
             <ShieldAlert className="w-3 h-3 text-rose-600" />
-            <span className="hidden sm:inline">Ban Speaker</span>
+            <span className="hidden sm:inline">Ban speaker</span>
           </button>
 
           <button
             onClick={handleClearQueue}
-            className="h-7 px-2 flex items-center gap-1.5 rounded-[4px] bg-white hover:bg-slate-50 active:bg-slate-100 border border-slate-200/90 text-xs font-medium text-slate-700 shadow-[0_1px_1px_rgba(0,0,0,0.02)] transition-colors cursor-pointer"
+            className="h-7 px-2 flex items-center gap-1.5 rounded-[4px] bg-white hover:bg-slate-50 active:bg-slate-100 border border-slate-200/90 text-xs font-medium text-slate-700 shadow-[0_1px_1px_rgba(0,0,0,0.02)] transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-[#0067C0] focus-visible:outline-none"
             title="Purge pending TTS queue"
           >
             <Trash2 className="w-3 h-3 text-slate-500" />
-            <span className="hidden md:inline">Clear Queue</span>
+            <span className="hidden md:inline">Clear queue</span>
           </button>
 
           <button
             onClick={handleRestart}
-            className="h-7 px-2 flex items-center gap-1.5 rounded-[4px] bg-white hover:bg-slate-50 active:bg-slate-100 border border-slate-200/90 text-xs font-medium text-slate-700 shadow-[0_1px_1px_rgba(0,0,0,0.02)] transition-colors cursor-pointer"
+            className="h-7 px-2 flex items-center gap-1.5 rounded-[4px] bg-white hover:bg-slate-50 active:bg-slate-100 border border-slate-200/90 text-xs font-medium text-slate-700 shadow-[0_1px_1px_rgba(0,0,0,0.02)] transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-[#0067C0] focus-visible:outline-none"
             title="Restart BABA TTS daemon"
           >
             <RefreshCw className="w-3 h-3 text-slate-500" />
@@ -382,7 +388,7 @@ function DesktopApp() {
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-semibold text-slate-800 flex items-center gap-1.5">
                     <Volume2 className="w-3.5 h-3.5 text-[#0067C0]" />
-                    Currently Speaking
+                    Currently speaking
                   </span>
                   {activeMessage && (
                     <span className="text-[10px] font-medium font-mono px-2 py-0.5 rounded-[3px] bg-emerald-50 text-emerald-800 border border-emerald-300/60 animate-pulse uppercase">
@@ -407,7 +413,7 @@ function DesktopApp() {
                       <Volume2 className="w-4 h-4 text-slate-400 animate-pulse" />
                     </div>
                     <div>
-                      <div className="font-semibold text-slate-800 text-xs">TTS Engine Idle</div>
+                      <div className="font-semibold text-slate-800 text-xs">TTS engine idle</div>
                       <div className="text-[11px] text-slate-500 mt-0.5">
                         Ready for YouTube live chat or manual speech.
                       </div>
@@ -421,7 +427,7 @@ function DesktopApp() {
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-semibold text-slate-800 flex items-center gap-1.5">
                     <Send className="w-3.5 h-3.5 text-[#0067C0]" />
-                    Quick Manual Speech
+                    Quick manual speech
                   </span>
                   <span className="text-[10px] text-slate-400 font-mono hidden sm:inline">Num 2 / Num 4</span>
                 </div>
@@ -439,11 +445,11 @@ function DesktopApp() {
                         }
                       }}
                       placeholder="Type words to speak aloud..."
-                      className="flex-1 min-w-0 h-8 px-2.5 rounded-[4px] bg-white border border-black/[0.15] border-b-black/[0.3] focus:border-[#0067C0] text-xs text-slate-900 placeholder-slate-400 outline-none transition-colors shadow-2xs"
+                      className="flex-1 min-w-0 h-8 px-2.5 rounded-[4px] bg-white border border-black/[0.15] border-b-black/[0.3] focus:border-[#0067C0] focus-visible:ring-2 focus-visible:ring-[#0067C0] focus-visible:outline-none text-xs text-slate-900 placeholder-slate-400 transition-colors shadow-2xs"
                     />
                     <button
                       onClick={handleManualSpeakBaba}
-                      className="h-8 px-3 rounded-[4px] bg-[#0067C0] hover:bg-[#1879CD] text-white text-xs font-medium transition-colors shadow-2xs shrink-0 flex items-center gap-1 cursor-pointer"
+                      className="h-8 px-3 rounded-[4px] bg-[#0067C0] hover:bg-[#1879CD] text-white text-xs font-medium transition-colors shadow-2xs shrink-0 flex items-center gap-1 cursor-pointer focus-visible:ring-2 focus-visible:ring-[#0067C0] focus-visible:outline-none"
                       title="Speak as BABA"
                     >
                       <Volume2 className="w-3.5 h-3.5" />
@@ -454,19 +460,19 @@ function DesktopApp() {
                   <div className="flex items-center gap-1.5">
                     <button
                       onClick={handleSpeakAsBanned}
-                      className="flex-1 h-7 flex items-center justify-center gap-1 px-2 rounded-[4px] bg-[#FBFBFB] hover:bg-[#F0F0F0] active:bg-[#E5E5E5] border border-black/[0.08] text-slate-700 text-xs font-normal transition-colors cursor-pointer"
+                      className="flex-1 h-7 flex items-center justify-center gap-1 px-2 rounded-[4px] bg-[#FBFBFB] hover:bg-[#F0F0F0] active:bg-[#E5E5E5] border border-black/[0.08] text-slate-700 text-xs font-normal transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-[#0067C0] focus-visible:outline-none"
                       title="Test speech with banned filter persona"
                     >
-                      <span>Speak Banned</span>
+                      <span>Speak banned</span>
                     </button>
 
                     <button
                       onClick={simulateGoodMessage}
-                      className="flex-1 h-7 flex items-center justify-center gap-1 px-2 rounded-[4px] bg-[#FBFBFB] hover:bg-[#F0F0F0] active:bg-[#E5E5E5] border border-black/[0.08] text-slate-700 text-xs font-normal transition-colors cursor-pointer"
+                      className="flex-1 h-7 flex items-center justify-center gap-1 px-2 rounded-[4px] bg-[#FBFBFB] hover:bg-[#F0F0F0] active:bg-[#E5E5E5] border border-black/[0.08] text-slate-700 text-xs font-normal transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-[#0067C0] focus-visible:outline-none"
                       title="Simulate a chat message from viewer"
                     >
                       <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-                      <span className="truncate">Simulate Chat</span>
+                      <span className="truncate">Simulate chat</span>
                     </button>
                   </div>
                 </div>
@@ -479,7 +485,7 @@ function DesktopApp() {
                 <div className="flex items-center gap-2">
                   <MessageSquare className="w-4 h-4 text-[#0067C0]" />
                   <span className="text-xs font-semibold text-slate-800">
-                    Live Chat Stream
+                    Live chat stream
                   </span>
                   <span className="text-[11px] font-mono px-1.5 py-0.2 rounded-[3px] bg-black/[0.04] border border-black/[0.08] text-slate-700 font-medium">
                     {messages.length}
@@ -538,34 +544,34 @@ function DesktopApp() {
 
         {/* TAB 4: OBS OVERLAYS GUIDE */}
         {activeTab === 'obs' && (
-          <div className="flex-1 p-8 overflow-y-auto max-w-4xl mx-auto w-full space-y-6 bg-slate-50">
+          <div className="flex-1 p-6 overflow-y-auto max-w-4xl mx-auto w-full space-y-4 bg-slate-50">
             <div>
               <div className="flex items-center gap-2.5">
-                <div className="p-2 rounded-xl bg-indigo-50 border border-indigo-200 text-indigo-600">
-                  <Tv className="w-6 h-6" />
+                <div className="p-2 rounded-md bg-black/[0.04] border border-black/[0.08] text-[#0067C0]">
+                  <Tv className="w-5 h-5" />
                 </div>
                 <div>
-                  <h2 className="text-2xl font-black text-slate-900 tracking-wide">
-                    OBS Studio Browser Sources
+                  <h2 className="text-base font-semibold text-slate-900">
+                    OBS Studio browser sources
                   </h2>
-                  <p className="text-sm text-slate-500 mt-0.5">
-                    Add these transparent URLs to OBS Studio as Browser Sources to display live TTS popups and chat history on your stream.
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Add these transparent URLs to OBS Studio as Browser Sources to display live TTS popups and chat history on stream.
                   </p>
                 </div>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 gap-3.5">
+            <div className="grid grid-cols-1 gap-3">
               {/* Card 1: 9:16 Full Broadcast Overlay (/overlay) */}
               <div className="p-4 rounded-lg bg-white border border-black/[0.08] hover:border-[#0067C0]/40 transition-colors shadow-[0_1px_2px_rgba(0,0,0,0.02)] flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div className="space-y-1.5 flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-semibold text-slate-900 text-sm">9:16 Full Broadcast Overlay</span>
-                    <span className="px-1.5 py-0.5 rounded-[3px] bg-purple-50 text-purple-700 border border-purple-200 text-[10px] font-mono">
+                    <span className="font-semibold text-slate-900 text-xs">9:16 full broadcast overlay</span>
+                    <span className="px-1.5 py-0.5 rounded-[3px] bg-[#0067C0]/10 text-[#0067C0] border border-[#0067C0]/20 text-[10px] font-mono">
                       1080 × 1920
                     </span>
-                    <span className="px-1.5 py-0.5 rounded-[3px] bg-indigo-50 text-indigo-700 border border-indigo-200 text-[10px] font-normal">
-                      All-In-One Layout
+                    <span className="px-1.5 py-0.5 rounded-[3px] bg-black/[0.04] text-slate-700 border border-black/[0.08] text-[10px] font-normal">
+                      All-in-one layout
                     </span>
                   </div>
                   <p className="text-xs text-slate-600">
@@ -581,15 +587,15 @@ function DesktopApp() {
                     href={`${baseUrl}/overlay`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="p-1.5 h-7.5 w-7.5 rounded-[4px] bg-[#FBFBFB] hover:bg-[#F0F0F0] text-slate-700 border border-black/[0.08] flex items-center justify-center transition-colors"
+                    className="p-1.5 h-7.5 w-7.5 rounded-[4px] bg-[#FBFBFB] hover:bg-[#F0F0F0] text-slate-700 border border-black/[0.08] flex items-center justify-center transition-colors focus-visible:ring-2 focus-visible:ring-[#0067C0] focus-visible:outline-none"
                     title="Preview in browser tab"
                   >
                     <ExternalLink className="w-3.5 h-3.5" />
                   </a>
 
                   <button
-                    onClick={() => copyToClipboard(`${baseUrl}/overlay`, 'overlay', 'Full Broadcast Overlay')}
-                    className={`flex items-center gap-1.5 h-7.5 px-3 rounded-[4px] text-xs font-medium transition-colors shadow-2xs cursor-pointer ${
+                    onClick={() => copyToClipboard(`${baseUrl}/overlay`, 'overlay', 'Full broadcast overlay')}
+                    className={`flex items-center gap-1.5 h-7.5 px-3 rounded-[4px] text-xs font-medium transition-colors shadow-2xs cursor-pointer focus-visible:ring-2 focus-visible:ring-[#0067C0] focus-visible:outline-none ${
                       copiedKey === 'overlay'
                         ? 'bg-emerald-600 text-white'
                         : 'bg-[#0067C0] hover:bg-[#1879CD] text-white'
@@ -614,12 +620,12 @@ function DesktopApp() {
               <div className="p-4 rounded-lg bg-white border border-black/[0.08] hover:border-[#0067C0]/40 transition-colors shadow-[0_1px_2px_rgba(0,0,0,0.02)] flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div className="space-y-1.5 flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-semibold text-slate-900 text-sm">Speaking Spotlight Only</span>
+                    <span className="font-semibold text-slate-900 text-xs">Speaking spotlight only</span>
                     <span className="px-1.5 py-0.5 rounded-[3px] bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-mono">
-                      Transparent Popup
+                      Transparent popup
                     </span>
-                    <span className="px-1.5 py-0.5 rounded-[3px] bg-indigo-50 text-indigo-700 border border-indigo-200 text-[10px] font-normal">
-                      Karaoke Sync
+                    <span className="px-1.5 py-0.5 rounded-[3px] bg-black/[0.04] text-slate-700 border border-black/[0.08] text-[10px] font-normal">
+                      Karaoke sync
                     </span>
                   </div>
                   <p className="text-xs text-slate-600">
@@ -635,15 +641,15 @@ function DesktopApp() {
                     href={`${baseUrl}/popup`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="p-1.5 h-7.5 w-7.5 rounded-[4px] bg-[#FBFBFB] hover:bg-[#F0F0F0] text-slate-700 border border-black/[0.08] flex items-center justify-center transition-colors"
+                    className="p-1.5 h-7.5 w-7.5 rounded-[4px] bg-[#FBFBFB] hover:bg-[#F0F0F0] text-slate-700 border border-black/[0.08] flex items-center justify-center transition-colors focus-visible:ring-2 focus-visible:ring-[#0067C0] focus-visible:outline-none"
                     title="Preview in browser tab"
                   >
                     <ExternalLink className="w-3.5 h-3.5" />
                   </a>
 
                   <button
-                    onClick={() => copyToClipboard(`${baseUrl}/popup`, 'popup', 'Speaking Spotlight')}
-                    className={`flex items-center gap-1.5 h-7.5 px-3 rounded-[4px] text-xs font-medium transition-colors shadow-2xs cursor-pointer ${
+                    onClick={() => copyToClipboard(`${baseUrl}/popup`, 'popup', 'Speaking spotlight')}
+                    className={`flex items-center gap-1.5 h-7.5 px-3 rounded-[4px] text-xs font-medium transition-colors shadow-2xs cursor-pointer focus-visible:ring-2 focus-visible:ring-[#0067C0] focus-visible:outline-none ${
                       copiedKey === 'popup'
                         ? 'bg-emerald-600 text-white'
                         : 'bg-[#0067C0] hover:bg-[#1879CD] text-white'
@@ -668,12 +674,12 @@ function DesktopApp() {
               <div className="p-4 rounded-lg bg-white border border-black/[0.08] hover:border-[#0067C0]/40 transition-colors shadow-[0_1px_2px_rgba(0,0,0,0.02)] flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div className="space-y-1.5 flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-semibold text-slate-900 text-sm">Live Chat Stream Only</span>
-                    <span className="px-1.5 py-0.5 rounded-[3px] bg-cyan-50 text-cyan-700 border border-cyan-200 text-[10px] font-mono">
-                      Transparent Chat
+                    <span className="font-semibold text-slate-900 text-xs">Live chat stream only</span>
+                    <span className="px-1.5 py-0.5 rounded-[3px] bg-black/[0.04] text-slate-700 border border-black/[0.08] text-[10px] font-mono">
+                      Transparent chat
                     </span>
-                    <span className="px-1.5 py-0.5 rounded-[3px] bg-slate-100 text-slate-700 text-[10px] font-normal">
-                      Auto-Scrolling
+                    <span className="px-1.5 py-0.5 rounded-[3px] bg-black/[0.04] text-slate-700 border border-black/[0.08] text-[10px] font-normal">
+                      Auto-scrolling
                     </span>
                   </div>
                   <p className="text-xs text-slate-600">
@@ -689,15 +695,15 @@ function DesktopApp() {
                     href={`${baseUrl}/chat`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="p-1.5 h-7.5 w-7.5 rounded-[4px] bg-[#FBFBFB] hover:bg-[#F0F0F0] text-slate-700 border border-black/[0.08] flex items-center justify-center transition-colors"
+                    className="p-1.5 h-7.5 w-7.5 rounded-[4px] bg-[#FBFBFB] hover:bg-[#F0F0F0] text-slate-700 border border-black/[0.08] flex items-center justify-center transition-colors focus-visible:ring-2 focus-visible:ring-[#0067C0] focus-visible:outline-none"
                     title="Preview in browser tab"
                   >
                     <ExternalLink className="w-3.5 h-3.5" />
                   </a>
 
                   <button
-                    onClick={() => copyToClipboard(`${baseUrl}/chat`, 'chat', 'Live Chat Stream')}
-                    className={`flex items-center gap-1.5 h-7.5 px-3 rounded-[4px] text-xs font-medium transition-colors shadow-2xs cursor-pointer ${
+                    onClick={() => copyToClipboard(`${baseUrl}/chat`, 'chat', 'Live chat stream')}
+                    className={`flex items-center gap-1.5 h-7.5 px-3 rounded-[4px] text-xs font-medium transition-colors shadow-2xs cursor-pointer focus-visible:ring-2 focus-visible:ring-[#0067C0] focus-visible:outline-none ${
                       copiedKey === 'chat'
                         ? 'bg-emerald-600 text-white'
                         : 'bg-[#0067C0] hover:bg-[#1879CD] text-white'
@@ -723,13 +729,13 @@ function DesktopApp() {
             <div className="p-4 rounded-lg bg-white border border-black/[0.08] text-xs text-slate-600 space-y-2.5 shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
               <div className="font-semibold text-slate-900 text-xs flex items-center gap-1.5">
                 <AlertTriangle className="w-4 h-4 text-amber-500" />
-                OBS Studio Browser Source Setup Guide
+                OBS Studio browser source setup guide
               </div>
               <ol className="list-decimal pl-5 space-y-1 text-slate-700 text-xs">
                 <li>In OBS Studio, click the <strong className="text-slate-900">+</strong> button in the <strong>Sources</strong> dock and choose <strong>Browser</strong>.</li>
                 <li>Give the source a clear name (e.g. <span className="text-[#0067C0] font-mono">BABA Vertical Overlay</span>) and click OK.</li>
                 <li>Paste the copied URL into the <strong>URL</strong> field.</li>
-                <li>Set the recommended canvas resolution (e.g., <strong>Width: 1080</strong>, <strong>Height: 1920</strong> for Full Broadcast Overlay).</li>
+                <li>Set the recommended canvas resolution (e.g., <strong>Width: 1080</strong>, <strong>Height: 1920</strong> for Full broadcast overlay).</li>
                 <li>Check <strong className="text-slate-900">"Shutdown source when not visible"</strong> to minimize stream GPU/CPU overhead.</li>
                 <li>Leave <strong className="text-slate-900">"Control audio via OBS" unchecked</strong> — BABA TTS Desktop App plays audio natively via Windows audio output to eliminate latency and avoid double-audio echo.</li>
               </ol>

@@ -24,7 +24,7 @@ const ModerationPanel: React.FC<ModerationPanelProps> = ({ onBanUser, onUnbanUse
           <div className="flex items-center gap-2">
             <UserCheck className="w-4 h-4 text-emerald-600" />
             <span className="text-xs font-semibold text-slate-800">
-              Active Chatters
+              Active chatters
             </span>
           </div>
           <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 px-1.5 py-0.2 rounded-[3px] font-mono text-[11px] font-medium">
@@ -58,7 +58,7 @@ const ModerationPanel: React.FC<ModerationPanelProps> = ({ onBanUser, onUnbanUse
                 </div>
                 <button
                   onClick={() => onBanUser(user.authorId, user.displayName, user.profileImageUrl)}
-                  className="shrink-0 h-6.5 px-2.5 rounded-[4px] border border-rose-300 bg-white hover:bg-rose-50 text-rose-700 text-xs font-medium transition-colors shadow-2xs cursor-pointer"
+                  className="shrink-0 h-7 px-3 rounded-[4px] border border-rose-300 bg-white hover:bg-rose-50 text-rose-700 text-xs font-medium transition-colors shadow-2xs cursor-pointer focus-visible:ring-2 focus-visible:ring-[#0067C0] focus-visible:outline-none"
                   title="Ban from TTS"
                 >
                   Ban
@@ -106,8 +106,8 @@ const ModerationPanel: React.FC<ModerationPanelProps> = ({ onBanUser, onUnbanUse
                 </div>
                 <button
                   onClick={() => onUnbanUser(user.authorId)}
-                  className="shrink-0 h-6.5 px-2.5 rounded-[4px] border border-black/[0.08] bg-white hover:bg-[#F5F5F5] text-slate-700 text-xs font-medium transition-colors shadow-2xs cursor-pointer"
-                  title="Unban User"
+                  className="shrink-0 h-7 px-3 rounded-[4px] border border-black/[0.08] bg-white hover:bg-[#F5F5F5] text-slate-700 text-xs font-medium transition-colors shadow-2xs cursor-pointer focus-visible:ring-2 focus-visible:ring-[#0067C0] focus-visible:outline-none"
+                  title="Unban user"
                 >
                   Unban
                 </button>
