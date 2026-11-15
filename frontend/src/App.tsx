@@ -235,9 +235,9 @@ function DesktopApp() {
 
   return (
     <div className="h-screen w-screen flex flex-col overflow-hidden bg-slate-50 text-slate-800 select-none">
-      {/* Toast Notification */}
+      {/* Toast Notification (Windows 11 InfoBar Style) */}
       {toast && (
-        <div className="fixed top-4 right-4 z-50 bg-white/95 border border-indigo-200 text-indigo-950 px-5 py-3 rounded-2xl shadow-xl backdrop-blur-md flex items-center gap-3 animate-fade-in text-sm font-semibold">
+        <div className="fixed top-4 right-4 z-50 bg-white/95 border border-black/10 text-slate-800 px-3.5 py-2 rounded-md shadow-[0_4px_16px_rgba(0,0,0,0.12)] backdrop-blur-md flex items-center gap-2.5 animate-fade-in text-xs font-medium">
           <Check className="w-4 h-4 text-emerald-600 shrink-0" />
           <span>{toast}</span>
         </div>
@@ -380,12 +380,12 @@ function DesktopApp() {
               {/* CURRENTLY SPEAKING CARD */}
               <div className="flex flex-col gap-2">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-extrabold uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
-                    <Volume2 className="w-3.5 h-3.5 text-indigo-600" />
+                  <span className="text-xs font-semibold text-slate-800 flex items-center gap-1.5">
+                    <Volume2 className="w-3.5 h-3.5 text-[#0067C0]" />
                     Currently Speaking
                   </span>
                   {activeMessage && (
-                    <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300 animate-pulse uppercase">
+                    <span className="text-[10px] font-medium font-mono px-2 py-0.5 rounded-[3px] bg-emerald-50 text-emerald-800 border border-emerald-300/60 animate-pulse uppercase">
                       {activeMessage.status}
                     </span>
                   )}
@@ -402,13 +402,13 @@ function DesktopApp() {
                     />
                   </div>
                 ) : (
-                  <div className="p-6 rounded-2xl bg-slate-50 border border-slate-200 flex flex-col items-center justify-center text-center gap-3 text-slate-500 shadow-xs">
-                    <div className="w-12 h-12 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-400">
-                      <Volume2 className="w-6 h-6 animate-pulse" />
+                  <div className="p-4 rounded-lg bg-[#FAFAFA] border border-black/[0.08] flex flex-col items-center justify-center text-center gap-2.5 text-slate-500 shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
+                    <div className="w-9 h-9 rounded-md bg-black/[0.04] border border-black/[0.06] flex items-center justify-center text-slate-500">
+                      <Volume2 className="w-4 h-4 text-slate-400 animate-pulse" />
                     </div>
                     <div>
-                      <div className="font-bold text-slate-800 text-sm">TTS Engine Idle</div>
-                      <div className="text-xs text-slate-500 mt-0.5">
+                      <div className="font-semibold text-slate-800 text-xs">TTS Engine Idle</div>
+                      <div className="text-[11px] text-slate-500 mt-0.5">
                         Ready for YouTube live chat or manual speech.
                       </div>
                     </div>
@@ -417,10 +417,10 @@ function DesktopApp() {
               </div>
 
               {/* MANUAL INPUT & TEST BAR */}
-              <div className="flex flex-col gap-2.5 p-3.5 rounded-2xl bg-slate-50 border border-slate-200/90 shadow-xs mt-auto">
+              <div className="flex flex-col gap-2.5 p-3 rounded-lg bg-white border border-black/[0.08] shadow-[0_1px_2px_rgba(0,0,0,0.02)] mt-auto">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-extrabold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
-                    <Send className="w-3.5 h-3.5 text-indigo-600" />
+                  <span className="text-xs font-semibold text-slate-800 flex items-center gap-1.5">
+                    <Send className="w-3.5 h-3.5 text-[#0067C0]" />
                     Quick Manual Speech
                   </span>
                   <span className="text-[10px] text-slate-400 font-mono hidden sm:inline">Num 2 / Num 4</span>
@@ -439,11 +439,11 @@ function DesktopApp() {
                         }
                       }}
                       placeholder="Type words to speak aloud..."
-                      className="flex-1 min-w-0 px-3 py-2 rounded-xl bg-white border border-slate-300 focus:border-indigo-600 text-sm text-slate-900 placeholder-slate-400 outline-none transition-colors shadow-xs"
+                      className="flex-1 min-w-0 h-8 px-2.5 rounded-[4px] bg-white border border-black/[0.15] border-b-black/[0.3] focus:border-[#0067C0] text-xs text-slate-900 placeholder-slate-400 outline-none transition-colors shadow-2xs"
                     />
                     <button
                       onClick={handleManualSpeakBaba}
-                      className="flex items-center gap-1 px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition-colors shadow-xs shrink-0"
+                      className="h-8 px-3 rounded-[4px] bg-[#0067C0] hover:bg-[#1879CD] text-white text-xs font-medium transition-colors shadow-2xs shrink-0 flex items-center gap-1 cursor-pointer"
                       title="Speak as BABA"
                     >
                       <Volume2 className="w-3.5 h-3.5" />
@@ -454,7 +454,7 @@ function DesktopApp() {
                   <div className="flex items-center gap-1.5">
                     <button
                       onClick={handleSpeakAsBanned}
-                      className="flex-1 flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-lg bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 text-xs font-semibold transition-colors shadow-xs"
+                      className="flex-1 h-7 flex items-center justify-center gap-1 px-2 rounded-[4px] bg-[#FBFBFB] hover:bg-[#F0F0F0] active:bg-[#E5E5E5] border border-black/[0.08] text-slate-700 text-xs font-normal transition-colors cursor-pointer"
                       title="Test speech with banned filter persona"
                     >
                       <span>Speak Banned</span>
@@ -462,7 +462,7 @@ function DesktopApp() {
 
                     <button
                       onClick={simulateGoodMessage}
-                      className="flex-1 flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-lg bg-white hover:bg-slate-100 border border-slate-200 text-slate-600 hover:text-slate-800 text-xs font-semibold transition-colors shadow-xs"
+                      className="flex-1 h-7 flex items-center justify-center gap-1 px-2 rounded-[4px] bg-[#FBFBFB] hover:bg-[#F0F0F0] active:bg-[#E5E5E5] border border-black/[0.08] text-slate-700 text-xs font-normal transition-colors cursor-pointer"
                       title="Simulate a chat message from viewer"
                     >
                       <Sparkles className="w-3.5 h-3.5 text-amber-500" />
@@ -474,29 +474,29 @@ function DesktopApp() {
             </div>
 
             {/* Right Column: Live Chat History Feed */}
-            <div className="flex-1 flex flex-col p-5 overflow-hidden min-h-0 bg-slate-50">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-200 mb-3">
+            <div className="flex-1 flex flex-col p-4 sm:p-5 overflow-hidden min-h-0 bg-slate-50">
+              <div className="flex items-center justify-between pb-2.5 border-b border-black/[0.08] mb-3">
                 <div className="flex items-center gap-2">
-                  <MessageSquare className="w-4 h-4 text-indigo-600" />
-                  <span className="text-sm font-extrabold uppercase tracking-wider text-slate-800">
+                  <MessageSquare className="w-4 h-4 text-[#0067C0]" />
+                  <span className="text-xs font-semibold text-slate-800">
                     Live Chat Stream
                   </span>
-                  <span className="text-xs px-2.5 py-0.5 rounded-full bg-slate-200 text-slate-700 font-bold">
+                  <span className="text-[11px] font-mono px-1.5 py-0.2 rounded-[3px] bg-black/[0.04] border border-black/[0.08] text-slate-700 font-medium">
                     {messages.length}
                   </span>
                 </div>
-                <div className="text-xs text-slate-500">
+                <div className="text-[11px] text-slate-500">
                   Auto-syncing with audio engine
                 </div>
               </div>
 
               {/* Chat Messages Feed */}
-              <div className="flex-1 overflow-y-auto space-y-2 pr-2 custom-scrollbar min-h-0">
+              <div className="flex-1 overflow-y-auto space-y-1.5 pr-2 custom-scrollbar min-h-0">
                 {messages.length === 0 ? (
                   <div className="h-full flex flex-col items-center justify-center text-slate-400 gap-2 p-8 text-center">
-                    <MessageSquare className="w-10 h-10 text-slate-300 stroke-[1.5]" />
-                    <div className="font-semibold text-slate-600 text-sm">No Chat Messages Yet</div>
-                    <div className="text-xs text-slate-500 max-w-sm">
+                    <MessageSquare className="w-8 h-8 text-slate-300 stroke-[1.5]" />
+                    <div className="font-semibold text-slate-600 text-xs">No Chat Messages Yet</div>
+                    <div className="text-[11px] text-slate-500 max-w-sm">
                       Messages from your YouTube live chat or test simulation buttons will appear here in real-time.
                     </div>
                   </div>
@@ -555,54 +555,54 @@ function DesktopApp() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 gap-4">
+            <div className="grid grid-cols-1 gap-3.5">
               {/* Card 1: 9:16 Full Broadcast Overlay (/overlay) */}
-              <div className="p-5 rounded-2xl bg-white border border-slate-200 hover:border-indigo-300 transition-colors shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-5">
-                <div className="space-y-2 flex-1 min-w-0">
+              <div className="p-4 rounded-lg bg-white border border-black/[0.08] hover:border-[#0067C0]/40 transition-colors shadow-[0_1px_2px_rgba(0,0,0,0.02)] flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div className="space-y-1.5 flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-bold text-slate-900 text-base">9:16 Full Broadcast Overlay</span>
-                    <span className="px-2 py-0.5 rounded bg-purple-50 text-purple-700 border border-purple-200 text-[10px] font-bold uppercase tracking-wider">
-                      1080 × 1920 (Vertical)
+                    <span className="font-semibold text-slate-900 text-sm">9:16 Full Broadcast Overlay</span>
+                    <span className="px-1.5 py-0.5 rounded-[3px] bg-purple-50 text-purple-700 border border-purple-200 text-[10px] font-mono">
+                      1080 × 1920
                     </span>
-                    <span className="px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200 text-[10px] font-semibold">
+                    <span className="px-1.5 py-0.5 rounded-[3px] bg-indigo-50 text-indigo-700 border border-indigo-200 text-[10px] font-normal">
                       All-In-One Layout
                     </span>
                   </div>
                   <p className="text-xs text-slate-600">
-                    Complete vertical broadcast scene (1080×1920) combining the speaking spotlight popup card above dynamic scrolling chat history in a single transparent browser source.
+                    Complete vertical broadcast scene (1080×1920) combining speaking spotlight popup card above dynamic scrolling chat history in a single transparent browser source.
                   </p>
-                  <code className="text-xs font-mono text-indigo-800 block bg-slate-50 px-3.5 py-2 rounded-xl border border-slate-200 break-all select-all">
+                  <code className="text-xs font-mono text-[#0067C0] block bg-[#F8F9FA] px-2.5 py-1.5 rounded-[4px] border border-black/[0.06] break-all select-all">
                     {`${baseUrl}/overlay`}
                   </code>
                 </div>
 
-                <div className="flex items-center gap-2 shrink-0">
+                <div className="flex items-center gap-1.5 shrink-0">
                   <a
                     href={`${baseUrl}/overlay`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="p-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 transition-colors"
+                    className="p-1.5 h-7.5 w-7.5 rounded-[4px] bg-[#FBFBFB] hover:bg-[#F0F0F0] text-slate-700 border border-black/[0.08] flex items-center justify-center transition-colors"
                     title="Preview in browser tab"
                   >
-                    <ExternalLink className="w-4 h-4" />
+                    <ExternalLink className="w-3.5 h-3.5" />
                   </a>
 
                   <button
                     onClick={() => copyToClipboard(`${baseUrl}/overlay`, 'overlay', 'Full Broadcast Overlay')}
-                    className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold transition-all shadow-xs ${
+                    className={`flex items-center gap-1.5 h-7.5 px-3 rounded-[4px] text-xs font-medium transition-colors shadow-2xs cursor-pointer ${
                       copiedKey === 'overlay'
-                        ? 'bg-emerald-600 text-white ring-2 ring-emerald-400/50'
-                        : 'bg-indigo-600 hover:bg-indigo-700 text-white'
+                        ? 'bg-emerald-600 text-white'
+                        : 'bg-[#0067C0] hover:bg-[#1879CD] text-white'
                     }`}
                   >
                     {copiedKey === 'overlay' ? (
                       <>
-                        <Check className="w-4 h-4 text-emerald-200" />
-                        <span>Copied!</span>
+                        <Check className="w-3.5 h-3.5 text-emerald-200" />
+                        <span>Copied</span>
                       </>
                     ) : (
                       <>
-                        <Copy className="w-4 h-4" />
+                        <Copy className="w-3.5 h-3.5" />
                         <span>Copy URL</span>
                       </>
                     )}
@@ -611,52 +611,52 @@ function DesktopApp() {
               </div>
 
               {/* Card 2: Speaking Spotlight Only (/popup) */}
-              <div className="p-5 rounded-2xl bg-white border border-slate-200 hover:border-indigo-300 transition-colors shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-5">
-                <div className="space-y-2 flex-1 min-w-0">
+              <div className="p-4 rounded-lg bg-white border border-black/[0.08] hover:border-[#0067C0]/40 transition-colors shadow-[0_1px_2px_rgba(0,0,0,0.02)] flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div className="space-y-1.5 flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-bold text-slate-900 text-base">Speaking Spotlight Only</span>
-                    <span className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-bold uppercase tracking-wider">
+                    <span className="font-semibold text-slate-900 text-sm">Speaking Spotlight Only</span>
+                    <span className="px-1.5 py-0.5 rounded-[3px] bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-mono">
                       Transparent Popup
                     </span>
-                    <span className="px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200 text-[10px] font-semibold">
+                    <span className="px-1.5 py-0.5 rounded-[3px] bg-indigo-50 text-indigo-700 border border-indigo-200 text-[10px] font-normal">
                       Karaoke Sync
                     </span>
                   </div>
                   <p className="text-xs text-slate-600">
                     Transparent popup card that appears dynamically only while someone is speaking, with pulsing avatar border and word-by-word highlighted karaoke text.
                   </p>
-                  <code className="text-xs font-mono text-indigo-800 block bg-slate-50 px-3.5 py-2 rounded-xl border border-slate-200 break-all select-all">
+                  <code className="text-xs font-mono text-[#0067C0] block bg-[#F8F9FA] px-2.5 py-1.5 rounded-[4px] border border-black/[0.06] break-all select-all">
                     {`${baseUrl}/popup`}
                   </code>
                 </div>
 
-                <div className="flex items-center gap-2 shrink-0">
+                <div className="flex items-center gap-1.5 shrink-0">
                   <a
                     href={`${baseUrl}/popup`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="p-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 transition-colors"
+                    className="p-1.5 h-7.5 w-7.5 rounded-[4px] bg-[#FBFBFB] hover:bg-[#F0F0F0] text-slate-700 border border-black/[0.08] flex items-center justify-center transition-colors"
                     title="Preview in browser tab"
                   >
-                    <ExternalLink className="w-4 h-4" />
+                    <ExternalLink className="w-3.5 h-3.5" />
                   </a>
 
                   <button
                     onClick={() => copyToClipboard(`${baseUrl}/popup`, 'popup', 'Speaking Spotlight')}
-                    className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold transition-all shadow-xs ${
+                    className={`flex items-center gap-1.5 h-7.5 px-3 rounded-[4px] text-xs font-medium transition-colors shadow-2xs cursor-pointer ${
                       copiedKey === 'popup'
-                        ? 'bg-emerald-600 text-white ring-2 ring-emerald-400/50'
-                        : 'bg-indigo-600 hover:bg-indigo-700 text-white'
+                        ? 'bg-emerald-600 text-white'
+                        : 'bg-[#0067C0] hover:bg-[#1879CD] text-white'
                     }`}
                   >
                     {copiedKey === 'popup' ? (
                       <>
-                        <Check className="w-4 h-4 text-emerald-200" />
-                        <span>Copied!</span>
+                        <Check className="w-3.5 h-3.5 text-emerald-200" />
+                        <span>Copied</span>
                       </>
                     ) : (
                       <>
-                        <Copy className="w-4 h-4" />
+                        <Copy className="w-3.5 h-3.5" />
                         <span>Copy URL</span>
                       </>
                     )}
@@ -665,52 +665,52 @@ function DesktopApp() {
               </div>
 
               {/* Card 3: Live Chat Stream Only (/chat) */}
-              <div className="p-5 rounded-2xl bg-white border border-slate-200 hover:border-indigo-300 transition-colors shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-5">
-                <div className="space-y-2 flex-1 min-w-0">
+              <div className="p-4 rounded-lg bg-white border border-black/[0.08] hover:border-[#0067C0]/40 transition-colors shadow-[0_1px_2px_rgba(0,0,0,0.02)] flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div className="space-y-1.5 flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-bold text-slate-900 text-base">Live Chat Stream Only</span>
-                    <span className="px-2 py-0.5 rounded bg-cyan-50 text-cyan-700 border border-cyan-200 text-[10px] font-bold uppercase tracking-wider">
+                    <span className="font-semibold text-slate-900 text-sm">Live Chat Stream Only</span>
+                    <span className="px-1.5 py-0.5 rounded-[3px] bg-cyan-50 text-cyan-700 border border-cyan-200 text-[10px] font-mono">
                       Transparent Chat
                     </span>
-                    <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 text-[10px] font-semibold">
+                    <span className="px-1.5 py-0.5 rounded-[3px] bg-slate-100 text-slate-700 text-[10px] font-normal">
                       Auto-Scrolling
                     </span>
                   </div>
                   <p className="text-xs text-slate-600">
                     Transparent scrolling chat history feed. Automatically resizes to fit any width/height container and auto-scrolls down when new messages arrive.
                   </p>
-                  <code className="text-xs font-mono text-indigo-800 block bg-slate-50 px-3.5 py-2 rounded-xl border border-slate-200 break-all select-all">
+                  <code className="text-xs font-mono text-[#0067C0] block bg-[#F8F9FA] px-2.5 py-1.5 rounded-[4px] border border-black/[0.06] break-all select-all">
                     {`${baseUrl}/chat`}
                   </code>
                 </div>
 
-                <div className="flex items-center gap-2 shrink-0">
+                <div className="flex items-center gap-1.5 shrink-0">
                   <a
                     href={`${baseUrl}/chat`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="p-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 transition-colors"
+                    className="p-1.5 h-7.5 w-7.5 rounded-[4px] bg-[#FBFBFB] hover:bg-[#F0F0F0] text-slate-700 border border-black/[0.08] flex items-center justify-center transition-colors"
                     title="Preview in browser tab"
                   >
-                    <ExternalLink className="w-4 h-4" />
+                    <ExternalLink className="w-3.5 h-3.5" />
                   </a>
 
                   <button
                     onClick={() => copyToClipboard(`${baseUrl}/chat`, 'chat', 'Live Chat Stream')}
-                    className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold transition-all shadow-xs ${
+                    className={`flex items-center gap-1.5 h-7.5 px-3 rounded-[4px] text-xs font-medium transition-colors shadow-2xs cursor-pointer ${
                       copiedKey === 'chat'
-                        ? 'bg-emerald-600 text-white ring-2 ring-emerald-400/50'
-                        : 'bg-indigo-600 hover:bg-indigo-700 text-white'
+                        ? 'bg-emerald-600 text-white'
+                        : 'bg-[#0067C0] hover:bg-[#1879CD] text-white'
                     }`}
                   >
                     {copiedKey === 'chat' ? (
                       <>
-                        <Check className="w-4 h-4 text-emerald-200" />
-                        <span>Copied!</span>
+                        <Check className="w-3.5 h-3.5 text-emerald-200" />
+                        <span>Copied</span>
                       </>
                     ) : (
                       <>
-                        <Copy className="w-4 h-4" />
+                        <Copy className="w-3.5 h-3.5" />
                         <span>Copy URL</span>
                       </>
                     )}
@@ -720,14 +720,14 @@ function DesktopApp() {
             </div>
 
             {/* OBS Browser Source Configuration Setup Guide */}
-            <div className="p-5 rounded-2xl bg-white border border-slate-200 text-xs text-slate-600 space-y-3 shadow-xs">
-              <div className="font-bold text-slate-900 text-sm flex items-center gap-2">
+            <div className="p-4 rounded-lg bg-white border border-black/[0.08] text-xs text-slate-600 space-y-2.5 shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
+              <div className="font-semibold text-slate-900 text-xs flex items-center gap-1.5">
                 <AlertTriangle className="w-4 h-4 text-amber-500" />
                 OBS Studio Browser Source Setup Guide
               </div>
-              <ol className="list-decimal pl-5 space-y-1.5 text-slate-700">
+              <ol className="list-decimal pl-5 space-y-1 text-slate-700 text-xs">
                 <li>In OBS Studio, click the <strong className="text-slate-900">+</strong> button in the <strong>Sources</strong> dock and choose <strong>Browser</strong>.</li>
-                <li>Give the source a clear name (e.g. <span className="text-indigo-700 font-mono">BABA Vertical Overlay</span>) and click OK.</li>
+                <li>Give the source a clear name (e.g. <span className="text-[#0067C0] font-mono">BABA Vertical Overlay</span>) and click OK.</li>
                 <li>Paste the copied URL into the <strong>URL</strong> field.</li>
                 <li>Set the recommended canvas resolution (e.g., <strong>Width: 1080</strong>, <strong>Height: 1920</strong> for Full Broadcast Overlay).</li>
                 <li>Check <strong className="text-slate-900">"Shutdown source when not visible"</strong> to minimize stream GPU/CPU overhead.</li>

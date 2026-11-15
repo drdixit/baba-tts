@@ -63,8 +63,8 @@ mod win32 {
     use std::sync::{Once, OnceLock};
     use windows_sys::Win32::Foundation::{HWND, LPARAM, LRESULT, RECT, WPARAM};
     use windows_sys::Win32::Graphics::Gdi::{
-        CreateSolidBrush, DeleteObject, FillRect, GetStockObject, SetBkColor, SetTextColor,
-        DEFAULT_GUI_FONT, HBRUSH, HDC,
+        CreateFontW, CreateSolidBrush, DeleteObject, FillRect, GetStockObject, SetBkColor,
+        SetTextColor, DEFAULT_GUI_FONT, HBRUSH, HDC,
     };
     use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
     use windows_sys::Win32::System::Threading::{AttachThreadInput, GetCurrentThreadId};
@@ -72,10 +72,10 @@ mod win32 {
     use windows_sys::Win32::UI::WindowsAndMessaging::{
         BringWindowToTop, CallWindowProcW, CreateWindowExW, DefWindowProcW, DispatchMessageW,
         GetClientRect, GetForegroundWindow, GetMessageW, GetWindowTextLengthW, GetWindowTextW,
-        GetWindowThreadProcessId, PostMessageW, RegisterClassW, SendMessageW, SetForegroundWindow,
-        SetWindowLongPtrW, SetWindowPos, SetWindowTextW, ShowWindow, SystemParametersInfoW,
-        TranslateMessage, CS_DROPSHADOW, ES_AUTOHSCROLL, GWLP_WNDPROC, MSG, SPI_GETWORKAREA,
-        SWP_SHOWWINDOW, SW_HIDE, SW_SHOW, WM_ACTIVATE, WM_CLOSE, WM_CTLCOLOREDIT,
+        GetWindowThreadProcessId, IsChild, PostMessageW, RegisterClassW, SendMessageW,
+        SetForegroundWindow, SetWindowLongPtrW, SetWindowPos, SetWindowTextW, ShowWindow,
+        SystemParametersInfoW, TranslateMessage, CS_DROPSHADOW, ES_AUTOHSCROLL, GWLP_WNDPROC, MSG,
+        SPI_GETWORKAREA, SWP_SHOWWINDOW, SW_HIDE, SW_SHOW, WM_ACTIVATE, WM_CLOSE, WM_CTLCOLOREDIT,
         WM_CTLCOLORSTATIC, WM_DESTROY, WM_ERASEBKGND, WM_KEYDOWN, WM_LBUTTONDOWN, WM_USER,
         WNDCLASSW, WNDPROC, WS_CHILD, WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_POPUP, WS_TABSTOP,
         WS_VISIBLE,
@@ -225,7 +225,7 @@ mod win32 {
                 // If focus leaves the edit box to another window outside prompt hierarchy, auto-hide
                 let new_focus = wparam as HWND;
                 let parent = PROMPT_HWND.load(Ordering::Acquire);
-                if parent != 0 && new_focus != parent {
+                if parent != 0 && new_focus != parent && IsChild(parent, new_focus) == 0 {
                     ShowWindow(parent, SW_HIDE);
                 }
             }
@@ -275,7 +275,15 @@ mod win32 {
                 );
 
                 if edit_hwnd != 0 {
-                    let font = GetStockObject(DEFAULT_GUI_FONT as _);
+                    let seg_font = CreateFontW(
+                        -15, 0, 0, 0, 400, 0, 0, 0, 1, 0, 0, 5, 0,
+                        to_wide("Segoe UI Variable Text").as_ptr(),
+                    );
+                    let font = if seg_font != 0 {
+                        seg_font as _
+                    } else {
+                        GetStockObject(DEFAULT_GUI_FONT as _)
+                    };
                     SendMessageW(edit_hwnd, 0x0030 /* WM_SETFONT */, font as _, 1);
                     let orig = SetWindowLongPtrW(
                         edit_hwnd,

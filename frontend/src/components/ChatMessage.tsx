@@ -75,7 +75,7 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({ message, currentAu
           <div 
             className={`${
               variant === 'inline'
-                ? 'relative w-full p-4 rounded-2xl flex flex-row items-center gap-4 text-left overflow-hidden shadow-sm border border-slate-200/90 bg-white'
+                ? 'relative w-full p-3.5 rounded-lg flex flex-row items-center gap-3.5 text-left overflow-hidden shadow-[0_1px_2px_rgba(0,0,0,0.03)] border border-black/[0.08] bg-white'
                 : 'fixed bottom-[630px] left-[49px] right-[51px] z-50 p-6 rounded-3xl animate-spotlight flex flex-row items-center gap-8 text-left overflow-hidden shadow-2xl'
             } ${message.theme === 'pro-clean' ? 'border-l-[6px]' : ''}`}
             style={{ 
@@ -106,12 +106,12 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({ message, currentAu
               ></div>
             )}
             
-            <div className={`flex flex-col items-center justify-center gap-2 shrink-0 ${variant === 'inline' ? 'w-16' : 'w-36'}`}>
+            <div className={`flex flex-col items-center justify-center gap-2 shrink-0 ${variant === 'inline' ? 'w-12' : 'w-36'}`}>
               {message.authorProfileImageUrl && (
                 <img 
                   src={message.authorProfileImageUrl} 
                   alt={`${message.authorName}'s avatar`} onError={(e) => { e.currentTarget.src = `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(message.authorName)}`; }} 
-                  className={`${variant === 'inline' ? 'w-12 h-12 shadow-xs' : 'w-24 h-24 shadow-lg bg-gray-800'} rounded-full object-cover z-10 transition-all duration-300
+                  className={`${variant === 'inline' ? 'w-10 h-10 shadow-2xs' : 'w-24 h-24 shadow-lg bg-gray-800'} rounded-full object-cover z-10 transition-all duration-300
                     ${message.status === 'speaking' ? (message.theme === 'pro-clean' ? 'scale-110 border-3' : 'animate-avatar-speak border-2') : ''}
                     ${message.status === 'processing' ? 'animate-avatar-process border-2' : ''}
                     ${message.status !== 'speaking' && message.status !== 'processing' ? 'border border-slate-200 animate-avatar-float' : ''}
@@ -123,7 +123,7 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({ message, currentAu
 
             <div className="flex flex-col flex-1 min-w-0 z-10">
               <span 
-                className={`block ${variant === 'inline' ? 'text-xs font-black uppercase tracking-wider mb-0.5' : 'text-3xl font-black mb-2 uppercase tracking-widest'} transition-all duration-200 ${isAuthorSpeaking ? 'opacity-100 scale-105 origin-left' : 'opacity-90'}`} 
+                className={`block ${variant === 'inline' ? 'text-xs font-semibold tracking-normal mb-0.5' : 'text-3xl font-black mb-2 uppercase tracking-widest'} transition-all duration-200 ${isAuthorSpeaking ? 'opacity-100 scale-105 origin-left' : 'opacity-90'}`} 
                 style={{ 
                   color: authorColor,
                   textShadow: variant === 'inline' ? 'none' : '0 2px 4px rgba(0,0,0,0.8), 0 0 4px rgba(0,0,0,0.9), 0 0 1px rgba(0,0,0,1)'
@@ -224,28 +224,28 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({ message, currentAu
       {/* ZONE E CHAT HISTORY */}
       <div className={`${hideHistory ? 'hidden' : ''} relative ${
         variant === 'inline'
-          ? `px-3.5 py-2.5 rounded-xl border transition-colors ${
+          ? `px-3 py-1.5 rounded-[4px] border transition-colors ${
               isActive 
-                ? 'bg-indigo-50/80 border-indigo-200 shadow-xs ring-1 ring-indigo-200/50' 
-                : 'bg-white hover:bg-slate-50/80 border-slate-200/80 shadow-xs'
+                ? 'bg-[#0067C0]/[0.08] border-[#0067C0]/30 shadow-2xs' 
+                : 'bg-white hover:bg-black/[0.02] border-black/[0.06] shadow-2xs'
             }`
           : 'px-2 py-1 rounded bg-transparent'
       } flex items-center justify-between transition-all duration-300 ${
         isFinished ? (variant === 'inline' ? 'opacity-75' : 'opacity-60') : 'opacity-100'
       }`}>
-        <div className="flex items-center gap-3 min-w-0 flex-1">
+        <div className="flex items-center gap-2.5 min-w-0 flex-1">
           {message.authorProfileImageUrl && (
             <img 
               src={message.authorProfileImageUrl} 
               alt="" 
-              className={`${variant === 'inline' ? 'w-8 h-8' : 'w-14 h-14'} object-cover rounded-full shrink-0 border ${
+              className={`${variant === 'inline' ? 'w-6 h-6' : 'w-14 h-14'} object-cover rounded-full shrink-0 border ${
                 variant === 'inline' ? 'border-slate-200 bg-slate-100' : 'border-gray-600 bg-gray-800'
-              } shadow-xs`}
+              } shadow-2xs`}
             />
           )}
           <p className={`${
             variant === 'inline'
-              ? 'text-sm font-medium leading-snug text-slate-800'
+              ? 'text-xs font-normal leading-snug text-slate-800'
               : 'text-[42px] leading-relaxed drop-shadow-[1px_1px_2px_rgba(0,0,0,1)] text-gray-50'
           } break-words transition-all duration-300 origin-left ${
             message.status === 'skipped'
@@ -253,10 +253,10 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({ message, currentAu
               : message.status === 'done'
                 ? (variant === 'inline' ? 'text-slate-600' : 'text-gray-300')
                 : ''
-          } ${isActive ? (variant === 'inline' ? 'text-indigo-950 font-bold' : 'text-green-300') : ''}`}>
+          } ${isActive ? (variant === 'inline' ? 'text-slate-900 font-medium' : 'text-green-300') : ''}`}>
             <span 
-              className={`font-extrabold mr-2 ${variant === 'inline' ? '' : 'drop-shadow-[1px_1px_2px_rgba(0,0,0,1)]'}`}
-              style={{ color: message.authorColor || '#4f46e5' }}
+              className={`font-semibold mr-1.5 ${variant === 'inline' ? '' : 'drop-shadow-[1px_1px_2px_rgba(0,0,0,1)]'}`}
+              style={{ color: message.authorColor || '#0067C0' }}
             >
               {message.authorName}:
             </span>
@@ -266,16 +266,16 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({ message, currentAu
         
         {showBadge && (
           <span
-            className={`shrink-0 ${variant === 'inline' ? 'text-[10px] font-bold px-2 py-0.5 rounded-full' : 'text-[10px] px-2 py-0.5 rounded uppercase tracking-wider font-bold shadow-md'} ml-2 ${
+            className={`shrink-0 ${variant === 'inline' ? 'text-[10px] font-mono font-medium px-1.5 py-0.2 rounded-[3px] border' : 'text-[10px] px-2 py-0.5 rounded uppercase tracking-wider font-bold shadow-md'} ml-2 ${
               variant === 'inline'
                 ? (message.status === 'speaking'
-                    ? 'bg-emerald-100 text-emerald-800 border border-emerald-300 animate-pulse'
+                    ? 'bg-emerald-50 text-emerald-800 border-emerald-300/60 animate-pulse'
                     : message.status === 'processing'
-                    ? 'bg-amber-100 text-amber-800 border border-amber-300 animate-pulse'
+                    ? 'bg-amber-50 text-amber-800 border-amber-300/60 animate-pulse'
                     : message.status === 'queued'
-                    ? 'bg-indigo-100 text-indigo-800 border border-indigo-200'
+                    ? 'bg-blue-50 text-[#0067C0] border-blue-200'
                     : message.status === 'skipped'
-                    ? 'bg-slate-100 text-slate-500 border border-slate-200'
+                    ? 'bg-slate-100 text-slate-500 border-slate-200'
                     : statusBadgeStyles[message.status])
                 : statusBadgeStyles[message.status]
             }`}
