@@ -231,7 +231,7 @@ function DesktopApp() {
   const baseUrl = `${protocol}//${hostname}:${port}`;
 
   return (
-    <div className="h-screen w-screen flex flex-col overflow-hidden bg-slate-50 text-slate-800 select-none">
+    <div className="h-screen w-screen flex flex-col overflow-hidden bg-slate-50 text-slate-800">
       {/* Toast Notification (Windows 11 InfoBar Style) */}
       {toast && (
         <div className="fixed top-4 right-4 z-50 bg-white/95 border border-black/10 text-slate-800 px-3.5 py-2 rounded-md shadow-[0_4px_16px_rgba(0,0,0,0.12)] backdrop-blur-md flex items-center gap-2.5 animate-fade-in text-xs font-medium">
