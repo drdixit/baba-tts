@@ -63,7 +63,7 @@ mod win32 {
     use std::sync::{Once, OnceLock};
     use windows_sys::Win32::Foundation::{HWND, LPARAM, LRESULT, RECT, WPARAM};
     use windows_sys::Win32::Graphics::Gdi::{
-        CreateSolidBrush, DeleteObject, GetStockObject, SetBkColor, SetTextColor,
+        CreateSolidBrush, DeleteObject, FillRect, GetStockObject, SetBkColor, SetTextColor,
         DEFAULT_GUI_FONT, HBRUSH, HDC,
     };
     use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
@@ -71,13 +71,14 @@ mod win32 {
     use windows_sys::Win32::UI::Input::KeyboardAndMouse::SetFocus;
     use windows_sys::Win32::UI::WindowsAndMessaging::{
         BringWindowToTop, CallWindowProcW, CreateWindowExW, DefWindowProcW, DispatchMessageW,
-        GetForegroundWindow, GetMessageW, GetWindowTextLengthW, GetWindowTextW,
+        GetClientRect, GetForegroundWindow, GetMessageW, GetWindowTextLengthW, GetWindowTextW,
         GetWindowThreadProcessId, PostMessageW, RegisterClassW, SendMessageW, SetForegroundWindow,
         SetWindowLongPtrW, SetWindowPos, SetWindowTextW, ShowWindow, SystemParametersInfoW,
-        TranslateMessage, ES_AUTOHSCROLL, GWLP_WNDPROC, MSG, SPI_GETWORKAREA, SWP_SHOWWINDOW,
-        SW_HIDE, SW_SHOW, WM_ACTIVATE, WM_CLOSE, WM_CTLCOLOREDIT, WM_CTLCOLORSTATIC, WM_DESTROY,
-        WM_KEYDOWN, WM_KILLFOCUS, WM_USER, WNDCLASSW, WNDPROC, WS_CHILD, WS_EX_TOOLWINDOW,
-        WS_EX_TOPMOST, WS_POPUP, WS_TABSTOP, WS_VISIBLE,
+        TranslateMessage, CS_DROPSHADOW, ES_AUTOHSCROLL, GWLP_WNDPROC, MSG, SPI_GETWORKAREA,
+        SWP_SHOWWINDOW, SW_HIDE, SW_SHOW, WM_ACTIVATE, WM_CLOSE, WM_CTLCOLOREDIT,
+        WM_CTLCOLORSTATIC, WM_DESTROY, WM_ERASEBKGND, WM_KEYDOWN, WM_LBUTTONDOWN, WM_USER,
+        WNDCLASSW, WNDPROC, WS_CHILD, WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_POPUP, WS_TABSTOP,
+        WS_VISIBLE,
     };
 
     // Bits 0..16: port (u16)
@@ -220,6 +221,13 @@ mod win32 {
                     }
                     _ => {}
                 }
+            } else if msg == WM_KILLFOCUS {
+                // If focus leaves the edit box to another window outside prompt hierarchy, auto-hide
+                let new_focus = wparam as HWND;
+                let parent = PROMPT_HWND.load(Ordering::Acquire);
+                if parent != 0 && new_focus != parent {
+                    ShowWindow(parent, SW_HIDE);
+                }
             }
 
             let orig_val = ORIG_EDIT_PROC.load(Ordering::Acquire);
@@ -245,8 +253,8 @@ mod win32 {
 
         let res = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| match msg {
             windows_sys::Win32::UI::WindowsAndMessaging::WM_CREATE => {
-                // Clean modern light theme background (#F8FAFC)
-                LIGHT_BRUSH = CreateSolidBrush(0x00FCFAF8);
+                // Modern Windows 11 Flyout background (#F3F3F3) & White input box (#FFFFFF)
+                LIGHT_BRUSH = CreateSolidBrush(0x00F3F3F3);
                 EDIT_BRUSH = CreateSolidBrush(0x00FFFFFF);
                 let h_instance = GetModuleHandleW(std::ptr::null());
 
@@ -256,10 +264,10 @@ mod win32 {
                     to_wide("EDIT").as_ptr(),
                     to_wide("").as_ptr(),
                     WS_CHILD | WS_VISIBLE | (ES_AUTOHSCROLL as u32) | WS_TABSTOP,
-                    12,
                     10,
-                    456,
-                    28,
+                    9,
+                    460,
+                    30,
                     hwnd,
                     101 as _,
                     h_instance,
@@ -279,17 +287,23 @@ mod win32 {
                 }
                 0
             }
+            WM_ERASEBKGND => {
+                let hdc = wparam as HDC;
+                let mut rect: RECT = std::mem::zeroed();
+                GetClientRect(hwnd, &mut rect);
+                FillRect(hdc, &rect, LIGHT_BRUSH);
+                1
+            }
             WM_CTLCOLOREDIT => {
                 let hdc = wparam as HDC;
-                // Crisp dark slate text (#0F172A) on clean white input (#FFFFFF)
-                SetTextColor(hdc, 0x002A170F);
+                SetTextColor(hdc, 0x001B1B1B);
                 SetBkColor(hdc, 0x00FFFFFF);
                 EDIT_BRUSH as LRESULT
             }
             WM_CTLCOLORSTATIC => {
                 let hdc = wparam as HDC;
-                SetTextColor(hdc, 0x00473322);
-                SetBkColor(hdc, 0x00FCFAF8);
+                SetTextColor(hdc, 0x005C5C5C);
+                SetBkColor(hdc, 0x00F3F3F3);
                 LIGHT_BRUSH as LRESULT
             }
             WM_SHOW_PROMPT => {
@@ -349,20 +363,29 @@ mod win32 {
                     SetWindowTextW(hwnd, to_wide(mode.prompt_title()).as_ptr());
                     SetWindowTextW(edit, to_wide("").as_ptr());
                     SetFocus(edit);
+                    SendMessageW(edit, 0x00B1 /* EM_SETSEL */, 0, -1);
+                }
+                0
+            }
+            WM_LBUTTONDOWN => {
+                // If user clicks the container margin, immediately refocus edit control
+                let edit = EDIT_HWND.load(Ordering::Acquire);
+                if edit != 0 {
+                    SetFocus(edit);
                 }
                 0
             }
             WM_ACTIVATE => {
-                // If losing focus (WA_INACTIVE = 0), auto-hide to avoid stuck prompt windows
                 let state = (wparam & 0xFFFF) as u16;
                 if state == 0 {
-                    ShowWindow(hwnd, SW_HIDE);
+                    // WA_INACTIVE: window losing activation to another top-level window
+                    let activating_hwnd = lparam as HWND;
+                    let edit_hwnd = EDIT_HWND.load(Ordering::Acquire);
+                    if activating_hwnd != hwnd && activating_hwnd != edit_hwnd {
+                        ShowWindow(hwnd, SW_HIDE);
+                    }
                 }
                 DefWindowProcW(hwnd, msg, wparam, lparam)
-            }
-            WM_KILLFOCUS => {
-                ShowWindow(hwnd, SW_HIDE);
-                0
             }
             WM_CLOSE => {
                 ShowWindow(hwnd, SW_HIDE);
@@ -401,7 +424,7 @@ mod win32 {
                     let class_name = to_wide("BabaNativePromptClass");
 
                     let wc = WNDCLASSW {
-                        style: 0,
+                        style: CS_DROPSHADOW,
                         lpfnWndProc: Some(prompt_wndproc),
                         cbClsExtra: 0,
                         cbWndExtra: 0,

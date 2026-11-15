@@ -1,5 +1,21 @@
 @import "tailwindcss";
 
+@layer base {
+  :root {
+    --fluent-bg: #f3f3f3;
+    --fluent-surface: #ffffff;
+    --fluent-border: rgba(0, 0, 0, 0.08);
+    --fluent-accent: #0067c0;
+    --fluent-accent-hover: #1879cd;
+  }
+
+  body {
+    font-family: "Segoe UI Variable Text", "Segoe UI", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
 @layer utilities {
   .animate-spotlight {
     animation: spotlight 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;

@@ -243,138 +243,129 @@ function DesktopApp() {
         </div>
       )}
 
-      {/* Top Application Header */}
-      <header className="w-full min-h-16 bg-white/95 backdrop-blur border-b border-slate-200 px-3 sm:px-5 py-2 sm:py-0 flex flex-wrap md:flex-nowrap items-center justify-between gap-3 shrink-0 z-40 select-none shadow-xs">
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2">
-            <div className="p-2 rounded-xl bg-indigo-50 border border-indigo-200 text-indigo-600 shadow-xs">
-              <Volume2 className="w-5 h-5" />
-            </div>
-            <div>
-              <span className="text-lg font-black tracking-wider text-slate-900">BABA TTS</span>
-              <span className="ml-1.5 text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200 uppercase tracking-wider hidden sm:inline-block">
-                Desktop
-              </span>
-            </div>
+      {/* Windows 11 Desktop Command Bar & Navigation Strip */}
+      <header className="w-full min-h-10 md:h-10 bg-[#FAFBFD] border-b border-black/[0.08] px-3 py-1.5 md:py-0 flex flex-wrap md:flex-nowrap items-center justify-between gap-2 md:gap-3 shrink-0 z-40 select-none shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
+        {/* Left Section: App Title & Status Indicators */}
+        <div className="flex items-center gap-2 sm:gap-3">
+          <div className="flex items-center gap-1.5">
+            <Volume2 className="w-4 h-4 text-[#0067C0] shrink-0" />
+            <span className="text-xs font-semibold text-slate-800 tracking-tight">BABA TTS</span>
+            <span className="text-[10px] text-slate-500 font-medium px-1.5 py-0.5 rounded-[3px] bg-black/[0.04] border border-black/[0.06] hidden sm:inline-block">
+              Desktop
+            </span>
           </div>
 
-          {/* Status Badges */}
-          <div className="flex items-center gap-1.5 sm:gap-2">
-            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 border border-emerald-200 text-xs font-semibold text-emerald-700 shadow-xs">
-              <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-emerald-500 animate-pulse' : 'bg-amber-400'}`} />
-              <span className="hidden sm:inline">{isConnected ? `Port ${port} Active` : `Connecting (${port})...`}</span>
-              <span className="sm:hidden">{isConnected ? `:${port}` : '...'}</span>
+          <div className="h-3.5 w-px bg-slate-300 mx-0.5 hidden sm:block" />
+
+          {/* Micro Telemetry Badges */}
+          <div className="flex items-center gap-1.5 text-[11px]">
+            {/* Port Status */}
+            <div
+              className={`flex items-center gap-1.5 px-2 py-0.5 rounded-[3px] border transition-colors ${
+                isConnected
+                  ? 'bg-emerald-50/70 border-emerald-500/20 text-emerald-800'
+                  : 'bg-amber-50/70 border-amber-500/20 text-amber-800'
+              }`}
+              title={isConnected ? `Server active on port ${port}` : `Attempting connection to port ${port}...`}
+            >
+              <span className={`w-1.5 h-1.5 rounded-full ${isConnected ? 'bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.8)]' : 'bg-amber-500 animate-pulse'}`} />
+              <span className="font-mono text-[10.5px] font-medium">:{port}</span>
             </div>
 
-            <div className="flex items-center gap-1 px-2 py-1 rounded-lg bg-slate-100 border border-slate-200 text-xs font-semibold text-slate-700">
-              <span className="text-slate-500 hidden sm:inline">Queue:</span>
-              <span className={`font-bold ${activeQueueCount > 0 ? 'text-indigo-600' : 'text-slate-600'}`}>
-                Q:{activeQueueCount}
+            {/* Queue Counter */}
+            <div
+              className="flex items-center gap-1 px-1.5 py-0.5 rounded-[3px] bg-black/[0.03] border border-black/[0.06] text-slate-700"
+              title={`${activeQueueCount} item(s) in queue`}
+            >
+              <span className="text-slate-400 font-normal">Q:</span>
+              <span className={`font-semibold font-mono text-[10.5px] ${activeQueueCount > 0 ? 'text-[#0067C0]' : 'text-slate-600'}`}>
+                {activeQueueCount}
               </span>
             </div>
 
+            {/* Banned Counter */}
             {bannedUsers.length > 0 && (
-              <div className="flex items-center gap-1 px-2 py-1 rounded-lg bg-rose-50 border border-rose-200 text-xs font-semibold text-rose-700">
-                <span className="text-rose-500 hidden sm:inline">Banned:</span>
-                <span className="font-bold text-rose-700">
-                  B:{bannedUsers.length}
+              <div
+                className="flex items-center gap-1 px-1.5 py-0.5 rounded-[3px] bg-rose-50/80 border border-rose-300/40 text-rose-800"
+                title={`${bannedUsers.length} user(s) banned`}
+              >
+                <span className="text-rose-400 font-normal">B:</span>
+                <span className="font-semibold font-mono text-[10.5px]">
+                  {bannedUsers.length}
                 </span>
               </div>
             )}
           </div>
         </div>
 
-        {/* Navigation Tabs */}
-        <nav className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200 order-last md:order-none w-full md:w-auto justify-center">
-          <button
-            onClick={() => setActiveTab('monitor')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-              activeTab === 'monitor'
-                ? 'bg-white text-indigo-700 shadow-xs'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
-            }`}
-            title="Live Monitor"
-          >
-            <LayoutDashboard className="w-4 h-4 shrink-0" />
-            <span className="hidden sm:inline">Live Monitor</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('moderation')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-              activeTab === 'moderation'
-                ? 'bg-white text-indigo-700 shadow-xs'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
-            }`}
-            title="Moderation"
-          >
-            <ShieldAlert className="w-4 h-4 shrink-0" />
-            <span className="hidden sm:inline">Moderation</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('settings')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-              activeTab === 'settings'
-                ? 'bg-white text-indigo-700 shadow-xs'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
-            }`}
-            title="Settings"
-          >
-            <Sliders className="w-4 h-4 shrink-0" />
-            <span className="hidden sm:inline">Settings</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('obs')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-              activeTab === 'obs'
-                ? 'bg-white text-indigo-700 shadow-xs'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
-            }`}
-            title="OBS Overlays"
-          >
-            <Tv className="w-4 h-4 shrink-0" />
-            <span className="hidden sm:inline">OBS Overlays</span>
-          </button>
+        {/* Center Section: Windows 11 Native TabStrip */}
+        <nav className="h-full flex items-center gap-0.5 order-last md:order-none w-full md:w-auto justify-center border-t md:border-t-0 border-slate-200/60 pt-1 md:pt-0">
+          {[
+            { id: 'monitor' as const, label: 'Live Monitor', icon: LayoutDashboard },
+            { id: 'moderation' as const, label: 'Moderation', icon: ShieldAlert },
+            { id: 'settings' as const, label: 'Settings', icon: Sliders },
+            { id: 'obs' as const, label: 'OBS Overlays', icon: Tv },
+          ].map((tab) => {
+            const Icon = tab.icon;
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`relative h-8 md:h-full px-2.5 sm:px-3 flex items-center gap-1.5 text-xs font-medium transition-colors cursor-pointer rounded-t-[4px] md:rounded-none ${
+                  isActive
+                    ? 'text-slate-900 bg-black/[0.03] font-semibold'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-black/[0.04]'
+                }`}
+                title={tab.label}
+              >
+                <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-[#0067C0]' : 'text-slate-500'}`} />
+                <span>{tab.label}</span>
+                {/* Active Indicator Accent Line (Windows 11 Fluent) */}
+                {isActive && (
+                  <span className="absolute bottom-0 left-2 right-2 h-[2.5px] bg-[#0067C0] rounded-t-full" />
+                )}
+              </button>
+            );
+          })}
         </nav>
 
-        {/* Quick Action Toolbar */}
-        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+        {/* Right Section: Windows 11 Fluent Desktop Action Toolbar */}
+        <div className="flex items-center gap-1 shrink-0">
           <button
             onClick={handleSkipCurrent}
-            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 border border-amber-200 text-xs font-bold text-amber-800 transition-colors shadow-xs"
-            title="Skip current speaking message"
+            className="h-7 px-2 flex items-center gap-1.5 rounded-[4px] bg-white hover:bg-slate-50 active:bg-slate-100 border border-slate-200/90 text-xs font-medium text-amber-800 shadow-[0_1px_1px_rgba(0,0,0,0.02)] transition-colors cursor-pointer"
+            title="Skip currently playing TTS message"
           >
-            <RotateCcw className="w-3.5 h-3.5 text-amber-600" />
-            <span className="hidden lg:inline">Skip</span>
+            <RotateCcw className="w-3 h-3 text-amber-600" />
+            <span className="hidden sm:inline">Skip</span>
           </button>
 
           <button
             onClick={handleBanCurrent}
-            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 border border-rose-200 text-xs font-bold text-rose-800 transition-colors shadow-xs"
-            title="Ban and skip current speaker"
+            className="h-7 px-2 flex items-center gap-1.5 rounded-[4px] bg-white hover:bg-slate-50 active:bg-slate-100 border border-slate-200/90 text-xs font-medium text-rose-800 shadow-[0_1px_1px_rgba(0,0,0,0.02)] transition-colors cursor-pointer"
+            title="Ban & skip currently speaking user"
           >
-            <ShieldAlert className="w-3.5 h-3.5 text-rose-600" />
-            <span className="hidden lg:inline">Ban Speaker</span>
+            <ShieldAlert className="w-3 h-3 text-rose-600" />
+            <span className="hidden sm:inline">Ban Speaker</span>
           </button>
 
           <button
             onClick={handleClearQueue}
-            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-200 text-xs font-bold text-slate-700 transition-colors shadow-xs"
-            title="Clear all queued messages"
+            className="h-7 px-2 flex items-center gap-1.5 rounded-[4px] bg-white hover:bg-slate-50 active:bg-slate-100 border border-slate-200/90 text-xs font-medium text-slate-700 shadow-[0_1px_1px_rgba(0,0,0,0.02)] transition-colors cursor-pointer"
+            title="Purge pending TTS queue"
           >
-            <Trash2 className="w-3.5 h-3.5 text-slate-500" />
-            <span className="hidden lg:inline">Clear Queue</span>
+            <Trash2 className="w-3 h-3 text-slate-500" />
+            <span className="hidden md:inline">Clear Queue</span>
           </button>
 
           <button
             onClick={handleRestart}
-            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-200 text-xs font-bold text-slate-700 transition-colors shadow-xs"
-            title="Restart BABA TTS Server"
+            className="h-7 px-2 flex items-center gap-1.5 rounded-[4px] bg-white hover:bg-slate-50 active:bg-slate-100 border border-slate-200/90 text-xs font-medium text-slate-700 shadow-[0_1px_1px_rgba(0,0,0,0.02)] transition-colors cursor-pointer"
+            title="Restart BABA TTS daemon"
           >
-            <RefreshCw className="w-3.5 h-3.5 text-slate-500" />
-            <span className="hidden xl:inline">Restart</span>
+            <RefreshCw className="w-3 h-3 text-slate-500" />
+            <span className="hidden lg:inline">Restart</span>
           </button>
         </div>
       </header>
