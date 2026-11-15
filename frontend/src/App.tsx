@@ -8,14 +8,13 @@ import {
   Tv,
   RotateCcw,
   Trash2,
-  RefreshCw,
   Send,
   Sparkles,
   Copy,
   Check,
   MessageSquare,
-  AlertTriangle,
   ExternalLink,
+  ChevronDown,
 } from 'lucide-react';
 import ChatMessage from './components/ChatMessage';
 import ModerationPanel from './components/ModerationPanel';
@@ -47,7 +46,7 @@ export default function App() {
 }
 
 function DesktopApp() {
-  const { messages, bannedUsers } = useStore();
+  const { messages } = useStore();
   const { wsRef, currentAudioTime, isConnected } = useAppWebSocket(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -63,9 +62,7 @@ function DesktopApp() {
     (m) => m.status === 'speaking' || m.status === 'processing'
   );
 
-  const activeQueueCount = messages.filter(
-    (m) => m.status === 'queued' || m.status === 'processing'
-  ).length;
+  const queuedMessageCount = messages.filter((m) => m.status === 'queued').length;
 
   const showToast = useCallback((msg: string) => {
     setToast(msg);
@@ -243,72 +240,42 @@ function DesktopApp() {
         </div>
       )}
 
-      {/* Windows 11 Desktop Command Bar & Navigation Strip */}
-      <header className="w-full min-h-10 md:h-10 bg-[#FAFBFD] border-b border-black/[0.08] px-3 py-1.5 md:py-0 flex flex-wrap md:flex-nowrap items-center justify-between gap-2 md:gap-3 shrink-0 z-40 select-none shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
-        {/* Left Section: App Title & Status Indicators */}
-        <div className="flex items-center gap-2 sm:gap-3">
+      {/* App header */}
+      <header className="w-full min-h-14 bg-[#FAFBFD] border-b border-black/[0.08] px-3 sm:px-4 py-2 flex flex-wrap items-center gap-x-4 gap-y-2 shrink-0 z-40 select-none">
+        <div className="flex items-center gap-3 shrink-0">
           <div className="flex items-center gap-1.5">
-            <Volume2 className="w-4 h-4 text-[#0067C0] shrink-0" />
-            <span className="text-xs font-semibold text-slate-800 tracking-tight">BABA TTS</span>
-            <span className="text-[10px] text-slate-500 font-medium px-1.5 py-0.5 rounded-[3px] bg-black/[0.04] border border-black/[0.06] hidden sm:inline-block">
-              Desktop
+            <Volume2 className="w-4 h-4 text-[#0067C0] shrink-0" aria-hidden="true" />
+            <span className="text-sm font-semibold text-slate-900 tracking-tight">BABA TTS</span>
+          </div>
+          <div
+            role="status"
+            aria-live="polite"
+            className={`flex items-center gap-1.5 text-xs ${isConnected ? 'text-emerald-700' : 'text-amber-700'}`}
+            title={isConnected ? 'Connected to the local BABA TTS server' : 'Connecting to the local BABA TTS server'}
+          >
+            <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-emerald-500' : 'bg-amber-500 animate-pulse'}`} />
+            <span>{isConnected ? 'Connected' : 'Connecting'}</span>
+          </div>
+          {queuedMessageCount > 0 && (
+            <span
+              className="px-2 py-1 rounded-full bg-[#E8F2FC] text-[#005A9E] text-xs font-medium"
+              aria-label={`${queuedMessageCount} messages in the queue`}
+            >
+              {queuedMessageCount} queued
             </span>
-          </div>
-
-          <div className="h-3.5 w-px bg-slate-300 mx-0.5 hidden sm:block" />
-
-          {/* Micro Telemetry Badges */}
-          <div className="flex items-center gap-1.5 text-[11px]">
-            {/* Port Status */}
-            <div
-              className={`flex items-center gap-1.5 px-2 py-0.5 rounded-[3px] border transition-colors ${
-                isConnected
-                  ? 'bg-emerald-50/70 border-emerald-500/20 text-emerald-800'
-                  : 'bg-amber-50/70 border-amber-500/20 text-amber-800'
-              }`}
-              title={isConnected ? `Server active on port ${port}` : `Attempting connection to port ${port}...`}
-            >
-              <span className={`w-1.5 h-1.5 rounded-full ${isConnected ? 'bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.8)]' : 'bg-amber-500 animate-pulse'}`} />
-              <span className="font-mono text-[10.5px] font-medium">:{port}</span>
-            </div>
-
-            {/* Queue Counter */}
-            <div
-              className="flex items-center gap-1 px-1.5 py-0.5 rounded-[3px] bg-black/[0.03] border border-black/[0.06] text-slate-700"
-              title={`${activeQueueCount} item(s) in queue`}
-            >
-              <span className="text-slate-400 font-normal">Q:</span>
-              <span className={`font-semibold font-mono text-[10.5px] ${activeQueueCount > 0 ? 'text-[#0067C0]' : 'text-slate-600'}`}>
-                {activeQueueCount}
-              </span>
-            </div>
-
-            {/* Banned Counter */}
-            {bannedUsers.length > 0 && (
-              <div
-                className="flex items-center gap-1 px-1.5 py-0.5 rounded-[3px] bg-rose-50/80 border border-rose-300/40 text-rose-800"
-                title={`${bannedUsers.length} user(s) banned`}
-              >
-                <span className="text-rose-400 font-normal">B:</span>
-                <span className="font-semibold font-mono text-[10.5px]">
-                  {bannedUsers.length}
-                </span>
-              </div>
-            )}
-          </div>
+          )}
         </div>
 
-        {/* Center Section: Windows 11 Native TabStrip */}
         <nav
           role="tablist"
           aria-label="Application sections"
-          className="h-full flex items-center gap-0.5 order-last md:order-none w-full md:w-auto justify-center border-t md:border-t-0 border-slate-200/60 pt-1 md:pt-0"
+          className="flex items-center gap-1 order-last w-full lg:order-none lg:w-auto lg:flex-1 lg:justify-center border-t border-slate-200/70 pt-1 lg:border-0 lg:pt-0"
         >
           {[
             { id: 'monitor' as const, label: 'Live monitor', icon: LayoutDashboard },
             { id: 'moderation' as const, label: 'Moderation', icon: ShieldAlert },
             { id: 'settings' as const, label: 'Settings', icon: Sliders },
-            { id: 'obs' as const, label: 'OBS overlays', icon: Tv },
+            { id: 'obs' as const, label: 'OBS setup', icon: Tv },
           ].map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
@@ -318,62 +285,53 @@ function DesktopApp() {
                 role="tab"
                 aria-selected={isActive}
                 onClick={() => setActiveTab(tab.id)}
-                className={`relative h-8 md:h-full px-2.5 sm:px-3 flex items-center gap-1.5 text-xs font-medium transition-colors cursor-pointer rounded-t-[4px] md:rounded-none focus-visible:ring-2 focus-visible:ring-[#0067C0] focus-visible:outline-none ${
+                className={`relative min-h-9 px-2.5 sm:px-3 flex items-center gap-1.5 text-xs font-medium transition-colors cursor-pointer rounded-md focus-visible:ring-2 focus-visible:ring-[#0067C0] focus-visible:outline-none ${
                   isActive
-                    ? 'text-slate-900 bg-black/[0.03] font-semibold'
+                    ? 'text-slate-900 bg-[#E8F2FC] font-semibold'
                     : 'text-slate-600 hover:text-slate-900 hover:bg-black/[0.04]'
                 }`}
                 title={tab.label}
               >
-                <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-[#0067C0]' : 'text-slate-500'}`} />
+                <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-[#0067C0]' : 'text-slate-500'}`} aria-hidden="true" />
                 <span>{tab.label}</span>
-                {/* Active Indicator Accent Line (Windows 11 Fluent) */}
-                {isActive && (
-                  <span className="absolute bottom-0 left-2 right-2 h-[2.5px] bg-[#0067C0] rounded-t-full" />
-                )}
               </button>
             );
           })}
         </nav>
 
-        {/* Right Section: Windows 11 Fluent Desktop Action Toolbar */}
-        <div className="flex items-center gap-1 shrink-0">
-          <button
-            onClick={handleSkipCurrent}
-            className="h-7 px-2 flex items-center gap-1.5 rounded-[4px] bg-white hover:bg-slate-50 active:bg-slate-100 border border-slate-200/90 text-xs font-medium text-amber-800 shadow-[0_1px_1px_rgba(0,0,0,0.02)] transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-[#0067C0] focus-visible:outline-none"
-            title="Skip currently playing TTS message"
-          >
-            <RotateCcw className="w-3 h-3 text-amber-600" />
-            <span className="hidden sm:inline">Skip</span>
-          </button>
+        {(activeTab === 'monitor' || activeTab === 'moderation') && (
+          <div className="flex items-center gap-1.5 shrink-0 border-l border-slate-200 pl-3 ml-auto">
+            <button
+              onClick={handleSkipCurrent}
+              disabled={!activeMessage}
+              className="min-h-9 px-3 flex items-center gap-1.5 rounded-md bg-white hover:bg-amber-50 active:bg-amber-100 border border-amber-200 text-xs font-medium text-amber-800 transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-45 focus-visible:ring-2 focus-visible:ring-[#0067C0] focus-visible:outline-none"
+              aria-label="Skip the current message"
+            >
+              <RotateCcw className="w-3.5 h-3.5" aria-hidden="true" />
+              <span>Skip</span>
+            </button>
 
-          <button
-            onClick={handleBanCurrent}
-            className="h-7 px-2 flex items-center gap-1.5 rounded-[4px] bg-white hover:bg-slate-50 active:bg-slate-100 border border-slate-200/90 text-xs font-medium text-rose-800 shadow-[0_1px_1px_rgba(0,0,0,0.02)] transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-[#0067C0] focus-visible:outline-none"
-            title="Ban & skip currently speaking user"
-          >
-            <ShieldAlert className="w-3 h-3 text-rose-600" />
-            <span className="hidden sm:inline">Ban speaker</span>
-          </button>
+            <button
+              onClick={handleBanCurrent}
+              disabled={!activeMessage}
+              className="min-h-9 px-3 flex items-center gap-1.5 rounded-md bg-white hover:bg-rose-50 active:bg-rose-100 border border-rose-200 text-xs font-medium text-rose-800 transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-45 focus-visible:ring-2 focus-visible:ring-[#0067C0] focus-visible:outline-none"
+              aria-label="Ban and skip the current speaker"
+            >
+              <ShieldAlert className="w-3.5 h-3.5" aria-hidden="true" />
+              <span>Ban &amp; skip</span>
+            </button>
 
-          <button
-            onClick={handleClearQueue}
-            className="h-7 px-2 flex items-center gap-1.5 rounded-[4px] bg-white hover:bg-slate-50 active:bg-slate-100 border border-slate-200/90 text-xs font-medium text-slate-700 shadow-[0_1px_1px_rgba(0,0,0,0.02)] transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-[#0067C0] focus-visible:outline-none"
-            title="Purge pending TTS queue"
-          >
-            <Trash2 className="w-3 h-3 text-slate-500" />
-            <span className="hidden md:inline">Clear queue</span>
-          </button>
-
-          <button
-            onClick={handleRestart}
-            className="h-7 px-2 flex items-center gap-1.5 rounded-[4px] bg-white hover:bg-slate-50 active:bg-slate-100 border border-slate-200/90 text-xs font-medium text-slate-700 shadow-[0_1px_1px_rgba(0,0,0,0.02)] transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-[#0067C0] focus-visible:outline-none"
-            title="Restart BABA TTS daemon"
-          >
-            <RefreshCw className="w-3 h-3 text-slate-500" />
-            <span className="hidden lg:inline">Restart</span>
-          </button>
-        </div>
+            <button
+              onClick={handleClearQueue}
+              disabled={queuedMessageCount === 0}
+              className="min-h-9 px-3 flex items-center gap-1.5 rounded-md bg-white hover:bg-slate-100 active:bg-slate-200 border border-slate-200 text-xs font-medium text-slate-700 transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-45 focus-visible:ring-2 focus-visible:ring-[#0067C0] focus-visible:outline-none"
+              aria-label="Clear the TTS queue"
+            >
+              <Trash2 className="w-3.5 h-3.5 text-slate-500" aria-hidden="true" />
+              <span>Clear queue</span>
+            </button>
+          </div>
+        )}
       </header>
 
       {/* Main Tab Views */}
@@ -382,13 +340,13 @@ function DesktopApp() {
         {activeTab === 'monitor' && (
           <div className="flex-1 flex flex-col md:flex-row min-h-0 overflow-hidden">
             {/* Left Column: Currently Speaking Spotlight & Manual Speech Controls */}
-            <div className="w-full md:w-[360px] lg:w-[400px] xl:w-[440px] max-h-[46vh] md:max-h-none flex flex-col gap-3.5 p-4 sm:p-5 border-b md:border-b-0 md:border-r border-slate-200 bg-white overflow-y-auto shrink-0">
+            <div className="w-full md:w-[360px] lg:w-[400px] max-h-[46vh] md:max-h-none flex flex-col gap-4 p-4 border-b md:border-b-0 md:border-r border-slate-200 bg-white overflow-y-auto shrink-0">
               {/* CURRENTLY SPEAKING CARD */}
               <div className="flex flex-col gap-2">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-semibold text-slate-800 flex items-center gap-1.5">
                     <Volume2 className="w-3.5 h-3.5 text-[#0067C0]" />
-                    Currently speaking
+                    Now speaking
                   </span>
                   {activeMessage && (
                     <span className="text-[10px] font-medium font-mono px-2 py-0.5 rounded-[3px] bg-emerald-50 text-emerald-800 border border-emerald-300/60 animate-pulse uppercase">
@@ -408,33 +366,27 @@ function DesktopApp() {
                     />
                   </div>
                 ) : (
-                  <div className="p-4 rounded-lg bg-[#FAFAFA] border border-black/[0.08] flex flex-col items-center justify-center text-center gap-2.5 text-slate-500 shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
-                    <div className="w-9 h-9 rounded-md bg-black/[0.04] border border-black/[0.06] flex items-center justify-center text-slate-500">
-                      <Volume2 className="w-4 h-4 text-slate-400 animate-pulse" />
-                    </div>
-                    <div>
-                      <div className="font-semibold text-slate-800 text-xs">TTS engine idle</div>
-                      <div className="text-[11px] text-slate-500 mt-0.5">
-                        Ready for YouTube live chat or manual speech.
-                      </div>
-                    </div>
+                  <div className="min-h-24 px-4 py-5 rounded-lg bg-white border border-dashed border-slate-300 flex flex-col items-center justify-center text-center gap-1.5 text-slate-500">
+                    <Volume2 className="w-4 h-4 text-slate-400" aria-hidden="true" />
+                    <div className="text-xs font-medium text-slate-700">Nothing is speaking</div>
+                    <div className="text-[11px] text-slate-500">New messages will appear here.</div>
                   </div>
                 )}
               </div>
 
-              {/* MANUAL INPUT & TEST BAR */}
-              <div className="flex flex-col gap-2.5 p-3 rounded-lg bg-white border border-black/[0.08] shadow-[0_1px_2px_rgba(0,0,0,0.02)] mt-auto">
+              {/* Manual speech and pre-stream tools */}
+              <div className="flex flex-col gap-3 pt-4 border-t border-slate-200 mt-auto">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold text-slate-800 flex items-center gap-1.5">
-                    <Send className="w-3.5 h-3.5 text-[#0067C0]" />
-                    Quick manual speech
-                  </span>
-                  <span className="text-[10px] text-slate-400 font-mono hidden sm:inline">Num 2 / Num 4</span>
+                  <label htmlFor="manual-speech" className="text-sm font-semibold text-slate-800 flex items-center gap-1.5">
+                    <Send className="w-4 h-4 text-[#0067C0]" aria-hidden="true" />
+                    Speak a message
+                  </label>
                 </div>
 
                 <div className="flex flex-col gap-2">
                   <div className="flex gap-1.5">
                     <input
+                      id="manual-speech"
                       type="text"
                       value={manualText}
                       onChange={(e) => setManualText(e.target.value)}
@@ -444,38 +396,43 @@ function DesktopApp() {
                           handleManualSpeakBaba();
                         }
                       }}
-                      placeholder="Type words to speak aloud..."
-                      className="flex-1 min-w-0 h-8 px-2.5 rounded-[4px] bg-white border border-black/[0.15] border-b-black/[0.3] focus:border-[#0067C0] focus-visible:ring-2 focus-visible:ring-[#0067C0] focus-visible:outline-none text-xs text-slate-900 placeholder-slate-400 transition-colors shadow-2xs"
+                      placeholder="Type a message..."
+                      className="flex-1 min-w-0 min-h-10 px-3 rounded-md bg-white border border-slate-300 focus:border-[#0067C0] focus-visible:ring-2 focus-visible:ring-[#0067C0] focus-visible:outline-none text-sm text-slate-900 placeholder-slate-400 transition-colors"
                     />
                     <button
                       onClick={handleManualSpeakBaba}
-                      className="h-8 px-3 rounded-[4px] bg-[#0067C0] hover:bg-[#1879CD] text-white text-xs font-medium transition-colors shadow-2xs shrink-0 flex items-center gap-1 cursor-pointer focus-visible:ring-2 focus-visible:ring-[#0067C0] focus-visible:outline-none"
-                      title="Speak as BABA"
+                      className="min-h-10 px-3 rounded-md bg-[#0067C0] hover:bg-[#1879CD] text-white text-sm font-medium transition-colors shrink-0 flex items-center gap-1.5 cursor-pointer focus-visible:ring-2 focus-visible:ring-[#0067C0] focus-visible:outline-none"
                     >
                       <Volume2 className="w-3.5 h-3.5" />
                       <span>Speak</span>
                     </button>
                   </div>
 
-                  <div className="flex items-center gap-1.5">
+                </div>
+
+                <details className="group rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
+                  <summary className="flex min-h-8 cursor-pointer list-none items-center justify-between gap-3 text-xs font-medium text-slate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0067C0] [&::-webkit-details-marker]:hidden">
+                    <span className="flex items-center gap-2">
+                      <Sparkles className="w-3.5 h-3.5 text-slate-500" aria-hidden="true" />
+                      Soundcheck &amp; simulation
+                    </span>
+                    <ChevronDown className="w-3.5 h-3.5 transition-transform group-open:rotate-180" aria-hidden="true" />
+                  </summary>
+                  <div className="flex flex-wrap gap-2 pt-2">
                     <button
                       onClick={handleSpeakAsBanned}
-                      className="flex-1 h-7 flex items-center justify-center gap-1 px-2 rounded-[4px] bg-[#FBFBFB] hover:bg-[#F0F0F0] active:bg-[#E5E5E5] border border-black/[0.08] text-slate-700 text-xs font-normal transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-[#0067C0] focus-visible:outline-none"
-                      title="Test speech with banned filter persona"
+                      className="min-h-9 px-3 rounded-md border border-slate-300 bg-white hover:bg-slate-100 text-xs font-medium text-slate-700 transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-[#0067C0] focus-visible:outline-none"
                     >
-                      <span>Speak banned</span>
+                      Speak as banned user
                     </button>
-
                     <button
                       onClick={simulateGoodMessage}
-                      className="flex-1 h-7 flex items-center justify-center gap-1 px-2 rounded-[4px] bg-[#FBFBFB] hover:bg-[#F0F0F0] active:bg-[#E5E5E5] border border-black/[0.08] text-slate-700 text-xs font-normal transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-[#0067C0] focus-visible:outline-none"
-                      title="Simulate a chat message from viewer"
+                      className="min-h-9 px-3 rounded-md border border-slate-300 bg-white hover:bg-slate-100 text-xs font-medium text-slate-700 transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-[#0067C0] focus-visible:outline-none"
                     >
-                      <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-                      <span className="truncate">Simulate chat</span>
+                      Simulate chat
                     </button>
                   </div>
-                </div>
+                </details>
               </div>
             </div>
 
@@ -484,15 +441,8 @@ function DesktopApp() {
               <div className="flex items-center justify-between pb-2.5 border-b border-black/[0.08] mb-3">
                 <div className="flex items-center gap-2">
                   <MessageSquare className="w-4 h-4 text-[#0067C0]" />
-                  <span className="text-xs font-semibold text-slate-800">
-                    Live chat stream
-                  </span>
-                  <span className="text-[11px] font-mono px-1.5 py-0.2 rounded-[3px] bg-black/[0.04] border border-black/[0.08] text-slate-700 font-medium">
-                    {messages.length}
-                  </span>
-                </div>
-                <div className="text-[11px] text-slate-500">
-                  Auto-syncing with audio engine
+                  <span className="text-sm font-semibold text-slate-800">Live chat</span>
+                  <span className="text-xs text-slate-500">{messages.length}</span>
                 </div>
               </div>
 
@@ -538,208 +488,119 @@ function DesktopApp() {
         {/* TAB 3: SETTINGS */}
         {activeTab === 'settings' && (
           <div className="flex-1 p-6 overflow-y-auto max-w-4xl mx-auto w-full bg-slate-50">
-            <SettingsPanel />
+            <SettingsPanel onRestart={handleRestart} serverPort={port} />
           </div>
         )}
 
         {/* TAB 4: OBS OVERLAYS GUIDE */}
         {activeTab === 'obs' && (
           <div className="flex-1 p-6 overflow-y-auto max-w-4xl mx-auto w-full space-y-4 bg-slate-50">
-            <div>
-              <div className="flex items-center gap-2.5">
-                <div className="p-2 rounded-md bg-black/[0.04] border border-black/[0.08] text-[#0067C0]">
-                  <Tv className="w-5 h-5" />
-                </div>
-                <div>
-                  <h2 className="text-base font-semibold text-slate-900">
-                    OBS Studio browser sources
-                  </h2>
-                  <p className="text-xs text-slate-500 mt-0.5">
-                    Add these transparent URLs to OBS Studio as Browser Sources to display live TTS popups and chat history on stream.
-                  </p>
-                </div>
+            <div className="flex items-center gap-2.5">
+              <div className="p-2 rounded-md bg-black/[0.04] border border-black/[0.08] text-[#0067C0]">
+                <Tv className="w-5 h-5" aria-hidden="true" />
+              </div>
+              <div>
+                <h2 className="text-base font-semibold text-slate-900">OBS browser source</h2>
+                <p className="text-xs text-slate-600 mt-0.5">Add the speaking overlay to your stream.</p>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 gap-3">
-              {/* Card 1: 9:16 Full Broadcast Overlay (/overlay) */}
-              <div className="p-4 rounded-lg bg-white border border-black/[0.08] hover:border-[#0067C0]/40 transition-colors shadow-[0_1px_2px_rgba(0,0,0,0.02)] flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div className="space-y-1.5 flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-semibold text-slate-900 text-xs">9:16 full broadcast overlay</span>
-                    <span className="px-1.5 py-0.5 rounded-[3px] bg-[#0067C0]/10 text-[#0067C0] border border-[#0067C0]/20 text-[10px] font-mono">
-                      1080 × 1920
-                    </span>
-                    <span className="px-1.5 py-0.5 rounded-[3px] bg-black/[0.04] text-slate-700 border border-black/[0.08] text-[10px] font-normal">
-                      All-in-one layout
-                    </span>
-                  </div>
-                  <p className="text-xs text-slate-600">
-                    Complete vertical broadcast scene (1080×1920) combining speaking spotlight popup card above dynamic scrolling chat history in a single transparent browser source.
-                  </p>
-                  <code className="text-xs font-mono text-[#0067C0] block bg-[#F8F9FA] px-2.5 py-1.5 rounded-[4px] border border-black/[0.06] break-all select-all">
-                    {`${baseUrl}/overlay`}
-                  </code>
-                </div>
-
-                <div className="flex items-center gap-1.5 shrink-0">
-                  <a
-                    href={`${baseUrl}/overlay`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="p-1.5 h-7.5 w-7.5 rounded-[4px] bg-[#FBFBFB] hover:bg-[#F0F0F0] text-slate-700 border border-black/[0.08] flex items-center justify-center transition-colors focus-visible:ring-2 focus-visible:ring-[#0067C0] focus-visible:outline-none"
-                    title="Preview in browser tab"
-                  >
-                    <ExternalLink className="w-3.5 h-3.5" />
-                  </a>
-
-                  <button
-                    onClick={() => copyToClipboard(`${baseUrl}/overlay`, 'overlay', 'Full broadcast overlay')}
-                    className={`flex items-center gap-1.5 h-7.5 px-3 rounded-[4px] text-xs font-medium transition-colors shadow-2xs cursor-pointer focus-visible:ring-2 focus-visible:ring-[#0067C0] focus-visible:outline-none ${
-                      copiedKey === 'overlay'
-                        ? 'bg-emerald-600 text-white'
-                        : 'bg-[#0067C0] hover:bg-[#1879CD] text-white'
-                    }`}
-                  >
-                    {copiedKey === 'overlay' ? (
-                      <>
-                        <Check className="w-3.5 h-3.5 text-emerald-200" />
-                        <span>Copied</span>
-                      </>
-                    ) : (
-                      <>
-                        <Copy className="w-3.5 h-3.5" />
-                        <span>Copy URL</span>
-                      </>
-                    )}
-                  </button>
-                </div>
+            <section aria-labelledby="speaking-overlay-heading" className="p-4 rounded-lg bg-white border border-[#0067C0]/25 shadow-[0_1px_2px_rgba(0,0,0,0.02)] space-y-3">
+              <div>
+                <h3 id="speaking-overlay-heading" className="text-sm font-semibold text-slate-900">TTS speaking overlay</h3>
+                <p className="text-xs text-slate-600 mt-1">Shows the speaker and synchronized text while BABA TTS is talking.</p>
               </div>
 
-              {/* Card 2: Speaking Spotlight Only (/popup) */}
-              <div className="p-4 rounded-lg bg-white border border-black/[0.08] hover:border-[#0067C0]/40 transition-colors shadow-[0_1px_2px_rgba(0,0,0,0.02)] flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div className="space-y-1.5 flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-semibold text-slate-900 text-xs">Speaking spotlight only</span>
-                    <span className="px-1.5 py-0.5 rounded-[3px] bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-mono">
-                      Transparent popup
-                    </span>
-                    <span className="px-1.5 py-0.5 rounded-[3px] bg-black/[0.04] text-slate-700 border border-black/[0.08] text-[10px] font-normal">
-                      Karaoke sync
-                    </span>
-                  </div>
-                  <p className="text-xs text-slate-600">
-                    Transparent popup card that appears dynamically only while someone is speaking, with pulsing avatar border and word-by-word highlighted karaoke text.
-                  </p>
-                  <code className="text-xs font-mono text-[#0067C0] block bg-[#F8F9FA] px-2.5 py-1.5 rounded-[4px] border border-black/[0.06] break-all select-all">
-                    {`${baseUrl}/popup`}
-                  </code>
-                </div>
-
-                <div className="flex items-center gap-1.5 shrink-0">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                <code className="min-w-0 flex-1 text-xs font-mono text-[#0067C0] bg-[#F8F9FA] px-2.5 py-2 rounded-[4px] border border-black/[0.06] break-all select-all">
+                  {baseUrl + '/popup'}
+                </code>
+                <div className="flex items-center gap-3 shrink-0">
                   <a
-                    href={`${baseUrl}/popup`}
+                    href={baseUrl + '/popup'}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="p-1.5 h-7.5 w-7.5 rounded-[4px] bg-[#FBFBFB] hover:bg-[#F0F0F0] text-slate-700 border border-black/[0.08] flex items-center justify-center transition-colors focus-visible:ring-2 focus-visible:ring-[#0067C0] focus-visible:outline-none"
-                    title="Preview in browser tab"
+                    aria-label="Preview TTS speaking overlay in a browser tab"
+                    className="inline-flex items-center gap-1 text-xs font-medium text-slate-700 hover:text-slate-900 focus-visible:ring-2 focus-visible:ring-[#0067C0] focus-visible:outline-none rounded"
                   >
-                    <ExternalLink className="w-3.5 h-3.5" />
+                    <ExternalLink className="w-3.5 h-3.5" aria-hidden="true" />
+                    Preview
                   </a>
-
                   <button
-                    onClick={() => copyToClipboard(`${baseUrl}/popup`, 'popup', 'Speaking spotlight')}
-                    className={`flex items-center gap-1.5 h-7.5 px-3 rounded-[4px] text-xs font-medium transition-colors shadow-2xs cursor-pointer focus-visible:ring-2 focus-visible:ring-[#0067C0] focus-visible:outline-none ${
-                      copiedKey === 'popup'
-                        ? 'bg-emerald-600 text-white'
-                        : 'bg-[#0067C0] hover:bg-[#1879CD] text-white'
-                    }`}
+                    onClick={() => copyToClipboard(baseUrl + '/popup', 'popup', 'Speaking overlay')}
+                    className={copiedKey === 'popup' ? 'inline-flex items-center justify-center gap-1.5 h-8 px-3 rounded-[4px] text-xs font-medium transition-colors shadow-2xs cursor-pointer focus-visible:ring-2 focus-visible:ring-[#0067C0] focus-visible:outline-none bg-emerald-600 text-white' : 'inline-flex items-center justify-center gap-1.5 h-8 px-3 rounded-[4px] text-xs font-medium transition-colors shadow-2xs cursor-pointer focus-visible:ring-2 focus-visible:ring-[#0067C0] focus-visible:outline-none bg-[#0067C0] hover:bg-[#1879CD] text-white'}
                   >
                     {copiedKey === 'popup' ? (
                       <>
-                        <Check className="w-3.5 h-3.5 text-emerald-200" />
+                        <Check className="w-3.5 h-3.5" aria-hidden="true" />
                         <span>Copied</span>
                       </>
                     ) : (
                       <>
-                        <Copy className="w-3.5 h-3.5" />
+                        <Copy className="w-3.5 h-3.5" aria-hidden="true" />
                         <span>Copy URL</span>
                       </>
                     )}
                   </button>
                 </div>
               </div>
+            </section>
 
-              {/* Card 3: Live Chat Stream Only (/chat) */}
-              <div className="p-4 rounded-lg bg-white border border-black/[0.08] hover:border-[#0067C0]/40 transition-colors shadow-[0_1px_2px_rgba(0,0,0,0.02)] flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div className="space-y-1.5 flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-semibold text-slate-900 text-xs">Live chat stream only</span>
-                    <span className="px-1.5 py-0.5 rounded-[3px] bg-black/[0.04] text-slate-700 border border-black/[0.08] text-[10px] font-mono">
-                      Transparent chat
-                    </span>
-                    <span className="px-1.5 py-0.5 rounded-[3px] bg-black/[0.04] text-slate-700 border border-black/[0.08] text-[10px] font-normal">
-                      Auto-scrolling
-                    </span>
-                  </div>
-                  <p className="text-xs text-slate-600">
-                    Transparent scrolling chat history feed. Automatically resizes to fit any width/height container and auto-scrolls down when new messages arrive.
-                  </p>
-                  <code className="text-xs font-mono text-[#0067C0] block bg-[#F8F9FA] px-2.5 py-1.5 rounded-[4px] border border-black/[0.06] break-all select-all">
-                    {`${baseUrl}/chat`}
-                  </code>
-                </div>
-
-                <div className="flex items-center gap-1.5 shrink-0">
-                  <a
-                    href={`${baseUrl}/chat`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="p-1.5 h-7.5 w-7.5 rounded-[4px] bg-[#FBFBFB] hover:bg-[#F0F0F0] text-slate-700 border border-black/[0.08] flex items-center justify-center transition-colors focus-visible:ring-2 focus-visible:ring-[#0067C0] focus-visible:outline-none"
-                    title="Preview in browser tab"
-                  >
-                    <ExternalLink className="w-3.5 h-3.5" />
-                  </a>
-
-                  <button
-                    onClick={() => copyToClipboard(`${baseUrl}/chat`, 'chat', 'Live chat stream')}
-                    className={`flex items-center gap-1.5 h-7.5 px-3 rounded-[4px] text-xs font-medium transition-colors shadow-2xs cursor-pointer focus-visible:ring-2 focus-visible:ring-[#0067C0] focus-visible:outline-none ${
-                      copiedKey === 'chat'
-                        ? 'bg-emerald-600 text-white'
-                        : 'bg-[#0067C0] hover:bg-[#1879CD] text-white'
-                    }`}
-                  >
-                    {copiedKey === 'chat' ? (
-                      <>
-                        <Check className="w-3.5 h-3.5 text-emerald-200" />
-                        <span>Copied</span>
-                      </>
-                    ) : (
-                      <>
-                        <Copy className="w-3.5 h-3.5" />
-                        <span>Copy URL</span>
-                      </>
-                    )}
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {/* OBS Browser Source Configuration Setup Guide */}
-            <div className="p-4 rounded-lg bg-white border border-black/[0.08] text-xs text-slate-600 space-y-2.5 shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
-              <div className="font-semibold text-slate-900 text-xs flex items-center gap-1.5">
-                <AlertTriangle className="w-4 h-4 text-amber-500" />
-                OBS Studio browser source setup guide
-              </div>
-              <ol className="list-decimal pl-5 space-y-1 text-slate-700 text-xs">
-                <li>In OBS Studio, click the <strong className="text-slate-900">+</strong> button in the <strong>Sources</strong> dock and choose <strong>Browser</strong>.</li>
-                <li>Give the source a clear name (e.g. <span className="text-[#0067C0] font-mono">BABA Vertical Overlay</span>) and click OK.</li>
-                <li>Paste the copied URL into the <strong>URL</strong> field.</li>
-                <li>Set the recommended canvas resolution (e.g., <strong>Width: 1080</strong>, <strong>Height: 1920</strong> for Full broadcast overlay).</li>
-                <li>Check <strong className="text-slate-900">"Shutdown source when not visible"</strong> to minimize stream GPU/CPU overhead.</li>
-                <li>Leave <strong className="text-slate-900">"Control audio via OBS" unchecked</strong> — BABA TTS Desktop App plays audio natively via Windows audio output to eliminate latency and avoid double-audio echo.</li>
+            <section aria-labelledby="obs-setup-heading" className="p-4 rounded-lg bg-white border border-black/[0.08] space-y-3">
+              <h3 id="obs-setup-heading" className="text-sm font-semibold text-slate-900">Add it to OBS</h3>
+              <ol className="list-decimal pl-5 space-y-1.5 text-xs text-slate-700">
+                <li>In the OBS Sources dock, choose <strong>+</strong> → <strong>Browser</strong>.</li>
+                <li>Paste the URL. At 800 px wide, set the Browser Source height to at least <strong>900 px</strong>; use more for longer messages.</li>
               </ol>
-            </div>
+              <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs text-amber-950">
+                <Volume2 className="w-4 h-4 mt-0.5 shrink-0 text-amber-700" aria-hidden="true" />
+                <p><strong>Audio setting:</strong> Leave “Control audio via OBS” unchecked. BABA TTS plays audio through the desktop app.</p>
+              </div>
+              <p className="text-[11px] text-slate-600">
+                Optional: Enable “Shutdown source when not visible” in OBS to reduce resource use.
+              </p>
+            </section>
+
+            <details className="group rounded-lg border border-black/[0.08] bg-white">
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-xs font-medium text-slate-800 rounded-lg focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#0067C0] focus-visible:outline-none">
+                <span>Other sources</span>
+                <ChevronDown className="w-4 h-4 text-slate-500 transition-transform group-open:rotate-180" aria-hidden="true" />
+              </summary>
+              <div className="divide-y divide-black/[0.06] border-t border-black/[0.06] px-4">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-2 py-3">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-medium text-slate-800">Full vertical overlay</p>
+                    <p className="text-[11px] text-slate-600">Speaking overlay and chat history · 1080 × 1920</p>
+                  </div>
+                  <code className="min-w-0 flex-1 text-[11px] font-mono text-slate-700 break-all select-all">{baseUrl + '/overlay'}</code>
+                  <div className="flex items-center gap-3 shrink-0">
+                    <a href={baseUrl + '/overlay'} target="_blank" rel="noopener noreferrer" aria-label="Preview full vertical overlay in a browser tab" className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-700 hover:text-slate-900 focus-visible:ring-2 focus-visible:ring-[#0067C0] focus-visible:outline-none rounded">
+                      <ExternalLink className="w-3.5 h-3.5" aria-hidden="true" /> Preview
+                    </a>
+                    <button onClick={() => copyToClipboard(baseUrl + '/overlay', 'overlay', 'Full vertical overlay')} className="inline-flex items-center gap-1 h-7 px-2.5 rounded-[4px] border border-black/[0.12] bg-white hover:bg-slate-50 text-[11px] font-medium text-slate-700 cursor-pointer focus-visible:ring-2 focus-visible:ring-[#0067C0] focus-visible:outline-none">
+                      {copiedKey === 'overlay' ? <Check className="w-3 h-3" aria-hidden="true" /> : <Copy className="w-3 h-3" aria-hidden="true" />}
+                      {copiedKey === 'overlay' ? 'Copied' : 'Copy URL'}
+                    </button>
+                  </div>
+                </div>
+                <div className="flex flex-col sm:flex-row sm:items-center gap-2 py-3">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-medium text-slate-800">Chat only</p>
+                    <p className="text-[11px] text-slate-600">Transparent, auto-scrolling chat history</p>
+                  </div>
+                  <code className="min-w-0 flex-1 text-[11px] font-mono text-slate-700 break-all select-all">{baseUrl + '/chat'}</code>
+                  <div className="flex items-center gap-3 shrink-0">
+                    <a href={baseUrl + '/chat'} target="_blank" rel="noopener noreferrer" aria-label="Preview chat-only source in a browser tab" className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-700 hover:text-slate-900 focus-visible:ring-2 focus-visible:ring-[#0067C0] focus-visible:outline-none rounded">
+                      <ExternalLink className="w-3.5 h-3.5" aria-hidden="true" /> Preview
+                    </a>
+                    <button onClick={() => copyToClipboard(baseUrl + '/chat', 'chat', 'Chat-only source')} className="inline-flex items-center gap-1 h-7 px-2.5 rounded-[4px] border border-black/[0.12] bg-white hover:bg-slate-50 text-[11px] font-medium text-slate-700 cursor-pointer focus-visible:ring-2 focus-visible:ring-[#0067C0] focus-visible:outline-none">
+                      {copiedKey === 'chat' ? <Check className="w-3 h-3" aria-hidden="true" /> : <Copy className="w-3 h-3" aria-hidden="true" />}
+                      {copiedKey === 'chat' ? 'Copied' : 'Copy URL'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </details>
           </div>
         )}
       </main>

@@ -7,8 +7,8 @@ import {
   Check,
   AlertCircle,
   RotateCcw,
-  Sparkles,
-  Radio,
+  RefreshCw,
+  ChevronDown,
   Tv,
   KeyRound,
 } from 'lucide-react';
@@ -80,7 +80,12 @@ const VOICE_PRESETS = [
   { value: 'en-IN-NeerjaNeural', label: 'Neerja (Indian English - Female)' },
 ];
 
-export default function SettingsPanel() {
+interface SettingsPanelProps {
+  onRestart: () => void;
+  serverPort: number;
+}
+
+export default function SettingsPanel({ onRestart, serverPort }: SettingsPanelProps) {
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -208,7 +213,7 @@ export default function SettingsPanel() {
   }
 
   return (
-    <div className="w-full flex flex-col gap-5 text-slate-800">
+    <div className="w-full flex flex-col gap-4 text-slate-800">
       {/* Fluent InfoBar Status Banner */}
       {banner && (
         <div
@@ -235,9 +240,6 @@ export default function SettingsPanel() {
               <KeyRound className="w-4 h-4 text-[#0067C0]" />
               Azure speech service
             </h2>
-            <span className="text-[10px] font-medium px-2 py-0.5 rounded-[3px] bg-[#0067C0]/10 text-[#0067C0] border border-[#0067C0]/20">
-              TTS engine
-            </span>
           </div>
 
           {/* Subscription Key */}
@@ -280,38 +282,26 @@ export default function SettingsPanel() {
             </div>
             <input
               type="text"
+              list="azure-speech-regions"
               value={settings.azure_speech_region}
               onChange={(e) => updateField('azure_speech_region', e.target.value)}
-              placeholder="e.g. centralindia, eastus, westeurope"
+              placeholder="e.g. centralindia"
               className={`w-full h-8 px-2.5 bg-white border border-b-black/[0.3] rounded-[4px] text-slate-900 placeholder-slate-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0067C0] focus-visible:outline-none font-mono text-xs transition-colors ${
                 fieldErrors.azure_speech_region
                   ? 'border-rose-500 focus:border-rose-500'
                   : 'border-black/[0.15] focus:border-[#0067C0]'
               }`}
             />
+            <datalist id="azure-speech-regions">
+              {REGION_PRESETS.map((region) => <option key={region} value={region} />)}
+            </datalist>
             {fieldErrors.azure_speech_region && (
               <p className="text-[11px] text-rose-600 mt-1 flex items-center gap-1 font-medium">
                 <AlertCircle className="w-3 h-3" />
                 {fieldErrors.azure_speech_region}
               </p>
             )}
-            {/* Quick region tags */}
-            <div className="flex flex-wrap gap-1.5 mt-2">
-              {REGION_PRESETS.map((region) => (
-                <button
-                  key={region}
-                  type="button"
-                  onClick={() => updateField('azure_speech_region', region)}
-                  className={`text-[10px] px-2 py-0.5 rounded-[3px] border font-mono transition-colors focus-visible:ring-2 focus-visible:ring-[#0067C0] focus-visible:outline-none ${
-                    settings.azure_speech_region === region
-                      ? 'bg-[#0067C0]/10 text-[#0067C0] border-[#0067C0]/30 font-medium'
-                      : 'bg-slate-50 text-slate-600 border-black/[0.08] hover:bg-slate-100'
-                  }`}
-                >
-                  {region}
-                </button>
-              ))}
-            </div>
+            <p className="text-[11px] text-slate-500 mt-1">Type a region or choose a suggestion.</p>
           </div>
 
           {/* Default Voice */}
@@ -324,31 +314,16 @@ export default function SettingsPanel() {
             </div>
             <input
               type="text"
+              list="azure-neural-voices"
               value={settings.azure_speech_voice}
               onChange={(e) => updateField('azure_speech_voice', e.target.value)}
               placeholder="hi-IN-MadhurNeural"
               className="w-full h-8 px-2.5 bg-white border border-black/[0.15] border-b-black/[0.3] rounded-[4px] text-slate-900 placeholder-slate-400 focus:outline-none focus:border-[#0067C0] focus-visible:ring-2 focus-visible:ring-[#0067C0] focus-visible:outline-none font-mono text-xs transition-colors"
             />
-            {/* Voice presets */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 mt-2">
-              {VOICE_PRESETS.map((preset) => (
-                <button
-                  key={preset.value}
-                  type="button"
-                  onClick={() => updateField('azure_speech_voice', preset.value)}
-                  className={`text-left text-xs px-2.5 py-1.5 rounded-[4px] border transition-colors flex items-center justify-between focus-visible:ring-2 focus-visible:ring-[#0067C0] focus-visible:outline-none ${
-                    settings.azure_speech_voice === preset.value
-                      ? 'bg-[#0067C0]/10 text-[#0067C0] border-[#0067C0]/30 font-medium'
-                      : 'bg-white text-slate-700 border-black/[0.08] hover:bg-slate-50'
-                  }`}
-                >
-                  <span className="truncate">{preset.label}</span>
-                  {settings.azure_speech_voice === preset.value && (
-                    <Check className="w-3.5 h-3.5 text-[#0067C0] shrink-0 ml-1" />
-                  )}
-                </button>
-              ))}
-            </div>
+            <datalist id="azure-neural-voices">
+              {VOICE_PRESETS.map((preset) => <option key={preset.value} value={preset.value} label={preset.label} />)}
+            </datalist>
+            <p className="text-[11px] text-slate-500 mt-1">Type a voice name or choose a suggestion.</p>
           </div>
         </section>
 
@@ -363,19 +338,21 @@ export default function SettingsPanel() {
             {/* Toggle Switch */}
             <div className="flex items-center gap-2">
               <span className="text-xs text-slate-500">
-                {settings.enable_youtube ? 'Active' : 'Disabled'}
+                {settings.enable_youtube ? 'Enabled' : 'Disabled'}
               </span>
               <button
                 type="button"
                 onClick={() => updateField('enable_youtube', !settings.enable_youtube)}
-                className={`relative w-9 h-5 rounded-full transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0067C0] focus-visible:outline-none ${
+                className={`relative w-11 h-6 rounded-full transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0067C0] focus-visible:outline-none ${
                   settings.enable_youtube ? 'bg-[#0067C0]' : 'bg-slate-300'
                 }`}
                 aria-label="Toggle YouTube live listener"
+                role="switch"
+                aria-checked={settings.enable_youtube}
               >
                 <span
-                  className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow-xs transition-transform duration-150 ${
-                    settings.enable_youtube ? 'translate-x-4' : 'translate-x-0'
+                  className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-xs transition-transform duration-150 ${
+                    settings.enable_youtube ? 'translate-x-5' : 'translate-x-0'
                   }`}
                 />
               </button>
@@ -413,72 +390,70 @@ export default function SettingsPanel() {
             )}
           </div>
 
-          {/* Live ID Override */}
-          <div>
-            <div className="flex items-center justify-between mb-1.5">
-              <label className="text-xs font-medium text-slate-700">
+          <details className="group border-t border-slate-200 pt-3">
+            <summary className="flex min-h-9 cursor-pointer list-none items-center justify-between gap-3 text-xs font-medium text-slate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0067C0] [&::-webkit-details-marker]:hidden">
+              Advanced: specific live video
+              <ChevronDown className="w-3.5 h-3.5 transition-transform group-open:rotate-180" aria-hidden="true" />
+            </summary>
+            <div className="pt-2">
+              <label htmlFor="youtube-live-id" className="text-xs font-medium text-slate-700">
                 Live video ID override
               </label>
-              <span className="text-[10px] text-slate-400 font-mono">Optional</span>
+              <input
+                id="youtube-live-id"
+                type="text"
+                value={settings.youtube_live_id ?? ''}
+                onChange={(e) => updateField('youtube_live_id', e.target.value || null)}
+                placeholder="Leave blank to detect automatically"
+                className="mt-1.5 w-full h-9 px-2.5 bg-white border border-black/[0.15] border-b-black/[0.3] rounded-[4px] text-slate-900 placeholder-slate-400 focus:outline-none focus:border-[#0067C0] focus-visible:ring-2 focus-visible:ring-[#0067C0] focus-visible:outline-none font-mono text-xs transition-colors"
+              />
             </div>
-            <input
-              type="text"
-              value={settings.youtube_live_id ?? ''}
-              onChange={(e) => updateField('youtube_live_id', e.target.value || null)}
-              placeholder="e.g. jfKfPfyJRdk (leave empty for auto-detect)"
-              className="w-full h-8 px-2.5 bg-white border border-black/[0.15] border-b-black/[0.3] rounded-[4px] text-slate-900 placeholder-slate-400 focus:outline-none focus:border-[#0067C0] focus-visible:ring-2 focus-visible:ring-[#0067C0] focus-visible:outline-none font-mono text-xs transition-colors"
-            />
-            <p className="text-[11px] text-slate-500 mt-1">
-              Specify this only if you want to lock BABA TTS to a specific broadcast or scheduled stream URL.
-            </p>
-          </div>
-
-          {/* Live status badge */}
-          <div className="mt-auto p-3 rounded-md bg-[#F9F9F9] border border-black/[0.06] flex items-center gap-2.5 text-xs text-slate-600">
-            <Radio
-              className={`w-4 h-4 shrink-0 ${
-                settings.enable_youtube ? 'text-[#0067C0] animate-pulse' : 'text-slate-400'
-              }`}
-            />
-            <div>
-              <span className="font-medium text-slate-800">
-                {settings.enable_youtube ? 'Live listener active' : 'Live listener inactive'}
-              </span>
-              <span className="block text-[11px] text-slate-500">
-                {settings.enable_youtube
-                  ? 'Chat messages will be received and voiced automatically.'
-                  : 'Enable this when starting your live broadcast.'}
-              </span>
-            </div>
-          </div>
+          </details>
         </section>
       </div>
 
-      {/* Save Settings Action Bar */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-3 border-t border-black/[0.06]">
-        <div className="flex items-center gap-2 text-xs text-slate-500">
-          <Sparkles className="w-3.5 h-3.5 text-[#0067C0] shrink-0" />
-          <span>
-            Persisted in SQLite (<span className="font-mono text-[#0067C0]">baba.db</span>). Applies live instantly without restart.
-          </span>
+      <details className="group rounded-lg border border-black/[0.08] bg-white px-4">
+        <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 text-xs font-medium text-slate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0067C0] [&::-webkit-details-marker]:hidden">
+          Reset and maintenance
+          <ChevronDown className="w-3.5 h-3.5 transition-transform group-open:rotate-180" aria-hidden="true" />
+        </summary>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-t border-slate-200 py-3">
+          <div className="text-xs text-slate-500">
+            Local server · Port <span className="font-mono text-slate-700">{serverPort}</span>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={handleResetDefaults}
+              className="min-h-9 px-3 rounded-md bg-white hover:bg-slate-100 border border-slate-300 text-xs font-medium text-slate-700 transition-colors flex items-center gap-1.5 focus-visible:ring-2 focus-visible:ring-[#0067C0] focus-visible:outline-none"
+              title="Reset form fields to default values"
+            >
+              <RotateCcw className="w-3.5 h-3.5 text-slate-500" aria-hidden="true" />
+              <span>Reset defaults</span>
+            </button>
+            <button
+              type="button"
+              onClick={onRestart}
+              className="min-h-9 px-3 rounded-md bg-white hover:bg-slate-100 border border-slate-300 text-xs font-medium text-slate-700 transition-colors flex items-center gap-1.5 focus-visible:ring-2 focus-visible:ring-[#0067C0] focus-visible:outline-none"
+              title="Restart the local BABA TTS server"
+            >
+              <RefreshCw className="w-3.5 h-3.5 text-slate-500" aria-hidden="true" />
+              <span>Restart server</span>
+            </button>
+          </div>
         </div>
+      </details>
+
+      {/* Save Settings Action Bar */}
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-black/[0.06]">
+        <span className="text-xs text-slate-500">Save to apply changes now.</span>
 
         <div className="flex items-center gap-2.5 w-full sm:w-auto">
           <button
             type="button"
-            onClick={handleResetDefaults}
-            className="h-8 px-3 rounded-[4px] bg-white hover:bg-slate-100 border border-black/[0.15] text-xs font-medium text-slate-700 transition-colors flex items-center gap-1.5 focus-visible:ring-2 focus-visible:ring-[#0067C0] focus-visible:outline-none"
-            title="Reset form fields to default values"
-          >
-            <RotateCcw className="w-3.5 h-3.5 text-slate-500" />
-            <span>Reset defaults</span>
-          </button>
-
-          <button
-            type="button"
             onClick={handleSave}
             disabled={saving}
-            className={`h-8 px-4 rounded-[4px] text-xs font-medium transition-all shadow-[0_1px_2px_rgba(0,0,0,0.08)] flex items-center justify-center gap-1.5 focus-visible:ring-2 focus-visible:ring-[#0067C0] focus-visible:outline-none ${
+            className={`min-h-10 px-4 rounded-md text-sm font-medium transition-all shadow-[0_1px_2px_rgba(0,0,0,0.08)] flex items-center justify-center gap-1.5 focus-visible:ring-2 focus-visible:ring-[#0067C0] focus-visible:outline-none ${
               justSaved
                 ? 'bg-[#107C41] text-white'
                 : 'bg-[#0067C0] hover:bg-[#1879CD] text-white disabled:bg-slate-200 disabled:text-slate-400'
