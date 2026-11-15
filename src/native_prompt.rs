@@ -77,9 +77,9 @@ mod win32 {
         SetForegroundWindow, SetWindowLongPtrW, SetWindowPos, SetWindowTextW, ShowWindow,
         SystemParametersInfoW, TranslateMessage, CS_DROPSHADOW, ES_AUTOHSCROLL, GWLP_WNDPROC, MSG,
         SPI_GETWORKAREA, SWP_NOZORDER, SWP_SHOWWINDOW, SW_HIDE, SW_SHOW, WM_ACTIVATE, WM_CHAR,
-        WM_CLOSE, WM_CTLCOLOREDIT, WM_CTLCOLORSTATIC, WM_DESTROY, WM_ERASEBKGND, WM_KEYDOWN,
-        WM_LBUTTONDOWN, WM_USER, WNDCLASSW, WNDPROC, WS_CHILD, WS_EX_TOOLWINDOW, WS_EX_TOPMOST,
-        WS_POPUP, WS_TABSTOP, WS_VISIBLE,
+        WM_CLOSE, WM_CREATE, WM_CTLCOLOREDIT, WM_CTLCOLORSTATIC, WM_DESTROY, WM_ERASEBKGND,
+        WM_KEYDOWN, WM_KILLFOCUS, WM_LBUTTONDOWN, WM_USER, WNDCLASSW, WNDPROC, WS_CHILD,
+        WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_POPUP, WS_TABSTOP, WS_VISIBLE,
     };
 
     // Bits 0..16: port (u16)
@@ -295,7 +295,7 @@ mod win32 {
         static mut PROMPT_FONT: HFONT = 0;
 
         let res = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| match msg {
-            windows_sys::Win32::UI::WindowsAndMessaging::WM_CREATE => {
+            WM_CREATE => {
                 // Modern Windows 11 Flyout background (#F3F3F3) & White input box (#FFFFFF)
                 LIGHT_BRUSH = CreateSolidBrush(0x00F3F3F3);
                 EDIT_BRUSH = CreateSolidBrush(0x00FFFFFF);
