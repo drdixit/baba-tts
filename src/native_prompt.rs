@@ -63,9 +63,10 @@ mod win32 {
     use std::sync::{Once, OnceLock};
     use windows_sys::Win32::Foundation::{HWND, LPARAM, LRESULT, RECT, WPARAM};
     use windows_sys::Win32::Graphics::Gdi::{
-        CreateFontW, CreateSolidBrush, DeleteObject, FillRect, FrameRect, GetMonitorInfoW,
-        GetStockObject, MonitorFromWindow, SetBkColor, SetTextColor, DEFAULT_GUI_FONT, HBRUSH, HDC,
-        HFONT, MONITORINFO, MONITOR_DEFAULTTONEAREST,
+        CreateFontW, CreateSolidBrush, DeleteObject, FillRect, FrameRect, GetDC, GetMonitorInfoW,
+        GetStockObject, GetTextMetricsW, MonitorFromWindow, ReleaseDC, SelectObject, SetBkColor,
+        SetTextColor, DEFAULT_GUI_FONT, HBRUSH, HDC, HFONT, MONITORINFO, MONITOR_DEFAULTTONEAREST,
+        TEXTMETRICW,
     };
     use windows_sys::Win32::System::LibraryLoader::{GetModuleHandleW, GetProcAddress, LoadLibraryW};
     use windows_sys::Win32::System::Threading::{AttachThreadInput, GetCurrentThreadId};
@@ -76,7 +77,8 @@ mod win32 {
         GetWindowThreadProcessId, IsChild, PostMessageW, RegisterClassW, SendMessageW,
         SetForegroundWindow, SetWindowLongPtrW, SetWindowPos, SetWindowTextW, ShowWindow,
         SystemParametersInfoW, TranslateMessage, CS_DROPSHADOW, ES_AUTOHSCROLL, GWLP_WNDPROC, MSG,
-        SPI_GETWORKAREA, SWP_NOZORDER, SWP_SHOWWINDOW, SW_HIDE, SW_SHOW, WM_ACTIVATE, WM_CHAR,
+        SPI_GETWORKAREA, SW_HIDE, SW_SHOW, SWP_NOACTIVATE, SWP_NOZORDER, SWP_NOSIZE,
+        WM_ACTIVATE, WM_CHAR,
         WM_CLOSE, WM_CREATE, WM_CTLCOLOREDIT, WM_CTLCOLORSTATIC, WM_DESTROY, WM_ERASEBKGND,
         WM_KEYDOWN, WM_KILLFOCUS, WM_LBUTTONDOWN, WM_USER, WNDCLASSW, WNDPROC, WS_CHILD,
         WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_POPUP, WS_TABSTOP, WS_VISIBLE,
@@ -94,6 +96,13 @@ mod win32 {
     static HTTP_CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
 
     const WM_SHOW_PROMPT: u32 = WM_USER + 201;
+    const PROMPT_WIDTH: i32 = 480;
+    const PROMPT_HEIGHT: i32 = 48;
+    const PROMPT_INPUT_HEIGHT: i32 = 28;
+    const PROMPT_HORIZONTAL_INSET: i32 = 10;
+    const PROMPT_FONT_HEIGHT: i32 = 15;
+    const PROMPT_TEXT_MARGIN: i32 = 8;
+    const PROMPT_SCREEN_MARGIN: i32 = 24;
 
     struct ThreadInputGuard {
         cur: u32,
@@ -155,6 +164,28 @@ mod win32 {
             }
         }
         96
+    }
+
+    unsafe fn get_font_line_height(hwnd: HWND, font: HFONT, fallback: i32) -> i32 {
+        let hdc = GetDC(hwnd);
+        if hdc == 0 {
+            return fallback.max(1);
+        }
+
+        let previous_font = SelectObject(hdc, font as _);
+        let font_selected = previous_font != 0 && previous_font != -1;
+        let mut metrics: TEXTMETRICW = std::mem::zeroed();
+        let line_height = if font_selected && GetTextMetricsW(hdc, &mut metrics) != 0 {
+            metrics.tmHeight
+        } else {
+            fallback
+        };
+
+        if font_selected {
+            SelectObject(hdc, previous_font);
+        }
+        ReleaseDC(hwnd, hdc);
+        line_height.max(1)
     }
 
     unsafe fn apply_dwm_rounded_corners(hwnd: HWND) {
@@ -310,10 +341,10 @@ mod win32 {
                     to_wide("EDIT").as_ptr(),
                     to_wide("").as_ptr(),
                     WS_CHILD | WS_VISIBLE | (ES_AUTOHSCROLL as u32) | WS_TABSTOP,
-                    10,
-                    9,
-                    460,
-                    30,
+                    PROMPT_HORIZONTAL_INSET + 1,
+                    (PROMPT_HEIGHT - PROMPT_INPUT_HEIGHT) / 2 + 1,
+                    PROMPT_WIDTH - (PROMPT_HORIZONTAL_INSET * 2) - 2,
+                    PROMPT_FONT_HEIGHT + 4,
                     hwnd,
                     101 as _,
                     h_instance,
@@ -349,6 +380,22 @@ mod win32 {
                 FillRect(hdc, &rect, LIGHT_BRUSH);
                 if BORDER_BRUSH != 0 {
                     FrameRect(hdc, &rect, BORDER_BRUSH);
+
+                    // A single-line EDIT has no vertical-margin message. Draw its
+                    // frame here, then center the borderless edit child to the font.
+                    let dpi = get_window_dpi(hwnd);
+                    let scale = |v: i32| -> i32 { (v * dpi as i32 + 48) / 96 };
+                    let pad_x = scale(PROMPT_HORIZONTAL_INSET);
+                    let input_height = scale(PROMPT_INPUT_HEIGHT);
+                    let mut input_rect = RECT {
+                        left: rect.left + pad_x,
+                        top: rect.top + ((rect.bottom - rect.top - input_height) / 2),
+                        right: rect.right - pad_x,
+                        bottom: 0,
+                    };
+                    input_rect.bottom = input_rect.top + input_height;
+                    FillRect(hdc, &input_rect, EDIT_BRUSH);
+                    FrameRect(hdc, &input_rect, BORDER_BRUSH);
                 }
                 1
             }
@@ -384,14 +431,28 @@ mod win32 {
                     wa
                 };
 
+                ShowWindow(hwnd, SW_HIDE);
+
+                // Move the hidden window onto the foreground monitor first so its
+                // per-monitor DPI query reflects the monitor the prompt will occupy.
+                SetWindowPos(
+                    hwnd,
+                    0,
+                    workarea.left,
+                    workarea.top,
+                    0,
+                    0,
+                    SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE,
+                );
+
                 // Scale dimensions according to Per-Monitor V2 DPI
                 let dpi = get_window_dpi(hwnd);
                 let scale = |v: i32| -> i32 { (v * dpi as i32 + 48) / 96 };
 
-                let width = scale(480);
-                let height = scale(48);
-                let margin_x = scale(24);
-                let margin_y = scale(24);
+                let width = scale(PROMPT_WIDTH);
+                let height = scale(PROMPT_HEIGHT);
+                let margin_x = scale(PROMPT_SCREEN_MARGIN);
+                let margin_y = scale(PROMPT_SCREEN_MARGIN);
 
                 let geom = calculate_bottom_left_geometry(
                     workarea.left,
@@ -409,30 +470,64 @@ mod win32 {
                     geom.y,
                     geom.width,
                     geom.height,
-                    SWP_SHOWWINDOW,
+                    SWP_NOACTIVATE,
                 );
 
                 // Resize and reposition inner edit control for target DPI
                 let edit = EDIT_HWND.load(Ordering::Acquire);
                 if edit != 0 {
-                    let pad_x = scale(10);
-                    let pad_y = scale(9);
-                    let edit_w = width - (pad_x * 2);
-                    let edit_h = height - (pad_y * 2);
-                    SetWindowPos(edit, 0, pad_x, pad_y, edit_w, edit_h, SWP_NOZORDER);
+                    let pad_x = scale(PROMPT_HORIZONTAL_INSET);
+                    let input_height = scale(PROMPT_INPUT_HEIGHT);
+                    let border = scale(1).max(1);
+                    let mut client_rect: RECT = std::mem::zeroed();
+                    GetClientRect(hwnd, &mut client_rect);
+                    let client_width = client_rect.right - client_rect.left;
+                    let client_height = client_rect.bottom - client_rect.top;
+                    let input_top = (client_height - input_height) / 2;
+                    let inner_top = input_top + border;
+                    let inner_height = input_height - (border * 2);
+                    let edit_w = client_width - (pad_x * 2) - (border * 2);
 
-                    let font_h = scale(15);
+                    let font_h = scale(PROMPT_FONT_HEIGHT);
                     let seg_font = CreateFontW(
                         -font_h, 0, 0, 0, 400, 0, 0, 0, 1, 0, 0, 5, 0,
                         to_wide("Segoe UI Variable Text").as_ptr(),
                     );
                     if seg_font != 0 {
-                        if PROMPT_FONT != 0 {
-                            DeleteObject(PROMPT_FONT as _);
-                        }
+                        let previous_font = PROMPT_FONT;
                         PROMPT_FONT = seg_font as _;
                         SendMessageW(edit, 0x0030 /* WM_SETFONT */, PROMPT_FONT as _, 1);
+                        if previous_font != 0 {
+                            DeleteObject(previous_font as _);
+                        }
                     }
+
+                    let font = if PROMPT_FONT != 0 {
+                        PROMPT_FONT
+                    } else {
+                        GetStockObject(DEFAULT_GUI_FONT as _) as HFONT
+                    };
+                    let text_h = get_font_line_height(edit, font, font_h).min(inner_height.max(1));
+                    let edit_y = inner_top + ((inner_height - text_h) / 2);
+                    SetWindowPos(
+                        edit,
+                        0,
+                        pad_x + border,
+                        edit_y,
+                        edit_w,
+                        text_h,
+                        SWP_NOZORDER,
+                    );
+
+                    // Keep text and the caret comfortably inset from the edit edge.
+                    let text_margin = scale(PROMPT_TEXT_MARGIN) as u32;
+                    let margins = text_margin | (text_margin << 16);
+                    SendMessageW(
+                        edit,
+                        0x00D3, // EM_SETMARGINS
+                        0x0003,
+                        margins as LPARAM,
+                    );
                 }
 
                 ShowWindow(hwnd, SW_SHOW);
@@ -558,8 +653,8 @@ mod win32 {
                         WS_POPUP,
                         0,
                         0,
-                        480,
-                        48,
+                        PROMPT_WIDTH,
+                        PROMPT_HEIGHT,
                         0,
                         0,
                         h_instance,

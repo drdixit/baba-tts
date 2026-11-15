@@ -6,6 +6,7 @@ import {
   ShieldAlert,
   Sliders,
   Tv,
+  BookOpen,
   RotateCcw,
   Trash2,
   Send,
@@ -19,12 +20,23 @@ import {
 import ChatMessage from './components/ChatMessage';
 import ModerationPanel from './components/ModerationPanel';
 import SettingsPanel from './components/SettingsPanel';
+import HelpPanel from './components/HelpPanel';
 import ChatPage from './ChatPage';
 import PopupPage from './PopupPage';
 import OverlayPage from './OverlayPage';
 import { useStore } from './store';
 import { getDeterministicColor } from '../../src/shared/colors';
 import { useAppWebSocket } from './hooks/useAppWebSocket';
+
+type DesktopTab = 'monitor' | 'moderation' | 'settings' | 'obs' | 'help';
+
+const desktopTabs = [
+  { id: 'monitor', label: 'Live monitor', icon: LayoutDashboard },
+  { id: 'moderation', label: 'Moderation', icon: ShieldAlert },
+  { id: 'settings', label: 'Settings', icon: Sliders },
+  { id: 'obs', label: 'OBS setup', icon: Tv },
+  { id: 'help', label: 'Help', icon: BookOpen },
+] as const;
 
 export default function App() {
   const [searchParams] = useSearchParams();
@@ -50,7 +62,7 @@ function DesktopApp() {
   const { wsRef, currentAudioTime, isConnected } = useAppWebSocket(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const [activeTab, setActiveTab] = useState<'monitor' | 'moderation' | 'settings' | 'obs'>('monitor');
+  const [activeTab, setActiveTab] = useState<DesktopTab>('monitor');
   const [toast, setToast] = useState<string | null>(null);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [manualText, setManualText] = useState('');
@@ -229,9 +241,10 @@ function DesktopApp() {
   const protocol = window.location.protocol === 'file:' ? 'http:' : window.location.protocol;
   const hostname = window.location.hostname || 'localhost';
   const baseUrl = `${protocol}//${hostname}:${port}`;
+  const currentTab = desktopTabs.find((tab) => tab.id === activeTab)!;
 
   return (
-    <div className="h-screen w-screen flex flex-col overflow-hidden bg-slate-50 text-slate-800">
+    <div className="desktop-shell flex h-screen w-screen overflow-hidden">
       {/* Toast Notification (Windows 11 InfoBar Style) */}
       {toast && (
         <div className="fixed top-4 right-4 z-50 bg-white/95 border border-black/10 text-slate-800 px-3.5 py-2 rounded-md shadow-[0_4px_16px_rgba(0,0,0,0.12)] backdrop-blur-md flex items-center gap-2.5 animate-fade-in text-xs font-medium">
@@ -240,116 +253,107 @@ function DesktopApp() {
         </div>
       )}
 
-      {/* App header */}
-      <header className="w-full min-h-14 bg-[#FAFBFD] border-b border-black/[0.08] px-3 sm:px-4 py-2 flex flex-wrap items-center gap-x-4 gap-y-2 shrink-0 z-40 select-none">
-        <div className="flex items-center gap-3 shrink-0">
-          <div className="flex items-center gap-1.5">
-            <Volume2 className="w-4 h-4 text-[#0067C0] shrink-0" aria-hidden="true" />
-            <span className="text-sm font-semibold text-slate-900 tracking-tight">BABA TTS</span>
+      <aside className="flex w-48 shrink-0 select-none flex-col border-r border-black/[0.10] bg-white">
+        <div className="flex h-14 shrink-0 items-center gap-2.5 border-b border-black/[0.08] px-4">
+          <div className="flex h-8 w-8 items-center justify-center rounded-md border border-black/[0.10] bg-white text-slate-700">
+            <Volume2 className="h-4 w-4" aria-hidden="true" />
           </div>
-          <div
-            role="status"
-            aria-live="polite"
-            className={`flex items-center gap-1.5 text-xs ${isConnected ? 'text-emerald-700' : 'text-amber-700'}`}
-            title={isConnected ? 'Connected to the local BABA TTS server' : 'Connecting to the local BABA TTS server'}
-          >
-            <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-emerald-500' : 'bg-amber-500 animate-pulse'}`} />
-            <span>{isConnected ? 'Connected' : 'Connecting'}</span>
-          </div>
-          {queuedMessageCount > 0 && (
-            <span
-              className="px-2 py-1 rounded-full bg-[#E8F2FC] text-[#005A9E] text-xs font-medium"
-              aria-label={`${queuedMessageCount} messages in the queue`}
-            >
-              {queuedMessageCount} queued
-            </span>
-          )}
+          <span className="text-[13px] font-semibold tracking-tight text-slate-900">BABA TTS</span>
         </div>
 
-        <nav
-          role="tablist"
-          aria-label="Application sections"
-          className="flex items-center gap-1 order-last w-full lg:order-none lg:w-auto lg:flex-1 lg:justify-center border-t border-slate-200/70 pt-1 lg:border-0 lg:pt-0"
-        >
-          {[
-            { id: 'monitor' as const, label: 'Live monitor', icon: LayoutDashboard },
-            { id: 'moderation' as const, label: 'Moderation', icon: ShieldAlert },
-            { id: 'settings' as const, label: 'Settings', icon: Sliders },
-            { id: 'obs' as const, label: 'OBS setup', icon: Tv },
-          ].map((tab) => {
+        <nav aria-label="Application sections" className="flex flex-col gap-1 px-2 py-3">
+          {desktopTabs.map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
             return (
               <button
                 key={tab.id}
-                role="tab"
-                aria-selected={isActive}
+                type="button"
+                aria-current={isActive ? 'page' : undefined}
                 onClick={() => setActiveTab(tab.id)}
-                className={`relative min-h-9 px-2.5 sm:px-3 flex items-center gap-1.5 text-xs font-medium transition-colors cursor-pointer rounded-md focus-visible:ring-2 focus-visible:ring-[#0067C0] focus-visible:outline-none ${
+                className={`relative flex min-h-10 w-full cursor-pointer items-center gap-3 rounded-md px-3 text-left text-[13px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#64748B] ${
                   isActive
-                    ? 'text-slate-900 bg-[#E8F2FC] font-semibold'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-black/[0.04]'
+                    ? 'bg-[#F3F3F3] font-semibold text-slate-900 ring-1 ring-inset ring-black/[0.08] before:absolute before:left-0 before:top-2 before:bottom-2 before:w-[3px] before:rounded-r before:bg-slate-700'
+                    : 'text-slate-700 hover:bg-black/[0.05] hover:text-slate-900'
                 }`}
-                title={tab.label}
               >
-                <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-[#0067C0]' : 'text-slate-500'}`} aria-hidden="true" />
+                <Icon className="h-4 w-4 shrink-0 text-slate-600" aria-hidden="true" />
                 <span>{tab.label}</span>
               </button>
             );
           })}
         </nav>
 
-        {(activeTab === 'monitor' || activeTab === 'moderation') && (
-          <div className="flex items-center gap-1.5 shrink-0 border-l border-slate-200 pl-3 ml-auto">
-            <button
-              onClick={handleSkipCurrent}
-              disabled={!activeMessage}
-              className="min-h-9 px-3 flex items-center gap-1.5 rounded-md bg-white hover:bg-amber-50 active:bg-amber-100 border border-amber-200 text-xs font-medium text-amber-800 transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-45 focus-visible:ring-2 focus-visible:ring-[#0067C0] focus-visible:outline-none"
-              aria-label="Skip the current message"
-            >
-              <RotateCcw className="w-3.5 h-3.5" aria-hidden="true" />
-              <span>Skip</span>
-            </button>
-
-            <button
-              onClick={handleBanCurrent}
-              disabled={!activeMessage}
-              className="min-h-9 px-3 flex items-center gap-1.5 rounded-md bg-white hover:bg-rose-50 active:bg-rose-100 border border-rose-200 text-xs font-medium text-rose-800 transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-45 focus-visible:ring-2 focus-visible:ring-[#0067C0] focus-visible:outline-none"
-              aria-label="Ban and skip the current speaker"
-            >
-              <ShieldAlert className="w-3.5 h-3.5" aria-hidden="true" />
-              <span>Ban &amp; skip</span>
-            </button>
-
-            <button
-              onClick={handleClearQueue}
-              disabled={queuedMessageCount === 0}
-              className="min-h-9 px-3 flex items-center gap-1.5 rounded-md bg-white hover:bg-slate-100 active:bg-slate-200 border border-slate-200 text-xs font-medium text-slate-700 transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-45 focus-visible:ring-2 focus-visible:ring-[#0067C0] focus-visible:outline-none"
-              aria-label="Clear the TTS queue"
-            >
-              <Trash2 className="w-3.5 h-3.5 text-slate-500" aria-hidden="true" />
-              <span>Clear queue</span>
-            </button>
+        <div className="mt-auto border-t border-black/[0.08] px-4 py-3">
+          <div role="status" aria-live="polite" className="flex items-center gap-2 text-xs text-slate-700">
+            <span className={`h-2 w-2 rounded-full ${isConnected ? 'bg-emerald-600' : 'bg-amber-500 animate-pulse'}`} aria-hidden="true" />
+            <span>{isConnected ? 'Connected' : 'Connecting'}</span>
           </div>
-        )}
-      </header>
+          {queuedMessageCount > 0 && (
+            <div className="mt-2 text-xs text-slate-600" aria-label={`${queuedMessageCount} messages in the queue`}>
+              Queue <span className="font-semibold text-slate-900">{queuedMessageCount}</span>
+            </div>
+          )}
+        </div>
+      </aside>
+
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+        <header className="z-40 flex min-h-14 shrink-0 flex-wrap select-none items-center justify-between border-b border-black/[0.08] bg-white px-3 md:px-5">
+          <h1 className="min-w-0 truncate text-sm font-semibold text-slate-900 max-[480px]:w-full max-[480px]:basis-full">{currentTab.label}</h1>
+          {(activeTab === 'monitor' || activeTab === 'moderation') && (
+            <div className="ml-4 flex shrink-0 items-center justify-end gap-1.5 border-l border-black/[0.10] pl-3 max-[480px]:ml-auto max-[480px]:gap-1 max-[480px]:border-l-0 max-[480px]:pl-0 max-[360px]:gap-0">
+                <button
+                  onClick={handleSkipCurrent}
+                  disabled={!activeMessage}
+                  className="flex min-h-9 items-center gap-1.5 rounded-md border border-black/[0.12] bg-white px-3 text-xs font-medium text-slate-700 transition-colors hover:bg-[#F3F3F3] active:bg-[#E8E8E8] disabled:cursor-not-allowed disabled:opacity-45 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#64748B] max-[480px]:px-2 max-[360px]:px-1"
+                  aria-label="Skip the current message"
+                  title="Skip the current message"
+                >
+                  <RotateCcw className="h-3.5 w-3.5 text-slate-600" aria-hidden="true" />
+                  <span className="hidden md:inline">Skip</span>
+                </button>
+
+                <button
+                  onClick={handleBanCurrent}
+                  disabled={!activeMessage}
+                  className="flex min-h-9 items-center gap-1.5 rounded-md border border-[#C42B1C]/30 bg-white px-3 text-xs font-medium text-[#9A2418] transition-colors hover:bg-[#FDF4F3] active:bg-[#F8E7E5] disabled:cursor-not-allowed disabled:opacity-45 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#64748B] max-[480px]:px-2 max-[360px]:px-1"
+                  aria-label="Ban and skip the current speaker"
+                  title="Ban and skip the current speaker"
+                >
+                  <ShieldAlert className="h-3.5 w-3.5" aria-hidden="true" />
+                  <span className="hidden md:inline">Ban &amp; skip</span>
+                </button>
+
+                <button
+                  onClick={handleClearQueue}
+                  disabled={queuedMessageCount === 0}
+                  className="flex min-h-9 items-center gap-1.5 rounded-md border border-black/[0.12] bg-white px-3 text-xs font-medium text-slate-700 transition-colors hover:bg-[#F3F3F3] active:bg-[#E8E8E8] disabled:cursor-not-allowed disabled:opacity-45 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#64748B] max-[480px]:px-2 max-[360px]:px-1"
+                  aria-label="Clear the TTS queue"
+                  title="Clear the TTS queue"
+                >
+                  <Trash2 className="h-3.5 w-3.5 text-slate-500" aria-hidden="true" />
+                  <span className="hidden md:inline">Clear queue</span>
+                </button>
+            </div>
+          )}
+        </header>
 
       {/* Main Tab Views */}
-      <main className="flex-1 overflow-hidden flex flex-col min-h-0 bg-slate-50">
+      <main id="app-main-content" className="desktop-shell flex min-h-0 flex-1 flex-col overflow-hidden">
         {/* TAB 1: LIVE MONITOR & CHAT */}
         {activeTab === 'monitor' && (
-          <div className="flex-1 flex flex-col md:flex-row min-h-0 overflow-hidden">
+          <div className="flex-1 flex flex-col lg:flex-row min-h-0 overflow-hidden">
             {/* Left Column: Currently Speaking Spotlight & Manual Speech Controls */}
-            <div className="w-full md:w-[360px] lg:w-[400px] max-h-[46vh] md:max-h-none flex flex-col gap-4 p-4 border-b md:border-b-0 md:border-r border-slate-200 bg-white overflow-y-auto shrink-0">
+            <div className="w-full lg:w-[360px] 2xl:w-[400px] max-h-[46vh] lg:max-h-none flex flex-col gap-4 p-4 border-b lg:border-b-0 lg:border-r border-slate-200 bg-white overflow-y-auto shrink-0">
               {/* CURRENTLY SPEAKING CARD */}
               <div className="flex flex-col gap-2">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-semibold text-slate-800 flex items-center gap-1.5">
-                    <Volume2 className="w-3.5 h-3.5 text-[#0067C0]" />
+                    <Volume2 className="w-3.5 h-3.5 text-slate-600" />
                     Now speaking
                   </span>
                   {activeMessage && (
-                    <span className="text-[10px] font-medium font-mono px-2 py-0.5 rounded-[3px] bg-emerald-50 text-emerald-800 border border-emerald-300/60 animate-pulse uppercase">
+                    <span className="text-xs font-medium font-mono px-2 py-0.5 rounded-[3px] bg-slate-100 text-slate-700 border border-slate-300 uppercase">
                       {activeMessage.status}
                     </span>
                   )}
@@ -366,10 +370,10 @@ function DesktopApp() {
                     />
                   </div>
                 ) : (
-                  <div className="min-h-24 px-4 py-5 rounded-lg bg-white border border-dashed border-slate-300 flex flex-col items-center justify-center text-center gap-1.5 text-slate-500">
+                  <div className="min-h-24 px-4 py-5 rounded-md bg-white border border-dashed border-slate-300 flex flex-col items-center justify-center text-center gap-1.5 text-slate-500">
                     <Volume2 className="w-4 h-4 text-slate-400" aria-hidden="true" />
                     <div className="text-xs font-medium text-slate-700">Nothing is speaking</div>
-                    <div className="text-[11px] text-slate-500">New messages will appear here.</div>
+                    <div className="text-xs text-slate-500">New messages will appear here.</div>
                   </div>
                 )}
               </div>
@@ -378,7 +382,7 @@ function DesktopApp() {
               <div className="flex flex-col gap-3 pt-4 border-t border-slate-200 mt-auto">
                 <div className="flex items-center justify-between">
                   <label htmlFor="manual-speech" className="text-sm font-semibold text-slate-800 flex items-center gap-1.5">
-                    <Send className="w-4 h-4 text-[#0067C0]" aria-hidden="true" />
+                    <Send className="w-4 h-4 text-slate-600" aria-hidden="true" />
                     Speak a message
                   </label>
                 </div>
@@ -397,11 +401,11 @@ function DesktopApp() {
                         }
                       }}
                       placeholder="Type a message..."
-                      className="flex-1 min-w-0 min-h-10 px-3 rounded-md bg-white border border-slate-300 focus:border-[#0067C0] focus-visible:ring-2 focus-visible:ring-[#0067C0] focus-visible:outline-none text-sm text-slate-900 placeholder-slate-400 transition-colors"
+                      className="box-border h-9 min-w-0 flex-1 rounded-md border border-slate-300 bg-white px-3 text-sm leading-normal text-slate-900 placeholder-slate-400 transition-colors focus:border-[#64748B] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#64748B]"
                     />
                     <button
                       onClick={handleManualSpeakBaba}
-                      className="min-h-10 px-3 rounded-md bg-[#0067C0] hover:bg-[#1879CD] text-white text-sm font-medium transition-colors shrink-0 flex items-center gap-1.5 cursor-pointer focus-visible:ring-2 focus-visible:ring-[#0067C0] focus-visible:outline-none"
+                      className="box-border flex h-9 shrink-0 cursor-pointer items-center justify-center gap-1.5 rounded-md bg-[#333333] px-3 text-sm font-medium leading-none text-white transition-colors hover:bg-[#1F1F1F] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#64748B]"
                     >
                       <Volume2 className="w-3.5 h-3.5" />
                       <span>Speak</span>
@@ -411,7 +415,7 @@ function DesktopApp() {
                 </div>
 
                 <details className="group rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
-                  <summary className="flex min-h-8 cursor-pointer list-none items-center justify-between gap-3 text-xs font-medium text-slate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0067C0] [&::-webkit-details-marker]:hidden">
+                  <summary className="flex min-h-8 cursor-pointer list-none items-center justify-between gap-3 text-xs font-medium text-slate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#64748B] [&::-webkit-details-marker]:hidden">
                     <span className="flex items-center gap-2">
                       <Sparkles className="w-3.5 h-3.5 text-slate-500" aria-hidden="true" />
                       Soundcheck &amp; simulation
@@ -421,13 +425,13 @@ function DesktopApp() {
                   <div className="flex flex-wrap gap-2 pt-2">
                     <button
                       onClick={handleSpeakAsBanned}
-                      className="min-h-9 px-3 rounded-md border border-slate-300 bg-white hover:bg-slate-100 text-xs font-medium text-slate-700 transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-[#0067C0] focus-visible:outline-none"
+                      className="min-h-9 px-3 rounded-md border border-slate-300 bg-white hover:bg-slate-100 text-xs font-medium text-slate-700 transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-[#64748B] focus-visible:outline-none"
                     >
                       Speak as banned user
                     </button>
                     <button
                       onClick={simulateGoodMessage}
-                      className="min-h-9 px-3 rounded-md border border-slate-300 bg-white hover:bg-slate-100 text-xs font-medium text-slate-700 transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-[#0067C0] focus-visible:outline-none"
+                      className="min-h-9 px-3 rounded-md border border-slate-300 bg-white hover:bg-slate-100 text-xs font-medium text-slate-700 transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-[#64748B] focus-visible:outline-none"
                     >
                       Simulate chat
                     </button>
@@ -440,7 +444,7 @@ function DesktopApp() {
             <div className="flex-1 flex flex-col p-4 sm:p-5 overflow-hidden min-h-0 bg-slate-50">
               <div className="flex items-center justify-between pb-2.5 border-b border-black/[0.08] mb-3">
                 <div className="flex items-center gap-2">
-                  <MessageSquare className="w-4 h-4 text-[#0067C0]" />
+                  <MessageSquare className="w-4 h-4 text-slate-600" />
                   <span className="text-sm font-semibold text-slate-800">Live chat</span>
                   <span className="text-xs text-slate-500">{messages.length}</span>
                 </div>
@@ -452,7 +456,7 @@ function DesktopApp() {
                   <div className="h-full flex flex-col items-center justify-center text-slate-400 gap-2 p-8 text-center">
                     <MessageSquare className="w-8 h-8 text-slate-300 stroke-[1.5]" />
                     <div className="font-semibold text-slate-600 text-xs">No Chat Messages Yet</div>
-                    <div className="text-[11px] text-slate-500 max-w-sm">
+                    <div className="text-xs text-slate-500 max-w-sm">
                       Messages from your YouTube live chat or test simulation buttons will appear here in real-time.
                     </div>
                   </div>
@@ -480,39 +484,29 @@ function DesktopApp() {
 
         {/* TAB 2: MODERATION */}
         {activeTab === 'moderation' && (
-          <div className="flex-1 p-6 overflow-hidden flex flex-col min-h-0 bg-slate-50">
+          <div className="desktop-shell flex min-h-0 flex-1 flex-col overflow-hidden p-5">
             <ModerationPanel onBanUser={handleBanUser} onUnbanUser={handleUnbanUser} />
           </div>
         )}
 
         {/* TAB 3: SETTINGS */}
         {activeTab === 'settings' && (
-          <div className="flex-1 p-6 overflow-y-auto max-w-4xl mx-auto w-full bg-slate-50">
+          <div className="desktop-shell flex-1 w-full max-w-5xl mx-auto overflow-y-auto p-5">
             <SettingsPanel onRestart={handleRestart} serverPort={port} />
           </div>
         )}
 
         {/* TAB 4: OBS OVERLAYS GUIDE */}
         {activeTab === 'obs' && (
-          <div className="flex-1 p-6 overflow-y-auto max-w-4xl mx-auto w-full space-y-4 bg-slate-50">
-            <div className="flex items-center gap-2.5">
-              <div className="p-2 rounded-md bg-black/[0.04] border border-black/[0.08] text-[#0067C0]">
-                <Tv className="w-5 h-5" aria-hidden="true" />
-              </div>
-              <div>
-                <h2 className="text-base font-semibold text-slate-900">OBS browser source</h2>
-                <p className="text-xs text-slate-600 mt-0.5">Add the speaking overlay to your stream.</p>
-              </div>
-            </div>
-
-            <section aria-labelledby="speaking-overlay-heading" className="p-4 rounded-lg bg-white border border-[#0067C0]/25 shadow-[0_1px_2px_rgba(0,0,0,0.02)] space-y-3">
+          <div className="desktop-shell flex-1 w-full max-w-5xl mx-auto overflow-y-auto space-y-4 p-5">
+            <section aria-labelledby="speaking-overlay-heading" className="desktop-panel space-y-3 p-4">
               <div>
                 <h3 id="speaking-overlay-heading" className="text-sm font-semibold text-slate-900">TTS speaking overlay</h3>
                 <p className="text-xs text-slate-600 mt-1">Shows the speaker and synchronized text while BABA TTS is talking.</p>
               </div>
 
               <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-                <code className="min-w-0 flex-1 text-xs font-mono text-[#0067C0] bg-[#F8F9FA] px-2.5 py-2 rounded-[4px] border border-black/[0.06] break-all select-all">
+                <code className="min-w-0 flex-1 text-xs font-mono text-slate-800 bg-[#F7F7F7] px-2.5 py-2 rounded-[4px] border border-black/[0.08] break-all select-all">
                   {baseUrl + '/popup'}
                 </code>
                 <div className="flex items-center gap-3 shrink-0">
@@ -521,14 +515,14 @@ function DesktopApp() {
                     target="_blank"
                     rel="noopener noreferrer"
                     aria-label="Preview TTS speaking overlay in a browser tab"
-                    className="inline-flex items-center gap-1 text-xs font-medium text-slate-700 hover:text-slate-900 focus-visible:ring-2 focus-visible:ring-[#0067C0] focus-visible:outline-none rounded"
+                    className="inline-flex items-center gap-1 text-xs font-medium text-slate-700 hover:text-slate-900 focus-visible:ring-2 focus-visible:ring-[#64748B] focus-visible:outline-none rounded"
                   >
                     <ExternalLink className="w-3.5 h-3.5" aria-hidden="true" />
                     Preview
                   </a>
-                  <button
+                    <button
                     onClick={() => copyToClipboard(baseUrl + '/popup', 'popup', 'Speaking overlay')}
-                    className={copiedKey === 'popup' ? 'inline-flex items-center justify-center gap-1.5 h-8 px-3 rounded-[4px] text-xs font-medium transition-colors shadow-2xs cursor-pointer focus-visible:ring-2 focus-visible:ring-[#0067C0] focus-visible:outline-none bg-emerald-600 text-white' : 'inline-flex items-center justify-center gap-1.5 h-8 px-3 rounded-[4px] text-xs font-medium transition-colors shadow-2xs cursor-pointer focus-visible:ring-2 focus-visible:ring-[#0067C0] focus-visible:outline-none bg-[#0067C0] hover:bg-[#1879CD] text-white'}
+                    className={copiedKey === 'popup' ? 'inline-flex items-center justify-center gap-1.5 h-8 px-3 rounded-[4px] text-xs font-medium transition-colors shadow-2xs cursor-pointer focus-visible:ring-2 focus-visible:ring-[#64748B] focus-visible:outline-none bg-emerald-600 text-white' : 'inline-flex items-center justify-center gap-1.5 h-8 px-3 rounded-[4px] text-xs font-medium transition-colors shadow-2xs cursor-pointer focus-visible:ring-2 focus-visible:ring-[#64748B] focus-visible:outline-none bg-[#333333] hover:bg-[#1F1F1F] text-white'}
                   >
                     {copiedKey === 'popup' ? (
                       <>
@@ -546,7 +540,7 @@ function DesktopApp() {
               </div>
             </section>
 
-            <section aria-labelledby="obs-setup-heading" className="p-4 rounded-lg bg-white border border-black/[0.08] space-y-3">
+            <section aria-labelledby="obs-setup-heading" className="desktop-panel space-y-3 p-4">
               <h3 id="obs-setup-heading" className="text-sm font-semibold text-slate-900">Add it to OBS</h3>
               <ol className="list-decimal pl-5 space-y-1.5 text-xs text-slate-700">
                 <li>In the OBS Sources dock, choose <strong>+</strong> → <strong>Browser</strong>.</li>
@@ -556,13 +550,13 @@ function DesktopApp() {
                 <Volume2 className="w-4 h-4 mt-0.5 shrink-0 text-amber-700" aria-hidden="true" />
                 <p><strong>Audio setting:</strong> Leave “Control audio via OBS” unchecked. BABA TTS plays audio through the desktop app.</p>
               </div>
-              <p className="text-[11px] text-slate-600">
+              <p className="text-xs text-slate-600">
                 Optional: Enable “Shutdown source when not visible” in OBS to reduce resource use.
               </p>
             </section>
 
-            <details className="group rounded-lg border border-black/[0.08] bg-white">
-              <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-xs font-medium text-slate-800 rounded-lg focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#0067C0] focus-visible:outline-none">
+            <details className="group desktop-panel">
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-xs font-medium text-slate-800 rounded-md focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#64748B] focus-visible:outline-none">
                 <span>Other sources</span>
                 <ChevronDown className="w-4 h-4 text-slate-500 transition-transform group-open:rotate-180" aria-hidden="true" />
               </summary>
@@ -570,14 +564,14 @@ function DesktopApp() {
                 <div className="flex flex-col sm:flex-row sm:items-center gap-2 py-3">
                   <div className="flex-1 min-w-0">
                     <p className="text-xs font-medium text-slate-800">Full vertical overlay</p>
-                    <p className="text-[11px] text-slate-600">Speaking overlay and chat history · 1080 × 1920</p>
+                    <p className="text-xs text-slate-600">Speaking overlay and chat history · 1080 × 1920</p>
                   </div>
-                  <code className="min-w-0 flex-1 text-[11px] font-mono text-slate-700 break-all select-all">{baseUrl + '/overlay'}</code>
+                  <code className="min-w-0 flex-1 text-xs font-mono text-slate-700 break-all select-all">{baseUrl + '/overlay'}</code>
                   <div className="flex items-center gap-3 shrink-0">
-                    <a href={baseUrl + '/overlay'} target="_blank" rel="noopener noreferrer" aria-label="Preview full vertical overlay in a browser tab" className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-700 hover:text-slate-900 focus-visible:ring-2 focus-visible:ring-[#0067C0] focus-visible:outline-none rounded">
+                    <a href={baseUrl + '/overlay'} target="_blank" rel="noopener noreferrer" aria-label="Preview full vertical overlay in a browser tab" className="inline-flex items-center gap-1 text-xs font-medium text-slate-700 hover:text-slate-900 focus-visible:ring-2 focus-visible:ring-[#64748B] focus-visible:outline-none rounded">
                       <ExternalLink className="w-3.5 h-3.5" aria-hidden="true" /> Preview
                     </a>
-                    <button onClick={() => copyToClipboard(baseUrl + '/overlay', 'overlay', 'Full vertical overlay')} className="inline-flex items-center gap-1 h-7 px-2.5 rounded-[4px] border border-black/[0.12] bg-white hover:bg-slate-50 text-[11px] font-medium text-slate-700 cursor-pointer focus-visible:ring-2 focus-visible:ring-[#0067C0] focus-visible:outline-none">
+                    <button onClick={() => copyToClipboard(baseUrl + '/overlay', 'overlay', 'Full vertical overlay')} className="inline-flex items-center gap-1 h-7 px-2.5 rounded-[4px] border border-black/[0.12] bg-white hover:bg-slate-50 text-xs font-medium text-slate-700 cursor-pointer focus-visible:ring-2 focus-visible:ring-[#64748B] focus-visible:outline-none">
                       {copiedKey === 'overlay' ? <Check className="w-3 h-3" aria-hidden="true" /> : <Copy className="w-3 h-3" aria-hidden="true" />}
                       {copiedKey === 'overlay' ? 'Copied' : 'Copy URL'}
                     </button>
@@ -586,14 +580,14 @@ function DesktopApp() {
                 <div className="flex flex-col sm:flex-row sm:items-center gap-2 py-3">
                   <div className="flex-1 min-w-0">
                     <p className="text-xs font-medium text-slate-800">Chat only</p>
-                    <p className="text-[11px] text-slate-600">Transparent, auto-scrolling chat history</p>
+                    <p className="text-xs text-slate-600">Transparent, auto-scrolling chat history</p>
                   </div>
-                  <code className="min-w-0 flex-1 text-[11px] font-mono text-slate-700 break-all select-all">{baseUrl + '/chat'}</code>
+                  <code className="min-w-0 flex-1 text-xs font-mono text-slate-700 break-all select-all">{baseUrl + '/chat'}</code>
                   <div className="flex items-center gap-3 shrink-0">
-                    <a href={baseUrl + '/chat'} target="_blank" rel="noopener noreferrer" aria-label="Preview chat-only source in a browser tab" className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-700 hover:text-slate-900 focus-visible:ring-2 focus-visible:ring-[#0067C0] focus-visible:outline-none rounded">
+                    <a href={baseUrl + '/chat'} target="_blank" rel="noopener noreferrer" aria-label="Preview chat-only source in a browser tab" className="inline-flex items-center gap-1 text-xs font-medium text-slate-700 hover:text-slate-900 focus-visible:ring-2 focus-visible:ring-[#64748B] focus-visible:outline-none rounded">
                       <ExternalLink className="w-3.5 h-3.5" aria-hidden="true" /> Preview
                     </a>
-                    <button onClick={() => copyToClipboard(baseUrl + '/chat', 'chat', 'Chat-only source')} className="inline-flex items-center gap-1 h-7 px-2.5 rounded-[4px] border border-black/[0.12] bg-white hover:bg-slate-50 text-[11px] font-medium text-slate-700 cursor-pointer focus-visible:ring-2 focus-visible:ring-[#0067C0] focus-visible:outline-none">
+                    <button onClick={() => copyToClipboard(baseUrl + '/chat', 'chat', 'Chat-only source')} className="inline-flex items-center gap-1 h-7 px-2.5 rounded-[4px] border border-black/[0.12] bg-white hover:bg-slate-50 text-xs font-medium text-slate-700 cursor-pointer focus-visible:ring-2 focus-visible:ring-[#64748B] focus-visible:outline-none">
                       {copiedKey === 'chat' ? <Check className="w-3 h-3" aria-hidden="true" /> : <Copy className="w-3 h-3" aria-hidden="true" />}
                       {copiedKey === 'chat' ? 'Copied' : 'Copy URL'}
                     </button>
@@ -603,7 +597,14 @@ function DesktopApp() {
             </details>
           </div>
         )}
+
+        {activeTab === 'help' && (
+          <div className="flex-1 overflow-y-auto p-5">
+            <HelpPanel baseUrl={baseUrl} />
+          </div>
+        )}
       </main>
+      </div>
     </div>
   );
 }

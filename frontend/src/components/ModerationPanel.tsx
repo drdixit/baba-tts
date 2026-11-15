@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { useStore } from '../store';
-import { getDeterministicColor } from '../../../src/shared/colors';
 import { UserCheck, UserX, Shield, Search } from 'lucide-react';
 
 interface ModerationPanelProps {
@@ -26,11 +25,7 @@ const ModerationPanel: React.FC<ModerationPanelProps> = ({ onBanUser, onUnbanUse
 
   return (
     <div className="w-full flex flex-col gap-4 flex-1 min-h-0">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div>
-          <h2 className="text-base font-semibold text-slate-900">Moderation</h2>
-          <p className="mt-0.5 text-xs text-slate-500">Choose who can use TTS.</p>
-        </div>
+      <div className="flex justify-end">
         <label className="relative w-full sm:w-72">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" aria-hidden="true" />
           <input
@@ -39,17 +34,17 @@ const ModerationPanel: React.FC<ModerationPanelProps> = ({ onBanUser, onUnbanUse
             onChange={(event) => setSearchQuery(event.target.value)}
             placeholder="Find a chatter"
             aria-label="Find an active or banned chatter"
-            className="w-full min-h-10 pl-9 pr-3 rounded-md border border-slate-300 bg-white text-sm text-slate-900 placeholder:text-slate-400 focus:border-[#0067C0] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0067C0]"
+            className="w-full min-h-10 pl-9 pr-3 rounded-md border border-slate-300 bg-white text-sm text-slate-900 placeholder:text-slate-400 focus:border-[#64748B] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#64748B]"
           />
         </label>
       </div>
 
-      <div className="w-full flex flex-col md:flex-row gap-4 flex-1 min-h-0">
+      <div className="w-full flex flex-col lg:flex-row gap-4 flex-1 min-h-0">
       {/* Active Users Panel */}
-      <div className="flex-1 flex flex-col bg-white rounded-lg border border-black/[0.08] overflow-hidden min-h-0">
-        <div className="px-4 py-3 border-b border-black/[0.08] flex justify-between items-center">
+      <div className="desktop-panel flex flex-1 flex-col overflow-hidden min-h-0">
+        <div className="desktop-panel-header px-4 py-3 flex justify-between items-center">
           <div className="flex items-center gap-2">
-            <UserCheck className="w-4 h-4 text-emerald-600" />
+            <UserCheck className="w-4 h-4 text-slate-600" />
             <span className="text-sm font-semibold text-slate-800">Active chatters</span>
           </div>
           <span className="text-xs text-slate-500">
@@ -60,7 +55,7 @@ const ModerationPanel: React.FC<ModerationPanelProps> = ({ onBanUser, onUnbanUse
           {filteredActiveUsers.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center text-slate-500 text-xs gap-1">
               <span>{normalizedQuery ? 'No active chatters match your search.' : 'No active chatters yet.'}</span>
-              {!normalizedQuery && <span className="text-[11px]">Viewers appear here after they chat.</span>}
+              {!normalizedQuery && <span className="text-xs">Viewers appear here after they chat.</span>}
             </div>
           ) : (
             filteredActiveUsers.map((user) => (
@@ -72,16 +67,13 @@ const ModerationPanel: React.FC<ModerationPanelProps> = ({ onBanUser, onUnbanUse
                   <div className="w-7 h-7 rounded-full bg-slate-200 flex items-center justify-center font-bold text-xs text-slate-700 shrink-0">
                     {(Array.from(user.displayName)[0] || '?').toUpperCase()}
                   </div>
-                  <span
-                    className="text-xs font-semibold truncate text-slate-800"
-                    style={{ color: getDeterministicColor(user.displayName) }}
-                  >
+                  <span className="text-xs font-semibold truncate text-slate-800">
                     {user.displayName}
                   </span>
                 </div>
                 <button
                   onClick={() => onBanUser(user.authorId, user.displayName, user.profileImageUrl)}
-                  className="shrink-0 min-h-9 px-3 rounded-md border border-rose-200 bg-white hover:bg-rose-50 text-rose-700 text-xs font-medium transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-[#0067C0] focus-visible:outline-none"
+                  className="shrink-0 min-h-9 px-3 rounded-md border border-rose-200 bg-white hover:bg-rose-50 text-rose-700 text-xs font-medium transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-[#64748B] focus-visible:outline-none"
                   aria-label={`Ban ${user.displayName} from TTS`}
                 >
                   Ban
@@ -93,8 +85,8 @@ const ModerationPanel: React.FC<ModerationPanelProps> = ({ onBanUser, onUnbanUse
       </div>
 
       {/* Banned Users Panel */}
-      <div className="flex-1 flex flex-col bg-white rounded-lg border border-black/[0.08] overflow-hidden min-h-0">
-        <div className="px-4 py-3 border-b border-black/[0.08] flex justify-between items-center">
+      <div className="desktop-panel flex flex-1 flex-col overflow-hidden min-h-0">
+        <div className="desktop-panel-header px-4 py-3 flex justify-between items-center">
           <div className="flex items-center gap-2">
             <UserX className="w-4 h-4 text-slate-500" />
             <span className="text-sm font-semibold text-slate-800">Banned from TTS</span>
@@ -107,7 +99,7 @@ const ModerationPanel: React.FC<ModerationPanelProps> = ({ onBanUser, onUnbanUse
           {filteredBannedUsers.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center text-slate-500 text-xs gap-1">
               <span>{normalizedQuery ? 'No banned users match your search.' : 'No banned users.'}</span>
-              {!normalizedQuery && <span className="text-[11px]">Banned users cannot use TTS.</span>}
+              {!normalizedQuery && <span className="text-xs">Banned users cannot use TTS.</span>}
             </div>
           ) : (
             filteredBannedUsers.map((user) => (
@@ -125,7 +117,7 @@ const ModerationPanel: React.FC<ModerationPanelProps> = ({ onBanUser, onUnbanUse
                 </div>
                 <button
                   onClick={() => onUnbanUser(user.authorId)}
-                  className="shrink-0 min-h-9 px-3 rounded-md border border-slate-300 bg-white hover:bg-slate-100 text-slate-700 text-xs font-medium transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-[#0067C0] focus-visible:outline-none"
+                  className="shrink-0 min-h-9 px-3 rounded-md border border-slate-300 bg-white hover:bg-slate-100 text-slate-700 text-xs font-medium transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-[#64748B] focus-visible:outline-none"
                   aria-label={`Unban ${user.displayName}`}
                 >
                   Unban

@@ -2,17 +2,34 @@
 
 @layer base {
   :root {
-    --fluent-bg: #f3f3f3;
-    --fluent-surface: #ffffff;
-    --fluent-border: rgba(0, 0, 0, 0.08);
-    --fluent-accent: #0067c0;
-    --fluent-accent-hover: #1879cd;
+    --desktop-workspace: #f3f3f3;
+    --desktop-surface: #ffffff;
+    --desktop-border: rgba(0, 0, 0, 0.1);
+    --desktop-divider: rgba(0, 0, 0, 0.08);
+    --desktop-text: #1f2937;
   }
 
   body {
     font-family: "Segoe UI Variable Text", "Segoe UI", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+@layer components {
+  .desktop-shell {
+    background-color: var(--desktop-workspace);
+    color: var(--desktop-text);
+  }
+
+  .desktop-panel {
+    border: 1px solid var(--desktop-border);
+    border-radius: 6px;
+    background-color: var(--desktop-surface);
+  }
+
+  .desktop-panel-header {
+    border-bottom: 1px solid var(--desktop-divider);
   }
 }
 

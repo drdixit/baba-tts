@@ -29,7 +29,7 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({ message, currentAu
 
   const authorColor = React.useMemo(() => {
     if (variant === 'inline') {
-      return getDeterministicColor(message.authorName, 'light');
+      return '#404040';
     }
     return message.authorColor || getDeterministicColor(message.authorName, 'dark');
   }, [message.authorName, message.authorColor, variant]);
@@ -75,7 +75,7 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({ message, currentAu
           <div 
             className={`${
               variant === 'inline'
-                ? 'relative w-full p-3.5 rounded-lg flex flex-row items-center gap-3.5 text-left overflow-hidden shadow-[0_1px_2px_rgba(0,0,0,0.03)] border border-black/[0.08] bg-white'
+                ? 'relative w-full p-3.5 rounded-md flex flex-row items-center gap-3.5 text-left overflow-hidden shadow-[0_1px_2px_rgba(0,0,0,0.03)] border border-black/[0.08] bg-white'
                 : 'fixed bottom-[630px] left-[49px] right-[51px] z-50 p-6 rounded-3xl animate-spotlight flex flex-row items-center gap-8 text-left overflow-hidden shadow-2xl'
             } ${message.theme === 'pro-clean' ? 'border-l-[6px]' : ''}`}
             style={{ 
@@ -88,7 +88,7 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({ message, currentAu
             {/* Background Sweep effect */}
             {message.theme === 'subtitle-sweep' && message.status === 'speaking' && (
               <div 
-                className={`absolute top-0 left-0 bottom-0 rounded-3xl pointer-events-none -z-10 ${variant === 'inline' ? 'bg-indigo-100/50' : 'bg-white/15'}`}
+                className={`absolute top-0 left-0 bottom-0 rounded-3xl pointer-events-none -z-10 ${variant === 'inline' ? 'bg-slate-200/60' : 'bg-white/15'}`}
                 style={{
                   width: (() => {
                     if (!messageBoundaries || messageBoundaries.length === 0 || currentAudioTime === undefined) return '0%';
@@ -112,9 +112,9 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({ message, currentAu
                   src={message.authorProfileImageUrl} 
                   alt={`${message.authorName}'s avatar`} onError={(e) => { e.currentTarget.src = `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(message.authorName)}`; }} 
                   className={`${variant === 'inline' ? 'w-10 h-10 shadow-2xs' : 'w-24 h-24 shadow-lg bg-gray-800'} rounded-full object-cover z-10 transition-all duration-300
-                    ${message.status === 'speaking' ? (message.theme === 'pro-clean' ? 'scale-110 border-3' : 'animate-avatar-speak border-2') : ''}
-                    ${message.status === 'processing' ? 'animate-avatar-process border-2' : ''}
-                    ${message.status !== 'speaking' && message.status !== 'processing' ? 'border border-slate-200 animate-avatar-float' : ''}
+                    ${message.status === 'speaking' ? (message.theme === 'pro-clean' ? 'scale-110 border-3' : (variant === 'inline' ? 'border-2 border-slate-500' : 'animate-avatar-speak border-2')) : ''}
+                    ${message.status === 'processing' ? (variant === 'inline' ? 'border-2 border-slate-400' : 'animate-avatar-process border-2') : ''}
+                    ${message.status !== 'speaking' && message.status !== 'processing' ? (variant === 'inline' ? 'border border-slate-200' : 'border border-slate-200 animate-avatar-float') : ''}
                   `}
                   style={message.status === 'speaking' ? { borderColor: authorColor, '--author-color': authorColor } as React.CSSProperties : undefined}
                 />
@@ -226,8 +226,8 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({ message, currentAu
         variant === 'inline'
           ? `px-3 py-1.5 rounded-[4px] border transition-colors ${
               isActive 
-                ? 'bg-[#0067C0]/[0.08] border-[#0067C0]/30 shadow-2xs' 
-                : 'bg-white hover:bg-black/[0.02] border-black/[0.06] shadow-2xs'
+                ? 'bg-[#EAEAEA] border-[#B5B5B5]'
+                : 'bg-white hover:bg-black/[0.02] border-black/[0.06]'
             }`
           : 'px-2 py-1 rounded bg-transparent'
       } flex items-center justify-between transition-all duration-300 ${
@@ -249,14 +249,14 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({ message, currentAu
               : 'text-[42px] leading-relaxed drop-shadow-[1px_1px_2px_rgba(0,0,0,1)] text-gray-50'
           } break-words transition-all duration-300 origin-left ${
             message.status === 'skipped'
-              ? (variant === 'inline' ? 'line-through text-rose-500/80' : 'line-through text-rose-400')
+              ? (variant === 'inline' ? 'line-through text-slate-500' : 'line-through text-rose-400')
               : message.status === 'done'
                 ? (variant === 'inline' ? 'text-slate-600' : 'text-gray-300')
                 : ''
           } ${isActive ? (variant === 'inline' ? 'text-slate-900 font-medium' : 'text-green-300') : ''}`}>
             <span 
               className={`font-semibold mr-1.5 ${variant === 'inline' ? '' : 'drop-shadow-[1px_1px_2px_rgba(0,0,0,1)]'}`}
-              style={{ color: message.authorColor || '#0067C0' }}
+              style={{ color: variant === 'inline' ? '#404040' : (message.authorColor || '#0067C0') }}
             >
               {message.authorName}:
             </span>
@@ -269,11 +269,11 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({ message, currentAu
             className={`shrink-0 ${variant === 'inline' ? 'text-[10px] font-mono font-medium px-1.5 py-0.2 rounded-[3px] border' : 'text-[10px] px-2 py-0.5 rounded uppercase tracking-wider font-bold shadow-md'} ml-2 ${
               variant === 'inline'
                 ? (message.status === 'speaking'
-                    ? 'bg-emerald-50 text-emerald-800 border-emerald-300/60 animate-pulse'
+                    ? 'bg-slate-800 text-white border-slate-800'
                     : message.status === 'processing'
-                    ? 'bg-amber-50 text-amber-800 border-amber-300/60 animate-pulse'
+                    ? 'bg-slate-100 text-slate-700 border-slate-300'
                     : message.status === 'queued'
-                    ? 'bg-blue-50 text-[#0067C0] border-blue-200'
+                    ? 'bg-slate-50 text-slate-600 border-slate-200'
                     : message.status === 'skipped'
                     ? 'bg-slate-100 text-slate-500 border-slate-200'
                     : statusBadgeStyles[message.status])
