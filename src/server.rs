@@ -143,18 +143,48 @@ async fn skip_current_handler(State(state): State<AppState>) -> impl IntoRespons
     "Skipped"
 }
 
-async fn skip_ban_current_handler(State(state): State<AppState>) -> impl IntoResponse {
-    if let Some(current) = state.tts_handle.get_current_processing().await {
-        if let Some(aid) = current.author_id {
-            let _ = state.db.ban_user(&aid, &current.author_name, current.author_profile_image_url.as_deref());
-            state.tts_handle.remove_user(aid).await;
-            if let Ok(banned) = state.db.get_banned_users() {
-                let _ = state.broadcast_tx.send(WsBroadcastMessage::BannedUsers(banned));
+async fn skip_ban_current_handler(State(state): State<AppState>) -> Response {
+    let Some(current) = state.tts_handle.get_current_processing().await else {
+        return "No active message to ban".into_response();
+    };
+
+    let author_name = current.author_name.clone();
+    let message_id = current.message_id.clone();
+    let author_id = current.author_id.filter(|id| !id.trim().is_empty());
+    let mut ban_saved = false;
+
+    if let Some(id) = author_id.as_deref() {
+        match state
+            .db
+            .ban_user(id, &author_name, current.author_profile_image_url.as_deref())
+        {
+            Ok(()) => {
+                ban_saved = true;
+                if let Ok(banned) = state.db.get_banned_users() {
+                    let _ = state.broadcast_tx.send(WsBroadcastMessage::BannedUsers(banned));
+                }
             }
-            return format!("Banned and skipped: {}", current.author_name);
+            Err(error) => tracing::warn!("Failed to ban current speaker {}: {}", author_name, error),
         }
     }
-    "No active message to ban".to_string()
+
+    let author_id_to_remove = if ban_saved { author_id.clone() } else { None };
+    state
+        .tts_handle
+        .remove_user_and_skip_message(author_id_to_remove, message_id)
+        .await;
+
+    if ban_saved {
+        format!("Banned and skipped: {author_name}").into_response()
+    } else if author_id.is_some() {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "Skipped the current message, but saving the ban failed",
+        )
+            .into_response()
+    } else {
+        format!("Skipped {author_name}; no author ID was available to save a ban").into_response()
+    }
 }
 
 #[derive(Debug, Deserialize, Default)]

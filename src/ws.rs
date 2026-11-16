@@ -138,13 +138,32 @@ pub async fn handle_websocket(
                             }
                             ClientWsCommand::BanCurrentSpeaker => {
                                 if let Some(current) = tts_handle.get_current_processing().await {
-                                    if let Some(aid) = current.author_id {
-                                        let _ = db.ban_user(&aid, &current.author_name, current.author_profile_image_url.as_deref());
-                                        tts_handle.remove_user(aid).await;
-                                        if let Ok(banned) = db.get_banned_users() {
-                                            let _ = broadcast_tx.send(WsBroadcastMessage::BannedUsers(banned));
+                                    let author_id = current.author_id.filter(|id| !id.trim().is_empty());
+                                    let mut ban_saved = false;
+                                    if let Some(id) = author_id.as_deref() {
+                                        match db.ban_user(
+                                            id,
+                                            &current.author_name,
+                                            current.author_profile_image_url.as_deref(),
+                                        ) {
+                                            Ok(()) => {
+                                                ban_saved = true;
+                                                if let Ok(banned) = db.get_banned_users() {
+                                                    let _ = broadcast_tx.send(WsBroadcastMessage::BannedUsers(banned));
+                                                }
+                                            }
+                                            Err(error) => tracing::warn!(
+                                                "Failed to ban current speaker {}: {}",
+                                                current.author_name,
+                                                error
+                                            ),
                                         }
                                     }
+
+                                    let author_id_to_remove = if ban_saved { author_id } else { None };
+                                    tts_handle
+                                        .remove_user_and_skip_message(author_id_to_remove, current.message_id)
+                                        .await;
                                 }
                             }
                             ClientWsCommand::BanUser { payload } => {

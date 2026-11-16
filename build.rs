@@ -1,4 +1,16 @@
 fn main() {
+    let manifest_dir = std::path::PathBuf::from(
+        std::env::var("CARGO_MANIFEST_DIR").expect("Cargo sets CARGO_MANIFEST_DIR"),
+    );
+    let embedded_ui = manifest_dir.join("frontend/dist/index.html");
+    if !embedded_ui.is_file() {
+        panic!(
+            "The embedded frontend is missing at {}. Build it first with `npm ci && npm run build` from the frontend directory.",
+            embedded_ui.display()
+        );
+    }
+    println!("cargo:rerun-if-changed={}", embedded_ui.display());
+
     #[cfg(windows)]
     windows_build::build();
 }

@@ -4,8 +4,8 @@ use serde::{Deserialize, Serialize};
 #[serde(rename_all = "camelCase")]
 pub struct WordBoundary {
     pub text: String,
-    pub audio_offset: f64, // In milliseconds
-    pub duration: f64,     // In milliseconds
+    pub audio_offset: f64, // Seconds from the start of the audio.
+    pub duration: f64,     // Seconds.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub text_offset: Option<usize>,
 }

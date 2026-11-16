@@ -27,10 +27,23 @@ use std::net::SocketAddr;
 use tokio::sync::broadcast;
 use tracing::info;
 
+const DEFAULT_SERVER_PORT: u16 = 7060;
+const MIN_SERVER_PORT: u16 = 7060;
+const MAX_SERVER_PORT: u16 = 7100;
+
+fn active_server_port() -> u16 {
+    Db::open("baba.db")
+        .ok()
+        .and_then(|db| db.get_setting("active_port").ok().flatten())
+        .and_then(|port| port.parse::<u16>().ok())
+        .filter(|port| (MIN_SERVER_PORT..=MAX_SERVER_PORT).contains(port))
+        .unwrap_or(DEFAULT_SERVER_PORT)
+}
+
 pub fn enforce_single_instance(instance: &SingleInstance) -> bool {
     if !instance.is_single() {
         eprintln!("[BABA TTS] Another instance is already running! Focusing existing window...");
-        crate::window::restore_and_focus_window(7060);
+        crate::window::restore_and_focus_window(active_server_port());
         return false;
     }
     true
@@ -216,24 +229,52 @@ async fn real_main() -> Result<()> {
     );
     youtube_poller.start();
 
-    // 6. Dynamic Port Selection & Server Binding
-    // Default to port 7060. If restarting, allow port 7060 a few seconds to release TIME_WAIT.
-    let mut port = 7060;
+    // Development uses a stable port so Vite's local proxy can connect reliably.
+    // Release builds may fall forward through the reserved local port range unless configured.
+    let requested_port = match std::env::var("BABA_TTS_PORT") {
+        Ok(value) if value.trim().is_empty() => None,
+        Ok(value) => {
+            let port = value
+                .parse::<u16>()
+                .context("BABA_TTS_PORT must be a valid port number")?;
+            if !(MIN_SERVER_PORT..=MAX_SERVER_PORT).contains(&port) {
+                anyhow::bail!(
+                    "BABA_TTS_PORT must be between {MIN_SERVER_PORT} and {MAX_SERVER_PORT}"
+                );
+            }
+            Some(port)
+        }
+        Err(std::env::VarError::NotPresent) => None,
+        Err(error) => return Err(anyhow::anyhow!("Could not read BABA_TTS_PORT: {error}")),
+    };
+    let initial_port = requested_port.unwrap_or(DEFAULT_SERVER_PORT);
+    let fixed_port = requested_port.is_some() || cfg!(debug_assertions);
+    let mut port = initial_port;
     let bind_start = std::time::Instant::now();
     let listener = loop {
         let addr = SocketAddr::from(([127, 0, 0, 1], port));
         match tokio::net::TcpListener::bind(addr).await {
             Ok(l) => break l,
             Err(e) if e.kind() == std::io::ErrorKind::AddrInUse => {
-                if is_restarting && port == 7060 && bind_start.elapsed() < std::time::Duration::from_secs(5) {
-                    tracing::info!("Waiting for port 7060 to release after restart...");
+                if is_restarting
+                    && port == initial_port
+                    && bind_start.elapsed() < std::time::Duration::from_secs(5)
+                {
+                    tracing::info!("Waiting for port {} to release after restart...", initial_port);
                     tokio::time::sleep(std::time::Duration::from_millis(250)).await;
                     continue;
                 }
+                if fixed_port {
+                    return Err(anyhow::anyhow!(
+                        "Port {port} is already in use. Stop the conflicting process or set BABA_TTS_PORT to another port between {MIN_SERVER_PORT} and {MAX_SERVER_PORT}."
+                    ));
+                }
                 tracing::warn!("Port {} in use, trying next port {}", port, port + 1);
                 port += 1;
-                if port > 7100 {
-                    return Err(anyhow::anyhow!("Could not find available port in range 7060-7100"));
+                if port > MAX_SERVER_PORT {
+                    return Err(anyhow::anyhow!(
+                        "Could not find an available port in range {MIN_SERVER_PORT}-{MAX_SERVER_PORT}"
+                    ));
                 }
             }
             Err(e) => return Err(e).context(format!("Failed to bind server to port {}", port)),

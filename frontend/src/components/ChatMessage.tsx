@@ -1,6 +1,6 @@
 import React from 'react';
-import type { ChatMessage as ChatMessageType } from '../../../src/shared/types';
-import { getDeterministicColor } from '../../../src/shared/colors';
+import type { ChatMessage as ChatMessageType } from '../shared/types';
+import { getDeterministicColor } from '../shared/colors';
 
 interface ChatMessageProps {
   message: ChatMessageType;

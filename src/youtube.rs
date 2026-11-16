@@ -70,16 +70,24 @@ impl YouTubePoller {
             }
 
             info!("[YouTube] Discovering live stream...");
-            match self.poll_stream_session(&settings.youtube_channel_id, settings.youtube_live_id.as_deref()).await {
+            let retry_delay = match self
+                .poll_stream_session(&settings.youtube_channel_id, settings.youtube_live_id.as_deref())
+                .await
+            {
                 Ok(_) => {
                     info!("[YouTube] Live stream ended or completed. Waiting 60s before re-checking...");
+                    if !self.stop_signal.load(Ordering::Relaxed) {
+                        self.tts_handle.clear_pending_queue().await;
+                    }
+                    Duration::from_secs(60)
                 }
                 Err(err) => {
                     warn!("[YouTube] Polling error: {}. Retrying in 30s...", err);
+                    Duration::from_secs(30)
                 }
-            }
+            };
 
-            sleep(Duration::from_secs(30)).await;
+            sleep(retry_delay).await;
         }
     }
 
@@ -112,7 +120,6 @@ impl YouTubePoller {
             .context("Live stream is not currently active (no continuation found)")?;
 
         info!("[YouTube] Connected to live stream! Starting chat poll loop...");
-        self.tts_handle.clear_queue().await;
 
         let themes = ["subtitle-sweep", "subtitle-karaoke", "subtitle-words", "pro-clean"];
         let mut theme_index = 0;

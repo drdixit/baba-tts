@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { ChatMessage } from '../../src/shared/types';
+import type { ChatMessage } from './shared/types';
 
 export interface BannedUser {
   authorId: string;

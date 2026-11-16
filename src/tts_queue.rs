@@ -1,7 +1,7 @@
 use crate::azure_tts::AzureTtsClient;
 use crate::types::{AppSettings, ChatMessage, WordBoundary};
-use std::collections::{HashSet, VecDeque};
-use std::time::Duration;
+use std::collections::{HashMap, VecDeque};
+use std::time::{Duration, Instant};
 use tokio::sync::{broadcast, mpsc, oneshot};
 use tokio::time::sleep;
 use tracing::{info, warn};
@@ -29,13 +29,66 @@ pub enum TtsCommand {
     AudioFinished(Option<String>),
     SkipCurrent,
     ClearQueue,
+    ClearPendingQueue,
     RemoveUser(String),
+    RemoveUserAndSkipMessage {
+        author_id: Option<String>,
+        message_id: String,
+    },
     GetCurrentProcessing(oneshot::Sender<Option<ChatMessage>>),
     UpdateSettings(AppSettings),
     SynthesisComplete {
         message_id: String,
         result: Result<crate::azure_tts::SpeechSynthesisResult, String>,
     },
+}
+
+const RECENT_TEXT_WINDOW: Duration = Duration::from_secs(30);
+const MAX_RECENT_TEXTS: usize = 4096;
+
+#[derive(Default)]
+struct RecentMessageCache {
+    expires_at: HashMap<String, Instant>,
+    oldest_first: VecDeque<(Instant, String)>,
+}
+
+impl RecentMessageCache {
+    fn should_suppress(&mut self, text: &str, now: Instant) -> bool {
+        self.remove_expired(now);
+
+        if self.expires_at.contains_key(text) {
+            return true;
+        }
+
+        let text = text.to_owned();
+        let expires_at = now + RECENT_TEXT_WINDOW;
+        self.expires_at.insert(text.clone(), expires_at);
+        self.oldest_first.push_back((expires_at, text));
+
+        while self.expires_at.len() > MAX_RECENT_TEXTS {
+            self.remove_oldest();
+        }
+
+        false
+    }
+
+    fn remove_expired(&mut self, now: Instant) {
+        while self
+            .oldest_first
+            .front()
+            .is_some_and(|(expires_at, _)| *expires_at <= now)
+        {
+            self.remove_oldest();
+        }
+    }
+
+    fn remove_oldest(&mut self) {
+        if let Some((expires_at, text)) = self.oldest_first.pop_front() {
+            if self.expires_at.get(&text) == Some(&expires_at) {
+                self.expires_at.remove(&text);
+            }
+        }
+    }
 }
 
 #[derive(Clone)]
@@ -64,8 +117,23 @@ impl TtsHandle {
         let _ = self.sender.send(TtsCommand::ClearQueue).await;
     }
 
+    /// Drops queued messages while allowing the current utterance to finish.
+    pub async fn clear_pending_queue(&self) {
+        let _ = self.sender.send(TtsCommand::ClearPendingQueue).await;
+    }
+
     pub async fn remove_user(&self, author_id: String) {
         let _ = self.sender.send(TtsCommand::RemoveUser(author_id)).await;
+    }
+
+    pub async fn remove_user_and_skip_message(&self, author_id: Option<String>, message_id: String) {
+        let _ = self
+            .sender
+            .send(TtsCommand::RemoveUserAndSkipMessage {
+                author_id,
+                message_id,
+            })
+            .await;
     }
 
     pub async fn get_current_processing(&self) -> Option<ChatMessage> {
@@ -91,7 +159,7 @@ pub struct TtsActor {
     settings: AppSettings,
     voice_round_robin_index: usize,
     self_handle: mpsc::Sender<TtsCommand>,
-    recent_cache: HashSet<String>,
+    recent_cache: RecentMessageCache,
 }
 
 fn default_hindi_voice() -> String {
@@ -123,7 +191,7 @@ impl TtsActor {
             settings: initial_settings,
             voice_round_robin_index: 0,
             self_handle: tx.clone(),
-            recent_cache: HashSet::new(),
+            recent_cache: RecentMessageCache::default(),
         };
 
         tokio::spawn(actor.run());
@@ -135,7 +203,7 @@ impl TtsActor {
             match cmd {
                 TtsCommand::Enqueue(msg) => {
                     let text_lower = msg.text.trim().to_lowercase();
-                    if self.recent_cache.contains(&text_lower) {
+                    if self.recent_cache.should_suppress(&text_lower, Instant::now()) {
                         info!("[TTS] Skipping duplicate message: {}", msg.text);
                         let _ = self.broadcast_tx.send(WsBroadcastMessage::TtsState {
                             message_id: msg.message_id.clone(),
@@ -143,7 +211,6 @@ impl TtsActor {
                         });
                         continue;
                     }
-                    self.recent_cache.insert(text_lower);
                     self.queue.push_back(msg);
                     self.process_next();
                 }
@@ -197,6 +264,14 @@ impl TtsActor {
                     }
                     self.is_processing = false;
                 }
+                TtsCommand::ClearPendingQueue => {
+                    for msg in self.queue.drain(..) {
+                        let _ = self.broadcast_tx.send(WsBroadcastMessage::TtsState {
+                            message_id: msg.message_id,
+                            state: "skipped".to_string(),
+                        });
+                    }
+                }
                 TtsCommand::RemoveUser(author_id) => {
                     self.queue.retain(|msg| {
                         if msg.author_id.as_deref() == Some(&author_id) {
@@ -216,6 +291,42 @@ impl TtsActor {
                             self.current = None;
                             let _ = self.broadcast_tx.send(WsBroadcastMessage::TtsState {
                                 message_id: id,
+                                state: "skipped".to_string(),
+                            });
+                            let _ = self.broadcast_tx.send(WsBroadcastMessage::KillAudio);
+                            self.is_processing = false;
+                            self.process_next();
+                        }
+                    }
+                }
+                TtsCommand::RemoveUserAndSkipMessage {
+                    author_id,
+                    message_id,
+                } => {
+                    if let Some(author_id) = author_id.as_deref() {
+                        self.queue.retain(|msg| {
+                            if msg.author_id.as_deref() == Some(author_id) {
+                                let _ = self.broadcast_tx.send(WsBroadcastMessage::TtsState {
+                                    message_id: msg.message_id.clone(),
+                                    state: "skipped".to_string(),
+                                });
+                                false
+                            } else {
+                                true
+                            }
+                        });
+                    }
+
+                    let should_skip_current = self.current.as_ref().is_some_and(|current| {
+                        current.message_id == message_id
+                            || author_id
+                                .as_deref()
+                                .is_some_and(|author_id| current.author_id.as_deref() == Some(author_id))
+                    });
+                    if should_skip_current {
+                        if let Some(current) = self.current.take() {
+                            let _ = self.broadcast_tx.send(WsBroadcastMessage::TtsState {
+                                message_id: current.message_id,
                                 state: "skipped".to_string(),
                             });
                             let _ = self.broadcast_tx.send(WsBroadcastMessage::KillAudio);

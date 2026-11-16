@@ -22,7 +22,7 @@ import ChatPage from './ChatPage';
 import PopupPage from './PopupPage';
 import OverlayPage from './OverlayPage';
 import { useStore } from './store';
-import { getDeterministicColor } from '../../src/shared/colors';
+import { getDeterministicColor } from './shared/colors';
 import { useAppWebSocket } from './hooks/useAppWebSocket';
 
 type DesktopTab = 'monitor' | 'moderation' | 'settings' | 'obs' | 'help';
