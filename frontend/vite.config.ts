@@ -7,7 +7,8 @@ const repositoryRoot = fileURLToPath(new URL('../', import.meta.url))
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, repositoryRoot, 'BABA_TTS_')
-  const backendPort = Number(process.env.BABA_TTS_PORT || env.BABA_TTS_PORT || '7060')
+  const backendPortValue = process.env.BABA_TTS_PORT?.trim() || env.BABA_TTS_PORT?.trim() || '7060'
+  const backendPort = Number(backendPortValue)
   if (!Number.isInteger(backendPort) || backendPort < 7060 || backendPort > 7100) {
     throw new Error('BABA_TTS_PORT must be a number between 7060 and 7100')
   }

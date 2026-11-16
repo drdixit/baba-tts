@@ -9,6 +9,10 @@ fn main() {
             embedded_ui.display()
         );
     }
+    println!(
+        "cargo:rerun-if-changed={}",
+        manifest_dir.join("frontend/dist").display()
+    );
     println!("cargo:rerun-if-changed={}", embedded_ui.display());
 
     #[cfg(windows)]
