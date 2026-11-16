@@ -2,17 +2,28 @@
 
 @layer base {
   :root {
+    color-scheme: light;
     --desktop-workspace: #f3f3f3;
     --desktop-surface: #ffffff;
-    --desktop-border: rgba(0, 0, 0, 0.1);
-    --desktop-divider: rgba(0, 0, 0, 0.08);
-    --desktop-text: #1f2937;
+    --desktop-border: #d6d6d6;
+    --desktop-divider: #e5e5e5;
+    --desktop-text: #1f1f1f;
   }
 
   body {
-    font-family: "Segoe UI Variable Text", "Segoe UI", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
+    margin: 0;
+    background: var(--desktop-workspace);
+    color: var(--desktop-text);
+    font-family: "Segoe UI Variable", "Segoe UI", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+    font-size: 13px;
+    scrollbar-gutter: stable;
+  }
+
+  button,
+  input,
+  select,
+  textarea {
+    font: inherit;
   }
 }
 
@@ -24,12 +35,95 @@
 
   .desktop-panel {
     border: 1px solid var(--desktop-border);
-    border-radius: 6px;
+    border-radius: 4px;
     background-color: var(--desktop-surface);
   }
 
   .desktop-panel-header {
     border-bottom: 1px solid var(--desktop-divider);
+  }
+
+  .desktop-groupbox {
+    min-width: 0;
+    margin: 0;
+    border: 1px solid #bdbdbd;
+    border-radius: 2px;
+    background: #fff;
+    padding: 5px 9px 8px;
+  }
+
+  .desktop-groupbox-legend {
+    padding: 0 4px;
+    margin-left: 4px;
+    color: #333;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 18px;
+  }
+
+  .desktop-setting-row {
+    display: grid;
+    grid-template-columns: 124px minmax(0, 1fr);
+    align-items: center;
+    gap: 8px;
+    min-height: 28px;
+    margin-top: 4px;
+  }
+
+  .desktop-setting-label {
+    color: #333;
+    font-size: 12px;
+    font-weight: 500;
+  }
+
+  .desktop-help-text {
+    margin-top: 2px;
+    color: #666;
+    font-size: 11px;
+    line-height: 1.35;
+  }
+
+  .desktop-icon-button {
+    display: inline-flex;
+    width: 17px;
+    height: 17px;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid #c8c8c8;
+    background: #fff;
+    color: #444;
+  }
+
+  .desktop-icon-button:hover:not(:disabled) {
+    background: #ededed;
+  }
+
+  .desktop-icon-button:focus-visible {
+    outline: 1px solid #555;
+    outline-offset: 1px;
+  }
+
+  .desktop-icon-button:disabled {
+    opacity: 0.4;
+  }
+
+  .scrollbar-none {
+    scrollbar-width: none;
+  }
+
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+@media (max-width: 560px) {
+  .desktop-setting-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2px;
+  }
+
+  #voice-selection-status {
+    padding-left: 0;
   }
 }
 

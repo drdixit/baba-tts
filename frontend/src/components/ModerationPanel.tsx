@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useStore } from '../store';
-import { UserCheck, UserX, Shield, Search } from 'lucide-react';
+import { Search } from 'lucide-react';
 
 interface ModerationPanelProps {
   onBanUser: (authorId: string, displayName: string, profileImageUrl?: string) => void;
@@ -24,109 +24,58 @@ const ModerationPanel: React.FC<ModerationPanelProps> = ({ onBanUser, onUnbanUse
   );
 
   return (
-    <div className="w-full flex flex-col gap-4 flex-1 min-h-0">
-      <div className="flex justify-end">
-        <label className="relative w-full sm:w-72">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" aria-hidden="true" />
+    <div className="flex min-h-0 w-full flex-1 flex-col gap-2">
+      <div className="flex min-h-7 items-center justify-between gap-2">
+        <span className="text-xs font-medium text-[#444]">Chatter management</span>
+        <label className="relative w-full max-w-xs">
+          <Search className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#666]" aria-hidden="true" />
           <input
             type="search"
             value={searchQuery}
             onChange={(event) => setSearchQuery(event.target.value)}
             placeholder="Find a chatter"
             aria-label="Find an active or banned chatter"
-            className="w-full min-h-10 pl-9 pr-3 rounded-md border border-slate-300 bg-white text-sm text-slate-900 placeholder:text-slate-400 focus:border-[#64748B] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#64748B]"
+            className="h-7 w-full border border-[#BDBDBD] bg-white pl-7 pr-2 text-xs text-[#222] placeholder:text-[#777] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#555]"
           />
         </label>
       </div>
 
-      <div className="w-full flex flex-col lg:flex-row gap-4 flex-1 min-h-0">
-      {/* Active Users Panel */}
-      <div className="desktop-panel flex flex-1 flex-col overflow-hidden min-h-0">
-        <div className="desktop-panel-header px-4 py-3 flex justify-between items-center">
-          <div className="flex items-center gap-2">
-            <UserCheck className="w-4 h-4 text-slate-600" />
-            <span className="text-sm font-semibold text-slate-800">Active chatters</span>
-          </div>
-          <span className="text-xs text-slate-500">
-            {filteredActiveUsers.length}{normalizedQuery ? ` of ${visibleActiveUsers.length}` : ''}
-          </span>
-        </div>
-        <div className="flex-1 overflow-y-auto p-3 space-y-1.5 custom-scrollbar">
+      <div className="flex min-h-0 w-full flex-1 flex-col gap-2 lg:flex-row">
+      <fieldset className="desktop-groupbox flex min-h-0 flex-1 flex-col overflow-hidden">
+        <legend className="desktop-groupbox-legend">Active chatters · {filteredActiveUsers.length}{normalizedQuery ? ` of ${visibleActiveUsers.length}` : ''}</legend>
+        <div className="min-h-0 flex-1 overflow-y-auto">
           {filteredActiveUsers.length === 0 ? (
-            <div className="h-full flex flex-col items-center justify-center text-slate-500 text-xs gap-1">
-              <span>{normalizedQuery ? 'No active chatters match your search.' : 'No active chatters yet.'}</span>
-              {!normalizedQuery && <span className="text-xs">Viewers appear here after they chat.</span>}
+            <div className="flex min-h-20 items-center justify-center text-xs text-[#666]">
+              {normalizedQuery ? 'No active chatters match this search.' : 'No active chatters yet.'}
             </div>
           ) : (
             filteredActiveUsers.map((user) => (
-              <div
-                key={user.authorId}
-                className="group flex items-center justify-between gap-3 p-2 rounded-md hover:bg-slate-50 transition-colors"
-              >
-                <div className="flex items-center gap-2.5 overflow-hidden">
-                  <div className="w-7 h-7 rounded-full bg-slate-200 flex items-center justify-center font-bold text-xs text-slate-700 shrink-0">
-                    {(Array.from(user.displayName)[0] || '?').toUpperCase()}
-                  </div>
-                  <span className="text-xs font-semibold truncate text-slate-800">
-                    {user.displayName}
-                  </span>
-                </div>
-                <button
-                  onClick={() => onBanUser(user.authorId, user.displayName, user.profileImageUrl)}
-                  className="shrink-0 min-h-9 px-3 rounded-md border border-rose-200 bg-white hover:bg-rose-50 text-rose-700 text-xs font-medium transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-[#64748B] focus-visible:outline-none"
-                  aria-label={`Ban ${user.displayName} from TTS`}
-                >
-                  Ban
-                </button>
+              <div key={user.authorId} className="flex min-h-8 items-center gap-2 border-b border-[#E7E7E7] px-1.5 last:border-b-0 hover:bg-[#F6F6F6]">
+                <span className="min-w-0 flex-1 truncate text-xs font-medium text-[#222]">{user.displayName}</span>
+                <button onClick={() => onBanUser(user.authorId, user.displayName, user.profileImageUrl)} className="h-6 border border-[#C8C8C8] bg-white px-2 text-[11px] text-[#7A1E22] hover:bg-[#FFF5F5] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#555]" aria-label={`Ban ${user.displayName} from TTS`}>Ban</button>
               </div>
             ))
           )}
         </div>
-      </div>
+      </fieldset>
 
-      {/* Banned Users Panel */}
-      <div className="desktop-panel flex flex-1 flex-col overflow-hidden min-h-0">
-        <div className="desktop-panel-header px-4 py-3 flex justify-between items-center">
-          <div className="flex items-center gap-2">
-            <UserX className="w-4 h-4 text-slate-500" />
-            <span className="text-sm font-semibold text-slate-800">Banned from TTS</span>
-          </div>
-          <span className="text-xs text-slate-500">
-            {filteredBannedUsers.length}{normalizedQuery ? ` of ${bannedUsers.length}` : ''}
-          </span>
-        </div>
-        <div className="flex-1 overflow-y-auto p-3 space-y-1.5 custom-scrollbar">
+      <fieldset className="desktop-groupbox flex min-h-0 flex-1 flex-col overflow-hidden">
+        <legend className="desktop-groupbox-legend">Banned from TTS · {filteredBannedUsers.length}{normalizedQuery ? ` of ${bannedUsers.length}` : ''}</legend>
+        <div className="min-h-0 flex-1 overflow-y-auto">
           {filteredBannedUsers.length === 0 ? (
-            <div className="h-full flex flex-col items-center justify-center text-slate-500 text-xs gap-1">
-              <span>{normalizedQuery ? 'No banned users match your search.' : 'No banned users.'}</span>
-              {!normalizedQuery && <span className="text-xs">Banned users cannot use TTS.</span>}
+            <div className="flex min-h-20 items-center justify-center text-xs text-[#666]">
+              {normalizedQuery ? 'No banned users match this search.' : 'No banned users.'}
             </div>
           ) : (
             filteredBannedUsers.map((user) => (
-              <div
-                key={user.authorId}
-                className="group flex items-center justify-between gap-3 p-2 rounded-md hover:bg-slate-50 transition-colors"
-              >
-                <div className="flex items-center gap-2.5 overflow-hidden">
-                  <div className="w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center font-bold text-xs text-slate-600 shrink-0">
-                    <Shield className="w-3.5 h-3.5 text-slate-500" />
-                  </div>
-                  <span className="text-xs font-medium truncate text-slate-600">
-                    {user.displayName}
-                  </span>
-                </div>
-                <button
-                  onClick={() => onUnbanUser(user.authorId)}
-                  className="shrink-0 min-h-9 px-3 rounded-md border border-slate-300 bg-white hover:bg-slate-100 text-slate-700 text-xs font-medium transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-[#64748B] focus-visible:outline-none"
-                  aria-label={`Unban ${user.displayName}`}
-                >
-                  Unban
-                </button>
+              <div key={user.authorId} className="flex min-h-8 items-center gap-2 border-b border-[#E7E7E7] px-1.5 last:border-b-0 hover:bg-[#F6F6F6]">
+                <span className="min-w-0 flex-1 truncate text-xs text-[#333]">{user.displayName}</span>
+                <button onClick={() => onUnbanUser(user.authorId)} className="h-6 border border-[#C8C8C8] bg-white px-2 text-[11px] text-[#333] hover:bg-[#F1F1F1] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#555]" aria-label={`Unban ${user.displayName}`}>Unban</button>
               </div>
             ))
           )}
         </div>
-      </div>
+      </fieldset>
       </div>
     </div>
   );

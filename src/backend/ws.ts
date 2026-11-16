@@ -6,8 +6,25 @@ import { db, banUser, unbanUser, getBannedUsers } from './db.js';
 
 let wss: WebSocketServer | null = null;
 
+export function isLocalDevOrigin(origin?: string): boolean {
+  if (!origin) return true;
+  try {
+    const parsed = new URL(origin);
+    const hostname = parsed.hostname.toLowerCase();
+    const localHost = hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '[::1]';
+    const port = Number(parsed.port);
+    const localPort = (port >= 7060 && port <= 7100) || port === 5173 || port === 3000;
+    return parsed.protocol === 'http:' && localPort && localHost;
+  } catch {
+    return false;
+  }
+}
+
 export function initWebSocketServer(server: Server) {
-  wss = new WebSocketServer({ server });
+  wss = new WebSocketServer({
+    server,
+    verifyClient: (info: { origin: string }) => isLocalDevOrigin(info.origin),
+  });
 
   wss.on('connection', (ws) => {
     console.log('Client connected to WebSocket');

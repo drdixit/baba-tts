@@ -101,7 +101,7 @@ impl TrayCommand {
                 crate::window::restore_and_focus_window(port);
             }
             Self::OpenObs => {
-                let url = format!("http://localhost:{}/chat", port);
+                let url = format!("http://127.0.0.1:{}/chat", port);
                 let _ = open::that(&url);
             }
             Self::SkipCurrent => {
@@ -114,7 +114,7 @@ impl TrayCommand {
                 let url = format!("http://127.0.0.1:{}/api/skip-ban-current", port);
                 runtime.spawn(async move {
                     let client = reqwest::Client::new();
-                    let _ = client.get(&url).send().await;
+                    let _ = client.post(&url).send().await;
                 });
             }
             Self::SpeakAsBanned => {

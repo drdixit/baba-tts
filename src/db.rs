@@ -181,6 +181,28 @@ impl Db {
             settings.azure_speech_voice = val;
         }
 
+        let mut has_saved_voice_pool = false;
+        if let Some(val) = self.get_setting("azure_speech_voices")? {
+            if let Ok(voices) = serde_json::from_str::<Vec<String>>(&val) {
+                let voices: Vec<String> = voices
+                    .into_iter()
+                    .map(|voice| voice.trim().to_string())
+                    .filter(|voice| !voice.is_empty())
+                    .collect();
+                if !voices.is_empty() {
+                    settings.azure_speech_voices = voices;
+                    has_saved_voice_pool = true;
+                }
+            }
+        }
+        if !has_saved_voice_pool {
+            settings.azure_speech_voices = vec![settings.azure_speech_voice.clone()];
+        }
+
+        if let Some(val) = self.get_setting("azure_speech_voice_rotation")? {
+            settings.azure_speech_voice_rotation = val == "true" || val == "1";
+        }
+
         if let Some(val) = self.get_setting("youtube_channel_id")? {
             settings.youtube_channel_id = val;
         } else if let Ok(env_val) = std::env::var("YOUTUBE_CHANNEL_ID") {
@@ -206,6 +228,11 @@ impl Db {
         self.set_setting("azure_speech_key", &settings.azure_speech_key)?;
         self.set_setting("azure_speech_region", &settings.azure_speech_region)?;
         self.set_setting("azure_speech_voice", &settings.azure_speech_voice)?;
+        self.set_setting("azure_speech_voices", &serde_json::to_string(&settings.azure_speech_voices)?)?;
+        self.set_setting(
+            "azure_speech_voice_rotation",
+            if settings.azure_speech_voice_rotation { "true" } else { "false" },
+        )?;
         self.set_setting("youtube_channel_id", &settings.youtube_channel_id)?;
         self.set_setting("youtube_live_id", settings.youtube_live_id.as_deref().unwrap_or(""))?;
         self.set_setting("enable_youtube", if settings.enable_youtube { "true" } else { "false" })?;

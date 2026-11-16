@@ -89,8 +89,23 @@ pub struct TtsActor {
     is_processing: bool,
     broadcast_tx: broadcast::Sender<WsBroadcastMessage>,
     settings: AppSettings,
+    voice_round_robin_index: usize,
     self_handle: mpsc::Sender<TtsCommand>,
     recent_cache: HashSet<String>,
+}
+
+fn default_hindi_voice() -> String {
+    const HINDI_VOICES: [&str; 3] = [
+        "hi-IN-MadhurNeural",
+        "hi-IN-SwaraNeural",
+        "hi-IN-AnanyaNeural",
+    ];
+    let index = (std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .subsec_nanos() as usize)
+        % HINDI_VOICES.len();
+    HINDI_VOICES[index].to_string()
 }
 
 impl TtsActor {
@@ -106,6 +121,7 @@ impl TtsActor {
             is_processing: false,
             broadcast_tx,
             settings: initial_settings,
+            voice_round_robin_index: 0,
             self_handle: tx.clone(),
             recent_cache: HashSet::new(),
         };
@@ -212,6 +228,11 @@ impl TtsActor {
                     let _ = tx.send(self.current.clone());
                 }
                 TtsCommand::UpdateSettings(new_settings) => {
+                    if self.settings.azure_speech_voices != new_settings.azure_speech_voices
+                        || self.settings.azure_speech_voice_rotation != new_settings.azure_speech_voice_rotation
+                    {
+                        self.voice_round_robin_index = 0;
+                    }
                     self.settings = new_settings;
                 }
                 TtsCommand::SynthesisComplete { message_id, result } => {
@@ -283,14 +304,24 @@ impl TtsActor {
 
         let key = self.settings.azure_speech_key.clone();
         let region = self.settings.azure_speech_region.clone();
-        let voice = if self.settings.azure_speech_voice.trim().is_empty() || self.settings.azure_speech_voice == "default" {
-            const HINDI_VOICES: [&str; 3] = ["hi-IN-MadhurNeural", "hi-IN-SwaraNeural", "hi-IN-AnanyaNeural"];
-            let idx = (std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap_or_default()
-                .subsec_nanos() as usize)
-                % HINDI_VOICES.len();
-            HINDI_VOICES[idx].to_string()
+        let synthesis_configured = !key.trim().is_empty() && !region.trim().is_empty();
+        let voice = if self.settings.azure_speech_voice_rotation {
+            let voices: Vec<&str> = self.settings.azure_speech_voices
+                .iter()
+                .map(|voice| voice.trim())
+                .filter(|voice| !voice.is_empty() && *voice != "default")
+                .collect();
+            if voices.is_empty() {
+                default_hindi_voice()
+            } else {
+                let index = self.voice_round_robin_index % voices.len();
+                if synthesis_configured {
+                    self.voice_round_robin_index = (index + 1) % voices.len();
+                }
+                voices[index].to_string()
+            }
+        } else if self.settings.azure_speech_voice.trim().is_empty() || self.settings.azure_speech_voice == "default" {
+            default_hindi_voice()
         } else {
             self.settings.azure_speech_voice.clone()
         };

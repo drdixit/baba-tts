@@ -1,5 +1,5 @@
 import { LiveChat } from 'youtube-chat-next';
-import { isUserBanned } from './db.js';
+import { getAppSettings, isUserBanned } from './db.js';
 import { broadcastMessages } from './ws.js';
 import { enqueueMessageForTTS, clearTTSQueue } from './tts.js';
 import { ChatMessage } from '../../src/shared/types.js';
@@ -77,29 +77,34 @@ async function processModerationQueue() {
 }
 
 export function startUnofficialPolling() {
-  if (unofficialLiveChat) return;
+  const settings = getAppSettings();
+  if (!settings.enableYoutube || unofficialLiveChat) return;
 
-  const liveIdOverride = process.env.YOUTUBE_LIVE_ID;
-  const channelId = process.env.YOUTUBE_CHANNEL_ID || 'UCiz4lqlVpaB4PpK-1aecMgQ';
+  const liveIdOverride = settings.youtubeLiveId;
+  const channelId = settings.youtubeChannelId || 'UCiz4lqlVpaB4PpK-1aecMgQ';
+  let liveChat: LiveChat;
 
   if (liveIdOverride) {
     console.log(`[Unofficial API] Starting YouTube polling for liveId override: ${liveIdOverride}...`);
-    unofficialLiveChat = new LiveChat({ liveId: liveIdOverride }, 5000, 'live');
+    liveChat = new LiveChat({ liveId: liveIdOverride }, 5000, 'live');
   } else if (channelId) {
     console.log(`[Unofficial API] Starting YouTube polling for channelId: ${channelId}...`);
-    unofficialLiveChat = new LiveChat({ channelId }, 5000, 'live');
+    liveChat = new LiveChat({ channelId }, 5000, 'live');
   } else {
     console.log('[Unofficial API] Starting YouTube polling for @babaજી...');
-    unofficialLiveChat = new LiveChat({ handle: '@babaજી' }, 5000, 'live');
+    liveChat = new LiveChat({ handle: '@babaજી' }, 5000, 'live');
   }
+  unofficialLiveChat = liveChat;
 
-  unofficialLiveChat.on("start", (liveId: string) => {
+  liveChat.on("start", (liveId: string) => {
+    if (unofficialLiveChat !== liveChat) return;
     console.log(`[Unofficial API] Connected! Polling started. Using liveId: ${liveId}`);
     clearTTSQueue(); // Flush old backlog!
     moderationQueue.length = 0;
   });
 
-  unofficialLiveChat.on("chat", (chatItem: any) => {
+  liveChat.on("chat", (chatItem: any) => {
+    if (unofficialLiveChat !== liveChat) return;
     try {
       const rawName = chatItem.author.name;
     const authorId = chatItem.author.channelId;
@@ -126,14 +131,15 @@ export function startUnofficialPolling() {
     }
   });
 
-  unofficialLiveChat.on("end", (reason: any) => {
+  liveChat.on("end", (reason: any) => {
+    if (unofficialLiveChat !== liveChat) return;
     console.log(`[Unofficial API] Stream ended: ${reason}`);
     unofficialLiveChat = null;
     if (unofficialRetryTimeout) clearTimeout(unofficialRetryTimeout);
     unofficialRetryTimeout = setTimeout(() => startUnofficialPolling(), 60000);
   });
 
-  unofficialLiveChat.on("error", (err: any) => {
+  liveChat.on("error", (err: any) => {
     if (err.name === 'ScrapeError') {
       console.error('[Unofficial API] YouTube changed page structure. Stopping.');
     } else if (err.name === 'RateLimitError') {
@@ -143,7 +149,8 @@ export function startUnofficialPolling() {
     }
   });
 
-  unofficialLiveChat.start().then((ok: boolean) => {
+  liveChat.start().then((ok: boolean) => {
+    if (unofficialLiveChat !== liveChat) return;
     if (!ok) {
         console.log('[Unofficial API] Failed to start. User might not be live right now. Will retry in 60s.');
         unofficialLiveChat = null;
@@ -151,6 +158,7 @@ export function startUnofficialPolling() {
         unofficialRetryTimeout = setTimeout(() => startUnofficialPolling(), 60000);
     }
   }).catch((e: any) => {
+    if (unofficialLiveChat !== liveChat) return;
     console.error('[Unofficial API] Catch block:', e.message);
     unofficialLiveChat = null;
     if (unofficialRetryTimeout) clearTimeout(unofficialRetryTimeout);
@@ -159,9 +167,9 @@ export function startUnofficialPolling() {
 }
 
 export function stopBroadcastDiscovery() {
-  if (unofficialLiveChat) {
-    unofficialLiveChat.stop('Stopped by backend');
-    unofficialLiveChat = null;
-  }
+  const liveChat = unofficialLiveChat;
+  unofficialLiveChat = null;
+  if (liveChat) liveChat.stop('Stopped by backend');
   if (unofficialRetryTimeout) clearTimeout(unofficialRetryTimeout);
+  unofficialRetryTimeout = null;
 }

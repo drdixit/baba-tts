@@ -7,9 +7,9 @@
     "doc": "docs"
   },
   "scripts": {
-    "dev": "trap 'kill 0' SIGINT; tsx watch src/backend/server.ts & cd frontend && npx vite --host & wait",
+    "dev": "trap 'kill 0' SIGINT; tsx watch src/backend/server.ts & cd frontend && npx vite --host 127.0.0.1 & wait",
     "dev:backend": "tsx watch src/backend/server.ts",
-    "dev:frontend": "cd frontend && npx vite --host",
+    "dev:frontend": "cd frontend && npx vite --host 127.0.0.1",
     "build": "tsc",
     "test": "vitest run"
   },

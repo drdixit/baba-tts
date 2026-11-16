@@ -221,7 +221,7 @@ async fn real_main() -> Result<()> {
     let mut port = 7060;
     let bind_start = std::time::Instant::now();
     let listener = loop {
-        let addr = SocketAddr::from(([0, 0, 0, 0], port));
+        let addr = SocketAddr::from(([127, 0, 0, 1], port));
         match tokio::net::TcpListener::bind(addr).await {
             Ok(l) => break l,
             Err(e) if e.kind() == std::io::ErrorKind::AddrInUse => {
@@ -259,10 +259,10 @@ async fn real_main() -> Result<()> {
 
     let router = create_router(state);
 
-    info!("✓ Server running on http://localhost:{}", port);
-    info!("  • OBS Chat Overlay:    http://localhost:{}/chat", port);
-    info!("  • OBS Moderation Dock: http://localhost:{}/", port);
-    info!("  • Settings API:        http://localhost:{}/api/settings", port);
+    info!("✓ Server running on http://127.0.0.1:{}", port);
+    info!("  • OBS Chat Overlay:    http://127.0.0.1:{}/chat", port);
+    info!("  • OBS Moderation Dock: http://127.0.0.1:{}/", port);
+    info!("  • Settings API:        http://127.0.0.1:{}/api/settings", port);
 
     // 10. Automatically open Dashboard in native desktop window on launch
     let _desktop_window = crate::window::create_desktop_window(port);

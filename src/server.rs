@@ -4,16 +4,17 @@ use crate::tts_queue::{TtsHandle, WsBroadcastMessage};
 use crate::types::{AppSettings, ChatMessage, MessageStatus};
 use crate::ws::handle_websocket;
 use axum::extract::ws::WebSocketUpgrade;
-use axum::extract::{ConnectInfo, State};
-use axum::http::{header, StatusCode, Uri};
+use axum::extract::{ConnectInfo, Query, Request, State};
+use axum::http::{header, HeaderMap, StatusCode, Uri};
+use axum::middleware::{self, Next};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use rust_embed::RustEmbed;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
+use std::time::Duration;
 use tokio::sync::broadcast;
-use tower_http::cors::CorsLayer;
 
 #[derive(RustEmbed)]
 #[folder = "frontend/dist/"]
@@ -33,18 +34,59 @@ pub fn create_router(state: AppState) -> Router {
         .route("/ws", get(ws_handler))
         .route("/api/info", get(get_info_handler))
         .route("/api/last-banned", get(get_last_banned_handler))
-        .route("/api/restart", get(restart_handler).post(restart_handler))
-        .route("/api/skip-current", get(skip_current_handler).post(skip_current_handler))
-        .route("/api/skip-ban-current", get(skip_ban_current_handler).post(skip_ban_current_handler))
+        .route("/api/restart", post(restart_handler))
+        .route("/api/skip-current", post(skip_current_handler))
+        .route("/api/skip-ban-current", post(skip_ban_current_handler))
         .route("/api/baba-say", post(baba_say_handler))
-        .route(
-            "/api/speak-as-banned",
-            get(speak_as_banned_get_handler).post(speak_as_banned_post_handler),
-        )
+        .route("/api/speak-as-banned", post(speak_as_banned_post_handler))
         .route("/api/settings", get(get_settings_handler).post(save_settings_handler))
+        .route("/api/voices", get(get_voices_handler))
+        .route_layer(middleware::from_fn(local_origin_guard))
         .fallback(static_handler)
-        .layer(CorsLayer::permissive())
         .with_state(state)
+}
+
+async fn local_origin_guard(request: Request, next: Next) -> Response {
+    if !is_local_origin(request.headers()) {
+        return (StatusCode::FORBIDDEN, "Requests from non-local origins are not allowed").into_response();
+    }
+    next.run(request).await
+}
+
+fn is_local_origin(headers: &HeaderMap) -> bool {
+    if headers
+        .get("sec-fetch-site")
+        .and_then(|value| value.to_str().ok())
+        == Some("cross-site")
+    {
+        return false;
+    }
+
+    let Some(origin) = headers.get(header::ORIGIN) else {
+        return true;
+    };
+    let Ok(origin) = origin.to_str() else {
+        return false;
+    };
+    let Ok(uri) = origin.parse::<Uri>() else {
+        return false;
+    };
+    if uri.scheme_str() != Some("http")
+        || !uri.port_u16().is_some_and(|port| {
+            (7060..=7100).contains(&port) || matches!(port, 3000 | 5173)
+        })
+    {
+        return false;
+    }
+
+    let Some(host) = uri.host() else {
+        return false;
+    };
+    let host = host.trim_start_matches('[').trim_end_matches(']');
+    host.eq_ignore_ascii_case("localhost")
+        || host
+            .parse::<std::net::IpAddr>()
+            .is_ok_and(|address| address.is_loopback())
 }
 
 async fn get_info_handler(State(state): State<AppState>) -> Json<serde_json::Value> {
@@ -52,9 +94,9 @@ async fn get_info_handler(State(state): State<AppState>) -> Json<serde_json::Val
     Json(serde_json::json!({
         "port": state.port,
         "bannedCount": banned_count,
-        "appUrl": format!("http://localhost:{}/", state.port),
-        "obsChatUrl": format!("http://localhost:{}/chat", state.port),
-        "obsDockUrl": format!("http://localhost:{}/", state.port),
+        "appUrl": format!("http://127.0.0.1:{}/", state.port),
+        "obsChatUrl": format!("http://127.0.0.1:{}/chat", state.port),
+        "obsDockUrl": format!("http://127.0.0.1:{}/", state.port),
     }))
 }
 
@@ -151,10 +193,6 @@ async fn baba_say_handler(
     Json(serde_json::json!({ "success": true, "text": trimmed })).into_response()
 }
 
-async fn speak_as_banned_get_handler(State(state): State<AppState>) -> Response {
-    execute_speak_as_banned(&state, None).await
-}
-
 async fn speak_as_banned_post_handler(
     State(state): State<AppState>,
     body: axum::body::Bytes,
@@ -219,20 +257,326 @@ async fn execute_speak_as_banned(state: &AppState, custom_text: Option<String>) 
     .into_response()
 }
 
-async fn get_settings_handler(State(state): State<AppState>) -> Json<AppSettings> {
-    let settings = state.db.load_settings().unwrap_or_default();
-    Json(settings)
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SettingsResponse {
+    azure_speech_key_configured: bool,
+    azure_speech_region: String,
+    azure_speech_voice: String,
+    azure_speech_voices: Vec<String>,
+    azure_speech_voice_rotation: bool,
+    youtube_channel_id: String,
+    youtube_live_id: Option<String>,
+    enable_youtube: bool,
+}
+
+impl From<&AppSettings> for SettingsResponse {
+    fn from(settings: &AppSettings) -> Self {
+        Self {
+            azure_speech_key_configured: !settings.azure_speech_key.trim().is_empty(),
+            azure_speech_region: settings.azure_speech_region.clone(),
+            azure_speech_voice: settings.azure_speech_voice.clone(),
+            azure_speech_voices: settings.azure_speech_voices.clone(),
+            azure_speech_voice_rotation: settings.azure_speech_voice_rotation,
+            youtube_channel_id: settings.youtube_channel_id.clone(),
+            youtube_live_id: settings.youtube_live_id.clone(),
+            enable_youtube: settings.enable_youtube,
+        }
+    }
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SaveSettingsPayload {
+    #[serde(default)]
+    azure_speech_key: Option<String>,
+    #[serde(default)]
+    clear_azure_speech_key: bool,
+    azure_speech_region: String,
+    azure_speech_voice: String,
+    #[serde(default)]
+    azure_speech_voices: Option<Vec<String>>,
+    #[serde(default)]
+    azure_speech_voice_rotation: bool,
+    youtube_channel_id: String,
+    youtube_live_id: Option<String>,
+    enable_youtube: bool,
+}
+
+impl SaveSettingsPayload {
+    fn into_settings(self, current: AppSettings) -> AppSettings {
+        let azure_speech_key = if self.clear_azure_speech_key {
+            String::new()
+        } else {
+            self.azure_speech_key
+                .filter(|key| !key.trim().is_empty())
+                .unwrap_or(current.azure_speech_key)
+        };
+
+        let mut azure_speech_voice = self.azure_speech_voice;
+        let mut azure_speech_voices = self.azure_speech_voices.unwrap_or_else(|| {
+            vec![azure_speech_voice.clone()]
+        });
+        azure_speech_voices = azure_speech_voices
+            .into_iter()
+            .map(|voice| voice.trim().to_string())
+            .filter(|voice| !voice.is_empty())
+            .fold(Vec::new(), |mut voices, voice| {
+                if !voices.contains(&voice) {
+                    voices.push(voice);
+                }
+                voices
+            });
+        if azure_speech_voices.is_empty() {
+            azure_speech_voices.push(azure_speech_voice.clone());
+        }
+        if self.azure_speech_voice_rotation {
+            azure_speech_voice = azure_speech_voices[0].clone();
+        }
+
+        AppSettings {
+            azure_speech_key,
+            azure_speech_region: self.azure_speech_region,
+            azure_speech_voice,
+            azure_speech_voices,
+            azure_speech_voice_rotation: self.azure_speech_voice_rotation,
+            youtube_channel_id: self.youtube_channel_id,
+            youtube_live_id: self.youtube_live_id,
+            enable_youtube: self.enable_youtube,
+        }
+    }
+}
+
+#[derive(Deserialize)]
+struct VoiceQuery {
+    region: Option<String>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct VoiceCatalogEntry {
+    short_name: String,
+    display_name: String,
+    local_name: Option<String>,
+    locale: String,
+    locale_name: Option<String>,
+    gender: Option<String>,
+    voice_type: Option<String>,
+    status: Option<String>,
+    style_list: Option<Vec<String>>,
+    secondary_locale_list: Option<Vec<String>>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct VoiceCatalogResponse {
+    region: String,
+    count: usize,
+    voices: Vec<VoiceCatalogEntry>,
+}
+
+fn normalize_speech_region(region: &str) -> Option<String> {
+    let normalized = region.trim().to_ascii_lowercase();
+    let valid = (2..=64).contains(&normalized.len())
+        && normalized
+            .chars()
+            .all(|character| character.is_ascii_alphanumeric() || character == '-')
+        && normalized
+            .chars()
+            .next()
+            .is_some_and(|character| character.is_ascii_alphanumeric())
+        && normalized
+            .chars()
+            .last()
+            .is_some_and(|character| character.is_ascii_alphanumeric());
+    valid.then_some(normalized)
+}
+
+fn voice_catalog_entries(payload: serde_json::Value) -> Option<Vec<VoiceCatalogEntry>> {
+    let voices = payload.as_array()?;
+    Some(
+        voices
+            .iter()
+            .filter_map(|voice| {
+                let short_name = voice.get("ShortName")?.as_str()?.to_string();
+                let value = |key: &str| {
+                    voice
+                        .get(key)
+                        .and_then(serde_json::Value::as_str)
+                        .map(str::to_string)
+                };
+                let display_name = value("DisplayName")
+                    .or_else(|| value("LocalName"))
+                    .unwrap_or_else(|| short_name.clone());
+                let string_list = |key: &str| {
+                    voice
+                        .get(key)
+                        .and_then(serde_json::Value::as_array)
+                        .map(|items| {
+                            items
+                                .iter()
+                                .filter_map(serde_json::Value::as_str)
+                                .map(str::to_string)
+                                .collect()
+                        })
+                };
+                Some(VoiceCatalogEntry {
+                    short_name,
+                    display_name,
+                    local_name: value("LocalName"),
+                    locale: value("Locale").unwrap_or_default(),
+                    locale_name: value("LocaleName"),
+                    gender: value("Gender"),
+                    voice_type: value("VoiceType"),
+                    status: value("Status"),
+                    style_list: string_list("StyleList"),
+                    secondary_locale_list: string_list("SecondaryLocaleList"),
+                })
+            })
+            .collect(),
+    )
+}
+
+async fn get_settings_handler(State(state): State<AppState>) -> Response {
+    match state.db.load_settings() {
+        Ok(settings) => Json(SettingsResponse::from(&settings)).into_response(),
+        Err(error) => (StatusCode::INTERNAL_SERVER_ERROR, error.to_string()).into_response(),
+    }
 }
 
 async fn save_settings_handler(
     State(state): State<AppState>,
-    Json(settings): Json<AppSettings>,
+    Json(payload): Json<SaveSettingsPayload>,
 ) -> Response {
+    let current = match state.db.load_settings() {
+        Ok(settings) => settings,
+        Err(error) => {
+            return (StatusCode::INTERNAL_SERVER_ERROR, error.to_string()).into_response();
+        }
+    };
+    let settings = payload.into_settings(current);
     if let Err(err) = state.db.save_settings(&settings) {
         return (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to save settings: {}", err)).into_response();
     }
     state.tts_handle.update_settings(settings.clone()).await;
-    Json(serde_json::json!({ "success": true, "settings": settings })).into_response()
+    Json(serde_json::json!({
+        "success": true,
+        "settings": SettingsResponse::from(&settings)
+    }))
+    .into_response()
+}
+
+async fn get_voices_handler(
+    State(state): State<AppState>,
+    Query(query): Query<VoiceQuery>,
+) -> Response {
+    let settings = match state.db.load_settings() {
+        Ok(settings) => settings,
+        Err(error) => {
+            return (StatusCode::INTERNAL_SERVER_ERROR, error.to_string()).into_response();
+        }
+    };
+    if settings.azure_speech_key.trim().is_empty() {
+        return (
+            StatusCode::PRECONDITION_REQUIRED,
+            Json(serde_json::json!({ "error": "Enter and save an Azure Speech key to load voices." })),
+        )
+            .into_response();
+    }
+
+    let requested_region = query.region.as_deref().unwrap_or(&settings.azure_speech_region);
+    let Some(region) = normalize_speech_region(requested_region) else {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({ "error": "Enter a valid Azure Speech region." })),
+        )
+            .into_response();
+    };
+    let endpoint = format!(
+        "https://{}.tts.speech.microsoft.com/cognitiveservices/voices/list",
+        region
+    );
+
+    let client = match reqwest::Client::builder()
+        .timeout(Duration::from_secs(15))
+        .build()
+    {
+        Ok(client) => client,
+        Err(error) => {
+            tracing::error!("Failed to create Azure voice catalog client: {}", error);
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({ "error": "Could not start the Azure voice request." })),
+            )
+                .into_response();
+        }
+    };
+
+    let response = match client
+        .get(endpoint)
+        .header("Ocp-Apim-Subscription-Key", settings.azure_speech_key)
+        .send()
+        .await
+    {
+        Ok(response) => response,
+        Err(error) => {
+            tracing::warn!("Azure voice catalog request failed for region {}: {}", region, error);
+            return (
+                StatusCode::BAD_GATEWAY,
+                Json(serde_json::json!({ "error": "Could not reach Azure Speech. Check the region and network connection." })),
+            )
+                .into_response();
+        }
+    };
+
+    if !response.status().is_success() {
+        let status = response.status();
+        tracing::warn!("Azure voice catalog returned {} for region {}", status, region);
+        let message = if status == reqwest::StatusCode::UNAUTHORIZED
+            || status == reqwest::StatusCode::FORBIDDEN
+        {
+            "Azure rejected the saved Speech key or region. Check both settings and try again."
+        } else {
+            "Azure Speech could not return voices for this region. Check the region and try again."
+        };
+        return (
+            StatusCode::BAD_GATEWAY,
+            Json(serde_json::json!({ "error": message })),
+        )
+            .into_response();
+    }
+
+    let payload = match response.json::<serde_json::Value>().await {
+        Ok(payload) => payload,
+        Err(error) => {
+            tracing::warn!("Azure returned an invalid voice catalog for region {}: {}", region, error);
+            return (
+                StatusCode::BAD_GATEWAY,
+                Json(serde_json::json!({ "error": "Azure Speech returned an unreadable voice list." })),
+            )
+                .into_response();
+        }
+    };
+    let Some(mut voices) = voice_catalog_entries(payload) else {
+        return (
+            StatusCode::BAD_GATEWAY,
+            Json(serde_json::json!({ "error": "Azure Speech returned an invalid voice list." })),
+        )
+            .into_response();
+    };
+    voices.sort_by(|left, right| {
+        left.locale_name
+            .as_deref()
+            .unwrap_or(&left.locale)
+            .cmp(right.locale_name.as_deref().unwrap_or(&right.locale))
+            .then_with(|| left.short_name.cmp(&right.short_name))
+    });
+    let catalog = VoiceCatalogResponse {
+        region,
+        count: voices.len(),
+        voices,
+    };
+    Json(catalog).into_response()
 }
 
 async fn static_handler(uri: Uri) -> impl IntoResponse {
@@ -305,9 +649,9 @@ mod tests {
         let body = response.into_body().collect().await.unwrap().to_bytes();
         let info_json: serde_json::Value = serde_json::from_slice(&body).unwrap();
         assert_eq!(info_json["port"], 7060);
-        assert_eq!(info_json["obsChatUrl"], "http://localhost:7060/chat");
-        assert_eq!(info_json["obsDockUrl"], "http://localhost:7060/");
-        assert_eq!(info_json["appUrl"], "http://localhost:7060/");
+        assert_eq!(info_json["obsChatUrl"], "http://127.0.0.1:7060/chat");
+        assert_eq!(info_json["obsDockUrl"], "http://127.0.0.1:7060/");
+        assert_eq!(info_json["appUrl"], "http://127.0.0.1:7060/");
 
         // Test OBS overlay and SPA routes serve embedded SPA index.html with 200 OK and text/html
         for route in &["/chat", "/overlay", "/popup", "/settings", "/dock"] {
@@ -352,14 +696,18 @@ mod tests {
             .unwrap();
         assert_eq!(response.status(), StatusCode::OK);
         let body = response.into_body().collect().await.unwrap().to_bytes();
-        let settings: AppSettings = serde_json::from_slice(&body).unwrap();
-        assert_eq!(settings.azure_speech_region, "centralindia");
+        let settings: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(settings["azureSpeechRegion"], "centralindia");
+        assert_eq!(settings["azureSpeechKeyConfigured"], false);
+        assert!(settings.get("azureSpeechKey").is_none());
 
         // Test POST /api/settings
         let updated = AppSettings {
             azure_speech_key: "new_key".to_string(),
             azure_speech_region: "centralus".to_string(),
             azure_speech_voice: "hi-IN-SwaraNeural".to_string(),
+            azure_speech_voices: vec!["hi-IN-SwaraNeural".to_string()],
+            azure_speech_voice_rotation: false,
             youtube_channel_id: "test_channel".to_string(),
             youtube_live_id: Some("live123".to_string()),
             enable_youtube: false,
@@ -377,6 +725,10 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(response.status(), StatusCode::OK);
+        let save_body = response.into_body().collect().await.unwrap().to_bytes();
+        let save_response: serde_json::Value = serde_json::from_slice(&save_body).unwrap();
+        assert_eq!(save_response["settings"]["azureSpeechKeyConfigured"], true);
+        assert!(save_response["settings"].get("azureSpeechKey").is_none());
         let reloaded = db.load_settings().unwrap();
         assert_eq!(reloaded.azure_speech_region, "centralus");
         assert_eq!(reloaded.azure_speech_voice, "hi-IN-SwaraNeural");
@@ -396,11 +748,12 @@ mod tests {
             .unwrap();
         assert_eq!(response.status(), StatusCode::OK);
 
-        // Test GET /api/skip-current
+        // Test POST /api/skip-current
         let response = app
             .clone()
             .oneshot(
                 Request::builder()
+                    .method("POST")
                     .uri("/api/skip-current")
                     .body(Body::empty())
                     .unwrap(),
@@ -473,7 +826,7 @@ mod tests {
             .unwrap();
         assert_eq!(response.status(), StatusCode::OK);
 
-        // Test GET /api/speak-as-banned (should succeed with fallback apology)
+        // State-changing endpoints reject GET requests.
         let response = app
             .clone()
             .oneshot(
@@ -485,7 +838,7 @@ mod tests {
             )
             .await
             .unwrap();
-        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(response.status(), StatusCode::METHOD_NOT_ALLOWED);
 
         // Test POST /api/restart from non-loopback IP (should be 403 Forbidden)
         let mut remote_req = Request::builder()

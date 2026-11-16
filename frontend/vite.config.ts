@@ -6,16 +6,17 @@ import { defineConfig } from 'vite'
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: {
+    host: '127.0.0.1',
     port: 7061,
     strictPort: true,
     fs: {
       allow: ['..'],
     },
     proxy: {
-      '/auth': 'http://localhost:7060',
-      '/api': 'http://localhost:7060',
+      '/auth': 'http://127.0.0.1:7060',
+      '/api': 'http://127.0.0.1:7060',
       '/ws': {
-        target: 'http://localhost:7060',
+        target: 'http://127.0.0.1:7060',
         ws: true,
       },
     },

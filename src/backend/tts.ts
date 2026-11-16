@@ -1,5 +1,6 @@
 import type { ChatMessage } from '../shared/types.js';
 import { broadcastPlayAudio, broadcastTTSState, broadcastKillAudio, broadcastMessages } from './ws.js';
+import { getAppSettings } from './db.js';
 import { getDeterministicColor } from '../shared/colors.js';
 import * as sdk from 'microsoft-cognitiveservices-speech-sdk';
 
@@ -7,6 +8,32 @@ let queue: ChatMessage[] = [];
 let isProcessing = false;
 let currentProcessingMessage: ChatMessage | null = null;
 let watchdogTimer: NodeJS.Timeout | null = null;
+let voiceRotationIndex = 0;
+let voiceRotationSignature = '';
+
+function defaultHindiVoice(): string {
+  const voices = ['hi-IN-MadhurNeural', 'hi-IN-SwaraNeural', 'hi-IN-AnanyaNeural'];
+  return voices[Math.floor(Math.random() * voices.length)];
+}
+
+function voiceForNextMessage(settings: ReturnType<typeof getAppSettings>, synthesisConfigured: boolean): string {
+  const voices = [...new Set(settings.azureSpeechVoices.map((voice) => voice.trim()).filter((voice) => voice && voice !== 'default'))];
+  if (settings.azureSpeechVoiceRotation && voices.length > 0) {
+    const signature = voices.join('\u0000');
+    if (signature !== voiceRotationSignature) {
+      voiceRotationSignature = signature;
+      voiceRotationIndex = 0;
+    }
+    const voice = voices[voiceRotationIndex % voices.length];
+    if (synthesisConfigured) voiceRotationIndex = (voiceRotationIndex + 1) % voices.length;
+    return voice;
+  }
+
+  voiceRotationSignature = '';
+  voiceRotationIndex = 0;
+  const selected = settings.azureSpeechVoice.trim();
+  return !selected || selected === 'default' ? defaultHindiVoice() : selected;
+}
 
 function clearWatchdog() {
   if (watchdogTimer) {
@@ -139,18 +166,14 @@ async function processQueue() {
     console.log(`[TTS] Processing message ${msg.messageId}: ${msg.text}`);
     broadcastTTSState(msg.messageId, 'processing');
     
-    // Use strictly hi-IN voices to properly support Devanagari text segment boundaries
-    const voices = [
-      "hi-IN-AnanyaNeural",
-      "hi-IN-MadhurNeural",
-      "hi-IN-SwaraNeural",
-    ];
-    const voiceName = voices[Math.floor(Math.random() * voices.length)];
+    const settings = getAppSettings();
+    const synthesisConfigured = Boolean(settings.azureSpeechKey.trim() && settings.azureSpeechRegion.trim());
+    const voiceName = voiceForNextMessage(settings, synthesisConfigured);
     const textToSpeak = `${msg.authorName} says ${msg.text}`;
     
     const reqStartTime = Date.now();
     console.log(`[TTS] Step 1: Request sent to Azure for message ${msg.messageId}...`);
-    const result = await generateSpeech(textToSpeak, voiceName);
+    const result = await generateSpeech(textToSpeak, voiceName, settings);
     
     if (result && result.timings) {
       console.log(`[TTS] Metrics for message ${msg.messageId} | Size: ${result.timings.sizeKb} KB | Processing: ${result.timings.processingMs}ms | Download: ${result.timings.downloadMs}ms | Total: ${result.timings.totalMs}ms`);
@@ -187,12 +210,12 @@ async function processQueue() {
   }
 }
 
-export async function generateSpeech(text: string, voiceName: string): Promise<{ audioData: string, wordBoundaries: { text: string, audioOffset: number, duration: number, textOffset: number }[], timings: { sizeKb: string, processingMs: number, downloadMs: number, totalMs: number } } | null> {
-  const key = process.env.AZURE_SPEECH_KEY;
-  const region = process.env.AZURE_SPEECH_REGION;
+export async function generateSpeech(text: string, voiceName: string, settings = getAppSettings()): Promise<{ audioData: string, wordBoundaries: { text: string, audioOffset: number, duration: number, textOffset: number }[], timings: { sizeKb: string, processingMs: number, downloadMs: number, totalMs: number } } | null> {
+  const key = settings.azureSpeechKey;
+  const region = settings.azureSpeechRegion;
 
   if (!key || !region) {
-    console.warn('AZURE_SPEECH_KEY or AZURE_SPEECH_REGION is missing');
+    console.warn('Azure Speech key or region is missing');
     return null;
   }
 

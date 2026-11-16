@@ -57,6 +57,10 @@ pub struct AppSettings {
     pub azure_speech_key: String,
     pub azure_speech_region: String,
     pub azure_speech_voice: String,
+    #[serde(default)]
+    pub azure_speech_voices: Vec<String>,
+    #[serde(default)]
+    pub azure_speech_voice_rotation: bool,
     pub youtube_channel_id: String,
     pub youtube_live_id: Option<String>,
     pub enable_youtube: bool,
@@ -68,6 +72,8 @@ impl Default for AppSettings {
             azure_speech_key: String::new(),
             azure_speech_region: "centralindia".to_string(),
             azure_speech_voice: "hi-IN-MadhurNeural".to_string(),
+            azure_speech_voices: vec!["hi-IN-MadhurNeural".to_string()],
+            azure_speech_voice_rotation: false,
             youtube_channel_id: "UCiz4lqlVpaB4PpK-1aecMgQ".to_string(),
             youtube_live_id: None,
             enable_youtube: true,

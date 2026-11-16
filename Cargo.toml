@@ -7,7 +7,6 @@ edition = "2021"
 tokio = { version = "1.40", features = ["full"] }
 tokio-tungstenite = { version = "0.26", features = ["connect", "rustls-tls-webpki-roots"] }
 axum = { version = "0.8", features = ["ws"] }
-tower-http = { version = "0.6", features = ["cors", "trace"] }
 rust-embed = { version = "8.5", features = ["mime-guess"] }
 mime_guess = "2.0"
 serde = { version = "1.0", features = ["derive"] }

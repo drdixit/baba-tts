@@ -2,7 +2,7 @@ use anyhow::Result;
 
 #[allow(dead_code)]
 pub fn format_window_url(port: u16) -> String {
-    format!("http://localhost:{}/", port)
+    format!("http://127.0.0.1:{}/", port)
 }
 
 #[allow(dead_code)]
@@ -30,7 +30,7 @@ mod win32 {
     };
 
     pub const WINDOW_CLASS_NAME: &str = "BabaTtsMainWindowClass";
-    pub const WINDOW_TITLE: &str = "BABA TTS - Streamer Control Panel";
+    pub const WINDOW_TITLE: &str = "BABA TTS";
     pub const WM_USER_FOCUS_WINDOW: u32 = WM_USER + 101;
     pub const WM_USER_CLOSE: u32 = WM_USER + 102;
     pub const WM_DPICHANGED: u32 = 0x02E0;
@@ -71,7 +71,7 @@ mod win32 {
         LoadIconW(0, IDI_APPLICATION)
     }
 
-    unsafe fn enable_dark_caption(hwnd: HWND) {
+    unsafe fn set_light_caption(hwnd: HWND) {
         let dwm = LoadLibraryW(to_wide("dwmapi.dll").as_ptr());
         if dwm != 0 {
             let proc = GetProcAddress(dwm, b"DwmSetWindowAttribute\0".as_ptr());
@@ -83,7 +83,7 @@ mod win32 {
                     u32,
                 ) -> i32;
                 let func: DwmSetWindowAttributeFn = std::mem::transmute(dwm_set_attr);
-                let dark_mode: i32 = 1;
+                let dark_mode: i32 = 0;
                 // DWMWA_USE_IMMERSIVE_DARK_MODE = 20 (Windows 10 20H1+ and Windows 11)
                 let _ = func(
                     hwnd,
@@ -482,7 +482,7 @@ mod win32 {
     ) -> LRESULT {
         match msg {
             WM_CREATE => {
-                enable_dark_caption(hwnd);
+                set_light_caption(hwnd);
                 0
             }
             WM_SIZE => {
@@ -603,7 +603,7 @@ mod win32 {
                     hInstance: h_instance,
                     hIcon: load_icon(),
                     hCursor: LoadCursorW(0, IDC_ARROW),
-                    hbrBackground: CreateSolidBrush(0x00FCFAF8),
+                    hbrBackground: CreateSolidBrush(0x00F3F3F3),
                     lpszMenuName: std::ptr::null(),
                     lpszClassName: class_name.as_ptr(),
                 };
@@ -732,8 +732,8 @@ mod tests {
 
     #[test]
     fn test_desktop_window_url_generation() {
-        assert_eq!(format_window_url(7060), "http://localhost:7060/");
-        assert_eq!(format_window_url(7080), "http://localhost:7080/");
+        assert_eq!(format_window_url(7060), "http://127.0.0.1:7060/");
+        assert_eq!(format_window_url(7080), "http://127.0.0.1:7080/");
     }
 
     #[test]
