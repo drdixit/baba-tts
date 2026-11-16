@@ -614,7 +614,7 @@ export default function SettingsPanel({ onRestart, serverPort }: SettingsPanelPr
                 checked={selected}
                 disabled={regionNeedsSave || (selected && settings.azure_speech_voices.length === 1)}
                 onChange={(event) => toggleRotationVoice(voice.shortName, event.target.checked)}
-                aria-label={`Add ${voice.shortName} ${selected ? 'to' : 'from'} voice rotation`}
+                aria-label={`${selected ? 'Remove' : 'Add'} ${voice.shortName} ${selected ? 'from' : 'to'} voice rotation`}
                 className="h-3.5 w-3.5 accent-[#555] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#555]"
               />
             ) : (
