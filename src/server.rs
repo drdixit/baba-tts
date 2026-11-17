@@ -304,6 +304,7 @@ struct SettingsResponse {
     youtube_channel_id: String,
     youtube_live_id: Option<String>,
     enable_youtube: bool,
+    youtube_chat_mode: String,
 }
 
 impl From<&AppSettings> for SettingsResponse {
@@ -323,6 +324,7 @@ impl From<&AppSettings> for SettingsResponse {
             youtube_channel_id: settings.youtube_channel_id.clone(),
             youtube_live_id: settings.youtube_live_id.clone(),
             enable_youtube: settings.enable_youtube,
+            youtube_chat_mode: settings.youtube_chat_mode.clone(),
         }
     }
 }
@@ -355,6 +357,8 @@ struct SaveSettingsPayload {
     youtube_channel_id: String,
     youtube_live_id: Option<String>,
     enable_youtube: bool,
+    #[serde(default)]
+    youtube_chat_mode: Option<String>,
 }
 
 impl SaveSettingsPayload {
@@ -415,6 +419,11 @@ impl SaveSettingsPayload {
         let sapi_rate = self.sapi_rate.unwrap_or(current.sapi_rate).clamp(-10, 10);
         let sapi_volume = self.sapi_volume.unwrap_or(current.sapi_volume).min(100);
 
+        let youtube_chat_mode = self
+            .youtube_chat_mode
+            .filter(|m| m == "live" || m == "top")
+            .unwrap_or(current.youtube_chat_mode);
+
         AppSettings {
             tts_provider,
             azure_speech_key,
@@ -430,6 +439,7 @@ impl SaveSettingsPayload {
             youtube_channel_id: self.youtube_channel_id,
             youtube_live_id: self.youtube_live_id,
             enable_youtube: self.enable_youtube,
+            youtube_chat_mode,
         }
     }
 }
@@ -793,6 +803,7 @@ mod tests {
         let settings: serde_json::Value = serde_json::from_slice(&body).unwrap();
         assert_eq!(settings["azureSpeechRegion"], "centralindia");
         assert_eq!(settings["azureSpeechKeyConfigured"], false);
+        assert_eq!(settings["youtubeChatMode"], "live");
         assert!(settings.get("azureSpeechKey").is_none());
 
         // Test POST /api/settings
@@ -811,6 +822,7 @@ mod tests {
             youtube_channel_id: "test_channel".to_string(),
             youtube_live_id: Some("live123".to_string()),
             enable_youtube: false,
+            youtube_chat_mode: "top".to_string(),
         };
         let response = app
             .clone()
@@ -836,6 +848,7 @@ mod tests {
         assert_eq!(reloaded.sapi_voice, "Microsoft David Desktop");
         assert_eq!(reloaded.sapi_rate, 2);
         assert_eq!(reloaded.sapi_volume, 90);
+        assert_eq!(reloaded.youtube_chat_mode, "top");
 
         // Test POST /api/baba-say
         let response = app

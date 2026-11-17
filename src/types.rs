@@ -76,6 +76,8 @@ pub struct AppSettings {
     pub youtube_channel_id: String,
     pub youtube_live_id: Option<String>,
     pub enable_youtube: bool,
+    #[serde(default = "default_youtube_chat_mode")]
+    pub youtube_chat_mode: String,
 }
 
 fn default_tts_provider() -> String {
@@ -88,6 +90,10 @@ fn default_sapi_voice() -> String {
 
 fn default_sapi_volume() -> u32 {
     100
+}
+
+fn default_youtube_chat_mode() -> String {
+    "live".to_string()
 }
 
 impl Default for AppSettings {
@@ -107,6 +113,7 @@ impl Default for AppSettings {
             youtube_channel_id: "UCiz4lqlVpaB4PpK-1aecMgQ".to_string(),
             youtube_live_id: None,
             enable_youtube: true,
+            youtube_chat_mode: "live".to_string(),
         }
     }
 }

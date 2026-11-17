@@ -265,6 +265,12 @@ impl Db {
             settings.enable_youtube = env_val == "true" || env_val == "1";
         }
 
+        if let Some(val) = self.get_setting("youtube_chat_mode")? {
+            if val == "top" || val == "live" {
+                settings.youtube_chat_mode = val;
+            }
+        }
+
         Ok(settings)
     }
 
@@ -289,6 +295,7 @@ impl Db {
         self.set_setting("youtube_channel_id", &settings.youtube_channel_id)?;
         self.set_setting("youtube_live_id", settings.youtube_live_id.as_deref().unwrap_or(""))?;
         self.set_setting("enable_youtube", if settings.enable_youtube { "true" } else { "false" })?;
+        self.set_setting("youtube_chat_mode", &settings.youtube_chat_mode)?;
         Ok(())
     }
 }
@@ -320,13 +327,17 @@ mod tests {
     fn test_db_settings() {
         let db = Db::open_in_memory().unwrap();
         let mut settings = db.load_settings().unwrap();
+        assert_eq!(settings.youtube_chat_mode, "live");
+
         settings.azure_speech_key = "test_key_123".to_string();
         settings.enable_youtube = false;
+        settings.youtube_chat_mode = "top".to_string();
 
         db.save_settings(&settings).unwrap();
 
         let loaded = db.load_settings().unwrap();
         assert_eq!(loaded.azure_speech_key, "test_key_123");
         assert!(!loaded.enable_youtube);
+        assert_eq!(loaded.youtube_chat_mode, "top");
     }
 }

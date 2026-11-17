@@ -31,6 +31,7 @@ interface AppSettings {
   youtube_channel_id: string;
   youtube_live_id: string | null;
   enable_youtube: boolean;
+  youtube_chat_mode: 'live' | 'top';
 }
 
 interface ApiSettings {
@@ -48,6 +49,7 @@ interface ApiSettings {
   youtubeChannelId: string;
   youtubeLiveId: string | null;
   enableYoutube: boolean;
+  youtubeChatMode?: 'live' | 'top';
 }
 
 interface SpeechVoice {
@@ -87,6 +89,7 @@ function apiToForm(api: ApiSettings): AppSettings {
     youtube_channel_id: api.youtubeChannelId || '',
     youtube_live_id: api.youtubeLiveId || null,
     enable_youtube: api.enableYoutube ?? true,
+    youtube_chat_mode: api.youtubeChatMode === 'top' ? 'top' : 'live',
   };
 }
 
@@ -105,6 +108,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   youtube_channel_id: 'UCiz4lqlVpaB4PpK-1aecMgQ',
   youtube_live_id: null,
   enable_youtube: true,
+  youtube_chat_mode: 'live',
 };
 
 const REGION_PRESETS = [
@@ -412,6 +416,7 @@ export default function SettingsPanel({ onRestart, serverPort }: SettingsPanelPr
           youtubeChannelId: settings.youtube_channel_id.trim(),
           youtubeLiveId: settings.youtube_live_id?.trim() || null,
           enableYoutube: settings.enable_youtube,
+          youtubeChatMode: settings.youtube_chat_mode,
         }),
       });
       if (!response.ok) {
@@ -942,6 +947,21 @@ export default function SettingsPanel({ onRestart, serverPort }: SettingsPanelPr
         <div className="desktop-setting-row">
           <label htmlFor="youtube-live-id" className="desktop-setting-label">Live video ID</label>
           <input id="youtube-live-id" type="text" value={settings.youtube_live_id ?? ''} onChange={(event) => updateField('youtube_live_id', event.target.value || null)} placeholder="Blank to detect automatically" className={`${fieldClass} font-mono`} />
+        </div>
+        <div className="desktop-setting-row">
+          <label htmlFor="youtube-chat-mode" className="desktop-setting-label">Chat mode</label>
+          <div className="min-w-0">
+            <select
+              id="youtube-chat-mode"
+              value={settings.youtube_chat_mode}
+              onChange={(event) => updateField('youtube_chat_mode', event.target.value as 'live' | 'top')}
+              className={fieldClass}
+            >
+              <option value="live">Live chat (All messages - Recommended)</option>
+              <option value="top">Top chat (Filtered by YouTube algorithm)</option>
+            </select>
+            <p className="desktop-help-text">Live chat reads all messages in real time. Top chat only reads highlights filtered by YouTube.</p>
+          </div>
         </div>
       </fieldset>
 
