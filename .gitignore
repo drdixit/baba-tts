@@ -10,8 +10,13 @@ target/
 
 # SQLite databases
 *.db
+*.db-*
+*.db-shm
+*.db-wal
 *.sqlite
+*.sqlite-*
 *.sqlite3
+baba.db*
 
 # Environment & credentials
 .env
