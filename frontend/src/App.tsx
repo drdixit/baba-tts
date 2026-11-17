@@ -361,8 +361,8 @@ function DesktopApp() {
         {/* TAB 1: LIVE MONITOR & CHAT */}
         {activeTab === 'monitor' && (
           <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden p-2 lg:flex-row">
-            <div className="flex max-h-[46vh] w-full shrink-0 flex-col gap-2 overflow-y-auto lg:max-h-none lg:w-[340px]">
-              <fieldset className="desktop-groupbox">
+            <div className="desktop-monitor-tools flex min-h-0 w-full shrink-0 flex-col gap-2 overflow-y-auto overscroll-contain lg:max-h-none lg:w-[340px]">
+              <fieldset className="desktop-groupbox h-[min(128px,22dvh)] min-h-24 shrink-0 overflow-hidden">
                 <legend className="desktop-groupbox-legend">Now speaking</legend>
                 {activeMessage ? (
                   <ChatMessage message={activeMessage} currentAudioTime={currentAudioTime} hideHistory variant="inline" />
@@ -448,14 +448,14 @@ function DesktopApp() {
 
         {/* TAB 3: SETTINGS */}
         {activeTab === 'settings' && (
-          <div className="desktop-shell flex w-full flex-1 overflow-y-auto">
+          <div className="desktop-shell desktop-scroll-region flex w-full min-w-0 flex-col">
             <SettingsPanel onRestart={handleRestart} serverPort={port} />
           </div>
         )}
 
         {/* TAB 4: OBS OVERLAYS GUIDE */}
         {activeTab === 'obs' && (
-          <div className="desktop-shell flex w-full flex-1 flex-col gap-2 overflow-y-auto p-2">
+          <div className="desktop-shell desktop-scroll-region flex w-full min-w-0 flex-col gap-2 p-2">
             <section aria-labelledby="speaking-overlay-heading" className="desktop-groupbox space-y-1.5">
               <div>
                 <h3 id="speaking-overlay-heading" className="text-xs font-semibold text-[#222]">TTS speaking overlay</h3>
@@ -556,7 +556,7 @@ function DesktopApp() {
         )}
 
         {activeTab === 'help' && (
-          <div className="flex-1 overflow-y-auto p-2">
+          <div className="desktop-scroll-region flex p-2">
             <HelpPanel baseUrl={baseUrl} />
           </div>
         )}

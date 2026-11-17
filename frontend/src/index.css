@@ -33,6 +33,37 @@
     color: var(--desktop-text);
   }
 
+  .desktop-scroll-region {
+    min-width: 0;
+    min-height: 0;
+    flex: 1 1 0%;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  .desktop-monitor-tools {
+    max-height: 46vh;
+  }
+
+  .desktop-now-message {
+    display: -webkit-box;
+    overflow: hidden;
+    overflow-wrap: break-word;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+  }
+
+  @media (max-height: 520px) {
+    .desktop-monitor-tools {
+      max-height: calc(100dvh - 80px);
+    }
+
+    .desktop-now-message {
+      -webkit-line-clamp: 2;
+    }
+  }
+
   .desktop-panel {
     border: 1px solid var(--desktop-border);
     border-radius: 4px;

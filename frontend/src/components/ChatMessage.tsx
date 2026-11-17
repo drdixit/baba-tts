@@ -123,7 +123,8 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({ message, currentAu
 
             <div className="flex flex-col flex-1 min-w-0 z-10">
               <span
-                className={`block ${variant === 'inline' ? 'text-xs font-semibold tracking-normal mb-0.5' : 'text-3xl font-black mb-2 uppercase tracking-widest'} transition-all duration-200 ${isAuthorSpeaking ? 'opacity-100 scale-105 origin-left' : 'opacity-90'}`}
+                className={`block min-w-0 ${variant === 'inline' ? 'truncate text-xs font-semibold tracking-normal mb-0.5' : 'text-3xl font-black mb-2 uppercase tracking-widest'} transition-all duration-200 ${isAuthorSpeaking ? 'opacity-100 scale-105 origin-left' : 'opacity-90'}`}
+                title={variant === 'inline' ? message.authorName : undefined}
                 style={{
                   color: authorColor,
                   textShadow: variant === 'inline' ? 'none' : '0 2px 4px rgba(0,0,0,0.8), 0 0 4px rgba(0,0,0,0.9), 0 0 1px rgba(0,0,0,1)'
@@ -132,7 +133,10 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({ message, currentAu
                 {message.authorName}
               </span>
 
-              <p className={`${variant === 'inline' ? 'text-[13px] font-semibold leading-snug text-[#222]' : 'text-5xl font-bold leading-tight text-white drop-shadow-[0_2px_4px_rgba(0,0,0,1)]'} transition-all duration-700 flex flex-wrap gap-x-2 gap-y-1`}>
+              <p
+                className={`${variant === 'inline' ? 'desktop-now-message text-[13px] font-semibold leading-snug text-[#222]' : 'text-5xl font-bold leading-tight text-white drop-shadow-[0_2px_4px_rgba(0,0,0,1)] flex flex-wrap gap-x-2 gap-y-1'} transition-all duration-700`}
+                title={variant === 'inline' ? message.text : undefined}
+              >
                 {(() => {
                     let activeWordIndex = -1;
                     if (message.status === 'speaking' && currentAudioTime !== undefined) {

@@ -409,7 +409,7 @@ export default function SettingsPanel({ onRestart, serverPort }: SettingsPanelPr
   }
 
   return (
-    <div className="flex w-full flex-col gap-2 px-2 pt-2 pb-0 text-[#1F1F1F]">
+    <div className="flex w-full min-w-0 flex-col gap-2 px-2 pt-2 pb-0 text-[#1F1F1F]">
       {banner && (
         <div
           role={banner.type === 'error' ? 'alert' : 'status'}
@@ -488,7 +488,7 @@ export default function SettingsPanel({ onRestart, serverPort }: SettingsPanelPr
         </div>
       </fieldset>
 
-      <fieldset className="desktop-groupbox min-h-0">
+      <fieldset className="desktop-groupbox shrink-0">
         <legend className="desktop-groupbox-legend">Voice selection</legend>
         <div className="desktop-setting-row">
           <span className="desktop-setting-label">Current voice</span>
@@ -577,7 +577,7 @@ export default function SettingsPanel({ onRestart, serverPort }: SettingsPanelPr
           </div>
         )}
 
-        <div className="mt-1 grid grid-cols-[minmax(160px,1fr)_minmax(150px,220px)] gap-1.5">
+        <div className="mt-1 grid min-w-0 grid-cols-[minmax(0,1fr)_minmax(0,220px)] gap-1.5 max-[420px]:grid-cols-1">
           <div className="relative">
             <Search className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#666]" aria-hidden="true" />
             <input type="search" value={voiceSearch} onChange={(event) => setVoiceSearch(event.target.value)} placeholder="Search voices or languages" aria-label="Search Azure voices" className={`${fieldClass} pl-7`} />
@@ -593,15 +593,15 @@ export default function SettingsPanel({ onRestart, serverPort }: SettingsPanelPr
           aria-label="Azure Speech voices"
           aria-describedby="voice-list-instructions"
           aria-busy={catalogState === 'loading'}
-          className="mt-1 max-h-[300px] overflow-y-auto border border-[#BDBDBD] bg-white focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-[#555]"
+          className="mt-1 min-w-0 max-h-[min(300px,35dvh)] overflow-x-hidden overflow-y-auto border border-[#BDBDBD] bg-white focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-[#555]"
         >
           <p id="voice-list-instructions" className="sr-only">{settings.azure_speech_voice_rotation ? 'Check voices to add them to the rotation. Use the rotation order controls to reorder them.' : 'Use the arrow keys to move between voices and select a single default voice.'}</p>
-          <div aria-hidden="true" className="sticky top-0 z-10 grid min-h-7 grid-cols-[20px_minmax(0,1fr)_minmax(110px,0.8fr)_60px_64px] items-center gap-2 border-b border-[#BDBDBD] bg-[#F1F1F1] px-2 text-[11px] font-semibold text-[#444]">
+          <div aria-hidden="true" className="sticky top-0 z-10 grid min-h-7 grid-cols-[20px_minmax(0,1fr)_minmax(110px,0.8fr)_60px_64px] items-center gap-2 border-b border-[#BDBDBD] bg-[#F1F1F1] px-2 text-[11px] font-semibold text-[#444] max-[560px]:grid-cols-[20px_minmax(0,1fr)_minmax(0,0.7fr)]">
             <span />
             <span>Voice</span>
             <span>Language</span>
-            <span>Gender</span>
-            <span className="text-right">Type</span>
+            <span className="max-[560px]:hidden">Gender</span>
+            <span className="text-right max-[560px]:hidden">Type</span>
           </div>
           {catalogState === 'loading' && <div className="flex min-h-14 items-center gap-2 px-3 text-xs text-[#555]"><Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />Loading Azure voice list…</div>}
           {catalogState === 'ready' && visibleVoices.map((voice) => {
@@ -630,15 +630,15 @@ export default function SettingsPanel({ onRestart, serverPort }: SettingsPanelPr
               />
             );
             return (
-              <label key={voice.shortName} className={`grid min-h-9 w-full grid-cols-[20px_minmax(0,1fr)_minmax(110px,0.8fr)_60px_64px] items-center gap-2 border-b border-[#E7E7E7] px-2 text-left text-xs last:border-b-0 ${selected ? 'bg-[#ECECEC]' : 'hover:bg-[#F6F6F6]'} ${regionNeedsSave ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}>
+              <label key={voice.shortName} className={`grid min-h-9 w-full grid-cols-[20px_minmax(0,1fr)_minmax(110px,0.8fr)_60px_64px] items-center gap-2 border-b border-[#E7E7E7] px-2 text-left text-xs last:border-b-0 max-[560px]:grid-cols-[20px_minmax(0,1fr)_minmax(0,0.7fr)] ${selected ? 'bg-[#ECECEC]' : 'hover:bg-[#F6F6F6]'} ${regionNeedsSave ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}>
                 {control}
                 <span className="min-w-0">
                   <span className="block truncate font-medium text-[#222]">{voice.displayName || voice.localName || voice.shortName}</span>
                   <span className="block truncate font-mono text-[10px] text-[#666]">{voice.shortName}</span>
                 </span>
                 <span className="truncate text-[#555]">{voice.localeName || voice.locale}</span>
-                <span className="text-[#555]">{voice.gender || '—'}</span>
-                <span className="text-right text-[#666]">{voice.voiceType || 'Neural'}</span>
+                <span className="text-[#555] max-[560px]:hidden">{voice.gender || '—'}</span>
+                <span className="text-right text-[#666] max-[560px]:hidden">{voice.voiceType || 'Neural'}</span>
               </label>
             );
           })}
