@@ -86,9 +86,17 @@ jobs:
           Write-Host "Packaging version: $cleanVersion (Raw tag: $rawVersion)"
 
           # 2. Compile Inno Setup installer
-          $targetDir = "target/x86_64-pc-windows-msvc/release"
+          $targetDir = (Resolve-Path "target/x86_64-pc-windows-msvc/release").Path
+          if (-not (Test-Path "$targetDir\WebView2Loader.dll")) {
+            Copy-Item "assets/x64/WebView2Loader.dll" -Destination "$targetDir/" -Force
+          }
           New-Item -ItemType Directory -Force -Path "dist" | Out-Null
-          iscc.exe /DMyAppVersion="$cleanVersion" /DSourceDir="$targetDir" "installer/baba-tts.iss"
+          $iscc = (Get-Command iscc.exe -ErrorAction SilentlyContinue).Source
+          if (-not $iscc) {
+            $defaultPath = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+            if (Test-Path $defaultPath) { $iscc = $defaultPath } else { $iscc = "iscc.exe" }
+          }
+          & $iscc "/DMyAppVersion=$cleanVersion" "/DSourceDir=$targetDir" "installer/baba-tts.iss"
 
           # 3. Create portable zip archive
           $portableDir = "baba-tts-portable"
