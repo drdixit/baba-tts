@@ -46,28 +46,56 @@ mod win32 {
     }
 
     unsafe fn load_icon() -> windows_sys::Win32::UI::WindowsAndMessaging::HICON {
-        let icon_path = "assets/icon.ico";
-        if std::path::Path::new(icon_path).exists() {
-            let wide_path = to_wide(icon_path);
-            let handle = LoadImageW(
-                0,
-                wide_path.as_ptr(),
-                IMAGE_ICON,
-                32,
-                32,
-                LR_LOADFROMFILE,
-            );
-            if handle != 0 {
-                return handle as _;
-            }
-        }
-
         let h_inst = GetModuleHandleW(std::ptr::null());
+
+        // 1. Try loading embedded PE resource compiled into binary (Resource ID 1)
         let res_icon = LoadIconW(h_inst, 1 as _);
         if res_icon != 0 {
             return res_icon;
         }
 
+        // 2. Try loading from icon.ico or assets/icon.ico relative to current executable
+        if let Ok(exe_path) = std::env::current_exe() {
+            if let Some(parent) = exe_path.parent() {
+                for candidate in ["icon.ico", "assets/icon.ico", "assets\\icon.ico"] {
+                    let path = parent.join(candidate);
+                    if path.exists() {
+                        let wide_path = to_wide(&path.to_string_lossy());
+                        let handle = LoadImageW(
+                            0,
+                            wide_path.as_ptr(),
+                            IMAGE_ICON,
+                            32,
+                            32,
+                            LR_LOADFROMFILE,
+                        );
+                        if handle != 0 {
+                            return handle as _;
+                        }
+                    }
+                }
+            }
+        }
+
+        // 3. Try loading from working directory
+        for candidate in ["assets/icon.ico", "icon.ico"] {
+            if std::path::Path::new(candidate).exists() {
+                let wide_path = to_wide(candidate);
+                let handle = LoadImageW(
+                    0,
+                    wide_path.as_ptr(),
+                    IMAGE_ICON,
+                    32,
+                    32,
+                    LR_LOADFROMFILE,
+                );
+                if handle != 0 {
+                    return handle as _;
+                }
+            }
+        }
+
+        // 4. Fallback to standard application icon
         LoadIconW(0, IDI_APPLICATION)
     }
 
