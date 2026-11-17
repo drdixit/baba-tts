@@ -644,6 +644,7 @@ mod tests {
     #[tokio::test]
     async fn test_static_and_spa_routing() {
         let db = Db::open_in_memory().unwrap();
+        db.set_setting("azure_speech_key", "").unwrap();
         let (broadcast_tx, _) = broadcast::channel(10);
         let (shutdown_tx, mut shutdown_rx) = tokio::sync::mpsc::channel(1);
         let tts_handle = TtsActor::spawn(broadcast_tx.clone(), AppSettings::default());

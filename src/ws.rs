@@ -63,6 +63,25 @@ pub async fn handle_websocket(
         let _ = socket.send(Message::Text(msg.to_string().into())).await;
     }
 
+    // Sync active message if one is currently in-flight
+    if let Some(current) = tts_handle.get_current_processing().await {
+        let msg = serde_json::to_value(vec![current]).unwrap_or(Value::Null);
+        if !msg.is_null() {
+            let _ = socket.send(Message::Text(msg.to_string().into())).await;
+        }
+    }
+
+    // Deliver pending audio if audio was synthesized before WebSocket finished connecting
+    if let Some(pending) = tts_handle.get_pending_audio().await {
+        let play_msg = serde_json::json!({
+            "type": "play_audio",
+            "messageId": pending.message_id,
+            "audioData": pending.audio_data,
+            "wordBoundaries": pending.word_boundaries
+        });
+        let _ = socket.send(Message::Text(play_msg.to_string().into())).await;
+    }
+
     let mut broadcast_rx = broadcast_tx.subscribe();
 
     loop {

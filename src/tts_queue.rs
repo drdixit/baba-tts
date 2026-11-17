@@ -22,6 +22,13 @@ pub enum WsBroadcastMessage {
     BannedUsers(Vec<crate::types::BannedUser>),
 }
 
+#[derive(Clone, Debug)]
+pub struct PendingAudio {
+    pub message_id: String,
+    pub audio_data: String,
+    pub word_boundaries: Vec<WordBoundary>,
+}
+
 #[derive(Debug)]
 pub enum TtsCommand {
     Enqueue(ChatMessage),
@@ -36,6 +43,7 @@ pub enum TtsCommand {
         message_id: String,
     },
     GetCurrentProcessing(oneshot::Sender<Option<ChatMessage>>),
+    GetPendingAudio(oneshot::Sender<Option<PendingAudio>>),
     UpdateSettings(AppSettings),
     SynthesisComplete {
         message_id: String,
@@ -145,6 +153,15 @@ impl TtsHandle {
         }
     }
 
+    pub async fn get_pending_audio(&self) -> Option<PendingAudio> {
+        let (tx, rx) = oneshot::channel();
+        if self.sender.send(TtsCommand::GetPendingAudio(tx)).await.is_ok() {
+            rx.await.unwrap_or(None)
+        } else {
+            None
+        }
+    }
+
     pub async fn update_settings(&self, settings: AppSettings) {
         let _ = self.sender.send(TtsCommand::UpdateSettings(settings)).await;
     }
@@ -154,6 +171,7 @@ pub struct TtsActor {
     receiver: mpsc::Receiver<TtsCommand>,
     queue: VecDeque<ChatMessage>,
     current: Option<ChatMessage>,
+    pending_audio: Option<PendingAudio>,
     is_processing: bool,
     broadcast_tx: broadcast::Sender<WsBroadcastMessage>,
     settings: AppSettings,
@@ -186,6 +204,7 @@ impl TtsActor {
             receiver: rx,
             queue: VecDeque::new(),
             current: None,
+            pending_audio: None,
             is_processing: false,
             broadcast_tx,
             settings: initial_settings,
@@ -219,6 +238,7 @@ impl TtsActor {
                     self.process_next();
                 }
                 TtsCommand::AudioFinished(message_id) => {
+                    self.pending_audio = None;
                     if let Some(id) = message_id {
                         if let Some(curr) = &self.current {
                             if curr.message_id == id {
@@ -238,6 +258,7 @@ impl TtsActor {
                     }
                 }
                 TtsCommand::SkipCurrent => {
+                    self.pending_audio = None;
                     if let Some(curr) = self.current.take() {
                         let _ = self.broadcast_tx.send(WsBroadcastMessage::TtsState {
                             message_id: curr.message_id,
@@ -249,6 +270,7 @@ impl TtsActor {
                     self.process_next();
                 }
                 TtsCommand::ClearQueue => {
+                    self.pending_audio = None;
                     for msg in self.queue.drain(..) {
                         let _ = self.broadcast_tx.send(WsBroadcastMessage::TtsState {
                             message_id: msg.message_id,
@@ -287,6 +309,7 @@ impl TtsActor {
 
                     if let Some(curr) = &self.current {
                         if curr.author_id.as_deref() == Some(&author_id) {
+                            self.pending_audio = None;
                             let id = curr.message_id.clone();
                             self.current = None;
                             let _ = self.broadcast_tx.send(WsBroadcastMessage::TtsState {
@@ -324,6 +347,7 @@ impl TtsActor {
                                 .is_some_and(|author_id| current.author_id.as_deref() == Some(author_id))
                     });
                     if should_skip_current {
+                        self.pending_audio = None;
                         if let Some(current) = self.current.take() {
                             let _ = self.broadcast_tx.send(WsBroadcastMessage::TtsState {
                                 message_id: current.message_id,
@@ -338,6 +362,9 @@ impl TtsActor {
                 TtsCommand::GetCurrentProcessing(tx) => {
                     let _ = tx.send(self.current.clone());
                 }
+                TtsCommand::GetPendingAudio(tx) => {
+                    let _ = tx.send(self.pending_audio.clone());
+                }
                 TtsCommand::UpdateSettings(new_settings) => {
                     if self.settings.azure_speech_voices != new_settings.azure_speech_voices
                         || self.settings.azure_speech_voice_rotation != new_settings.azure_speech_voice_rotation
@@ -351,11 +378,24 @@ impl TtsActor {
                         if curr.message_id == message_id {
                             match result {
                                 Ok(synthesis) => {
-                                    let _ = self.broadcast_tx.send(WsBroadcastMessage::PlayAudio {
+                                    let pending = PendingAudio {
                                         message_id: message_id.clone(),
                                         audio_data: synthesis.audio_data_uri,
                                         word_boundaries: synthesis.word_boundaries.clone(),
+                                    };
+
+                                    let _ = self.broadcast_tx.send(WsBroadcastMessage::PlayAudio {
+                                        message_id: message_id.clone(),
+                                        audio_data: pending.audio_data.clone(),
+                                        word_boundaries: pending.word_boundaries.clone(),
                                     });
+
+                                    let receiver_count = self.broadcast_tx.receiver_count();
+                                    if receiver_count == 0 {
+                                        info!("[TTS] No WebSocket clients currently connected; caching audio for {} until client connects", message_id);
+                                    }
+
+                                    self.pending_audio = Some(pending);
 
                                     // Dynamic watchdog timer based on audio length
                                     let last_offset = synthesis
@@ -363,7 +403,12 @@ impl TtsActor {
                                         .last()
                                         .map(|b| b.audio_offset + b.duration)
                                         .unwrap_or(7.0);
-                                    let timeout_secs = ((last_offset + 4.0).clamp(5.0, 25.0)) as u64;
+                                    let base_timeout = ((last_offset + 4.0).clamp(5.0, 25.0)) as u64;
+                                    let timeout_secs = if receiver_count == 0 {
+                                        base_timeout.max(25)
+                                    } else {
+                                        base_timeout
+                                    };
 
                                     let watchdog_id = message_id.clone();
                                     let watchdog_handle = self.self_handle.clone();
@@ -374,6 +419,7 @@ impl TtsActor {
                                     });
                                 }
                                 Err(err) => {
+                                    self.pending_audio = None;
                                     warn!("[TTS] Azure synthesis failed for {}: {}", message_id, err);
                                     let _ = self.broadcast_tx.send(WsBroadcastMessage::TtsState {
                                         message_id,
@@ -503,5 +549,47 @@ mod tests {
         handle.clear_queue().await;
         let current = handle.get_current_processing().await;
         assert!(current.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_pending_audio_caching_and_lifecycle() {
+        let (broadcast_tx, _broadcast_rx) = broadcast::channel(100);
+        let settings = AppSettings::default();
+        let handle = TtsActor::spawn(broadcast_tx, settings);
+
+        // Initially no pending audio
+        assert!(handle.get_pending_audio().await.is_none());
+
+        // Enqueue priority message
+        let msg = make_test_msg("p1", "BABA", "Quick speech test");
+        handle.enqueue_priority(msg).await;
+
+        // Simulate synthesis completion directly via internal command sender
+        let synthesis_result = Ok(crate::azure_tts::SpeechSynthesisResult {
+            audio_data_uri: "data:audio/mp3;base64,dummydata".to_string(),
+            word_boundaries: vec![WordBoundary {
+                audio_offset: 0.1,
+                duration: 0.5,
+                text: "Quick".to_string(),
+                text_offset: Some(0),
+            }],
+            size_kb: 1.2,
+        });
+        let _ = handle.sender.send(TtsCommand::SynthesisComplete {
+            message_id: "p1".to_string(),
+            result: synthesis_result,
+        }).await;
+
+        // Pending audio should now be available for newly connecting clients
+        let pending = handle.get_pending_audio().await;
+        assert!(pending.is_some());
+        let pending = pending.unwrap();
+        assert_eq!(pending.message_id, "p1");
+        assert_eq!(pending.audio_data, "data:audio/mp3;base64,dummydata");
+        assert_eq!(pending.word_boundaries.len(), 1);
+
+        // When audio finishes, pending audio is cleared
+        handle.audio_finished(Some("p1".to_string())).await;
+        assert!(handle.get_pending_audio().await.is_none());
     }
 }

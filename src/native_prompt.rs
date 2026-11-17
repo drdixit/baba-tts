@@ -233,38 +233,41 @@ mod win32 {
                                 let text_to_send = trimmed.to_string();
                                 let client = get_http_client().clone();
 
+                                let send_req = async move {
+                                    let url = if mode == PromptMode::User {
+                                        format!("http://127.0.0.1:{}/api/baba-say", port)
+                                    } else {
+                                        format!("http://127.0.0.1:{}/api/speak-as-banned", port)
+                                    };
+                                    match client
+                                        .post(&url)
+                                        .json(&serde_json::json!({ "text": text_to_send }))
+                                        .send()
+                                        .await
+                                    {
+                                        Ok(resp) => {
+                                            if !resp.status().is_success() {
+                                                tracing::warn!("[NativePrompt] Request to {} returned status {}", url, resp.status());
+                                            } else {
+                                                tracing::debug!("[NativePrompt] Queued speech successfully via {}", url);
+                                            }
+                                        }
+                                        Err(e) => {
+                                            tracing::error!("[NativePrompt] Failed to send prompt text to {}: {}", url, e);
+                                        }
+                                    }
+                                };
+
                                 // Non-blocking dispatch via Tokio Handle if initialized, or background OS thread
                                 if let Some(handle) = TOKIO_HANDLE.get() {
-                                    handle.spawn(async move {
-                                        let url = if mode == PromptMode::User {
-                                            format!("http://127.0.0.1:{}/api/baba-say", port)
-                                        } else {
-                                            format!("http://127.0.0.1:{}/api/speak-as-banned", port)
-                                        };
-                                        let _ = client
-                                            .post(&url)
-                                            .json(&serde_json::json!({ "text": text_to_send }))
-                                            .send()
-                                            .await;
-                                    });
+                                    handle.spawn(send_req);
                                 } else {
                                     std::thread::spawn(move || {
                                         if let Ok(rt) = tokio::runtime::Builder::new_current_thread()
                                             .enable_all()
                                             .build()
                                         {
-                                            rt.block_on(async move {
-                                                let url = if mode == PromptMode::User {
-                                                    format!("http://127.0.0.1:{}/api/baba-say", port)
-                                                } else {
-                                                    format!("http://127.0.0.1:{}/api/speak-as-banned", port)
-                                                };
-                                                let _ = client
-                                                    .post(&url)
-                                                    .json(&serde_json::json!({ "text": text_to_send }))
-                                                    .send()
-                                                    .await;
-                                            });
+                                            rt.block_on(send_req);
                                         }
                                     });
                                 }

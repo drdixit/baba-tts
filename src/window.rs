@@ -419,6 +419,10 @@ mod win32 {
     }
 
     unsafe fn attach_webview2(hwnd: HWND, port: u16) {
+        std::env::set_var(
+            "WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS",
+            "--autoplay-policy=no-user-gesture-required",
+        );
         let loader = ensure_webview2_loader();
         if loader == 0 {
             warn!("[Window] WebView2Loader.dll not available. Opening dashboard in default browser.");

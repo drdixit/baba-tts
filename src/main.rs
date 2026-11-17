@@ -120,6 +120,11 @@ unsafe fn enable_dpi_awareness() {
 async fn main() {
     #[cfg(windows)]
     unsafe {
+        // Configure WebView2 to allow autoplay without requiring prior document interaction
+        std::env::set_var(
+            "WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS",
+            "--autoplay-policy=no-user-gesture-required",
+        );
         attach_parent_console();
         enable_dpi_awareness();
     }
