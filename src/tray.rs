@@ -153,12 +153,13 @@ pub fn format_tray_tooltip(port: u16) -> String {
 mod win32 {
     use super::*;
     use std::os::windows::ffi::OsStrExt;
+    use std::sync::atomic::Ordering;
     use std::sync::mpsc::sync_channel;
     use tracing::{error, info, warn};
     use windows_sys::Win32::Foundation::{HWND, LPARAM, LRESULT, POINT, WPARAM};
     use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
     use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
-        RegisterHotKey, UnregisterHotKey, MOD_ALT, MOD_CONTROL, MOD_NOREPEAT,
+        GetKeyState, RegisterHotKey, UnregisterHotKey, MOD_NOREPEAT,
     };
     use windows_sys::Win32::UI::Shell::{
         Shell_NotifyIconW, NIF_ICON, NIF_MESSAGE, NIF_TIP, NIM_ADD, NIM_DELETE, NOTIFYICONDATAW,
@@ -176,11 +177,42 @@ mod win32 {
 
     const WM_USER_TRAY: u32 = WM_USER + 100;
     const WM_HOTKEY: u32 = 0x0312;
-    const HOTKEY_BAN_CURRENT: i32 = 2001;
-    const HOTKEY_SPEAK_AS_BANNED: i32 = 2002;
-    const HOTKEY_SKIP_CURRENT: i32 = 2003;
-    const HOTKEY_CLEAR_QUEUE: i32 = 2004;
-    const HOTKEY_SPEAK_AS_USER: i32 = 2005;
+    pub const HOTKEY_BAN_CURRENT: i32 = 2001;
+    pub const HOTKEY_SPEAK_AS_BANNED: i32 = 2002;
+    pub const HOTKEY_SKIP_CURRENT: i32 = 2003;
+    pub const HOTKEY_CLEAR_QUEUE: i32 = 2004;
+    pub const HOTKEY_SPEAK_AS_USER: i32 = 2005;
+
+    pub static TRAY_HWND: std::sync::atomic::AtomicIsize = std::sync::atomic::AtomicIsize::new(0);
+
+    pub fn pause_hotkeys() {
+        let hwnd = TRAY_HWND.load(std::sync::atomic::Ordering::Acquire);
+        if hwnd != 0 {
+            unsafe {
+                UnregisterHotKey(hwnd as HWND, HOTKEY_BAN_CURRENT);
+                UnregisterHotKey(hwnd as HWND, HOTKEY_SPEAK_AS_BANNED);
+                UnregisterHotKey(hwnd as HWND, HOTKEY_SPEAK_AS_USER);
+                UnregisterHotKey(hwnd as HWND, HOTKEY_SKIP_CURRENT);
+                UnregisterHotKey(hwnd as HWND, HOTKEY_CLEAR_QUEUE);
+                tracing::debug!("[Tray] Global numpad hotkeys temporarily paused for input");
+            }
+        }
+    }
+
+    pub fn resume_hotkeys() {
+        let hwnd = TRAY_HWND.load(std::sync::atomic::Ordering::Acquire);
+        if hwnd != 0 {
+            unsafe {
+                let hotkey_mods = MOD_NOREPEAT;
+                RegisterHotKey(hwnd as HWND, HOTKEY_CLEAR_QUEUE, hotkey_mods, 0x60);
+                RegisterHotKey(hwnd as HWND, HOTKEY_BAN_CURRENT, hotkey_mods, 0x61);
+                RegisterHotKey(hwnd as HWND, HOTKEY_SPEAK_AS_BANNED, hotkey_mods, 0x62);
+                RegisterHotKey(hwnd as HWND, HOTKEY_SKIP_CURRENT, hotkey_mods, 0x63);
+                RegisterHotKey(hwnd as HWND, HOTKEY_SPEAK_AS_USER, hotkey_mods, 0x64);
+                tracing::debug!("[Tray] Global numpad hotkeys resumed");
+            }
+        }
+    }
 
     struct TrayState {
         port: u16,
@@ -533,14 +565,27 @@ mod win32 {
 
                 (*state_raw).nid.hWnd = hwnd;
 
-                // Register global hotkeys with Ctrl+Alt modifiers (MOD_CONTROL | MOD_ALT | MOD_NOREPEAT)
-                // so we don't hijack normal OS-wide numeric keypad typing
-                let hotkey_mods = MOD_CONTROL | MOD_ALT | MOD_NOREPEAT;
-                RegisterHotKey(hwnd, HOTKEY_BAN_CURRENT, hotkey_mods, 0x61); // Ctrl+Alt+Numpad1
-                RegisterHotKey(hwnd, HOTKEY_SPEAK_AS_BANNED, hotkey_mods, 0x62); // Ctrl+Alt+Numpad2
-                RegisterHotKey(hwnd, HOTKEY_SPEAK_AS_USER, hotkey_mods, 0x64); // Ctrl+Alt+Numpad4
-                RegisterHotKey(hwnd, HOTKEY_SKIP_CURRENT, hotkey_mods, 0x63); // Ctrl+Alt+Numpad3
-                RegisterHotKey(hwnd, HOTKEY_CLEAR_QUEUE, hotkey_mods, 0x60); // Ctrl+Alt+Numpad0
+                TRAY_HWND.store(hwnd as isize, Ordering::Release);
+
+                // Register global hotkeys directly on numeric keypad keys (MOD_NOREPEAT)
+                // Hotkeys are paused while the quick prompt window is active so numbers can be typed.
+                let hotkey_mods = MOD_NOREPEAT;
+                let r1 = RegisterHotKey(hwnd, HOTKEY_CLEAR_QUEUE, hotkey_mods, 0x60); // Numpad 0
+                let r2 = RegisterHotKey(hwnd, HOTKEY_BAN_CURRENT, hotkey_mods, 0x61); // Numpad 1
+                let r3 = RegisterHotKey(hwnd, HOTKEY_SPEAK_AS_BANNED, hotkey_mods, 0x62); // Numpad 2
+                let r4 = RegisterHotKey(hwnd, HOTKEY_SKIP_CURRENT, hotkey_mods, 0x63); // Numpad 3
+                let r5 = RegisterHotKey(hwnd, HOTKEY_SPEAK_AS_USER, hotkey_mods, 0x64); // Numpad 4
+
+                let numlock = GetKeyState(0x90 /* VK_NUMLOCK */);
+                info!(
+                    "[Tray] Registered Numpad hotkeys: Numpad0={}, Numpad1={}, Numpad2={}, Numpad3={}, Numpad4={} (NumLock={})",
+                    r1, r2, r3, r4, r5, if numlock & 1 != 0 { "ON" } else { "OFF" }
+                );
+
+                if r1 == 0 || r2 == 0 || r3 == 0 || r4 == 0 || r5 == 0 {
+                    let err = windows_sys::Win32::Foundation::GetLastError();
+                    warn!("[Tray] Some Numpad hotkeys failed to register (GetLastError={}). Another app may have claimed them.", err);
+                }
 
                 if Shell_NotifyIconW(NIM_ADD, &(*state_raw).nid) == 0 {
                     warn!("[Tray] Shell_NotifyIconW failed to add tray icon");
@@ -586,6 +631,11 @@ mod non_windows {
         tracing::info!("[Tray] System tray is only active on Windows systems.");
         Some(TrayHandle)
     }
+
+    #[allow(dead_code)]
+    pub fn pause_hotkeys() {}
+    #[allow(dead_code)]
+    pub fn resume_hotkeys() {}
 }
 
 #[cfg(windows)]

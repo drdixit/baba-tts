@@ -70,14 +70,14 @@ mod win32 {
     };
     use windows_sys::Win32::System::LibraryLoader::{GetModuleHandleW, GetProcAddress, LoadLibraryW};
     use windows_sys::Win32::System::Threading::{AttachThreadInput, GetCurrentThreadId};
-    use windows_sys::Win32::UI::Input::KeyboardAndMouse::SetFocus;
+    use windows_sys::Win32::UI::Input::KeyboardAndMouse::{keybd_event, SetFocus, KEYEVENTF_KEYUP};
     use windows_sys::Win32::UI::WindowsAndMessaging::{
-        BringWindowToTop, CallWindowProcW, CreateWindowExW, DefWindowProcW, DispatchMessageW,
+        AllowSetForegroundWindow, BringWindowToTop, CallWindowProcW, CreateWindowExW, DefWindowProcW, DispatchMessageW,
         GetClientRect, GetForegroundWindow, GetMessageW, GetWindowTextLengthW, GetWindowTextW,
         GetWindowThreadProcessId, IsChild, PostMessageW, RegisterClassW, SendMessageW,
         SetForegroundWindow, SetWindowLongPtrW, SetWindowPos, SetWindowTextW, ShowWindow,
         SystemParametersInfoW, TranslateMessage, CS_DROPSHADOW, ES_AUTOHSCROLL, GWLP_WNDPROC, MSG,
-        SPI_GETWORKAREA, SW_HIDE, SW_SHOW, SWP_NOACTIVATE, SWP_NOZORDER, SWP_NOSIZE,
+        SPI_GETWORKAREA, SW_HIDE, SW_SHOW, SWP_NOACTIVATE, SWP_NOZORDER, SWP_NOSIZE, SWP_SHOWWINDOW,
         WM_ACTIVATE, WM_CHAR,
         WM_CLOSE, WM_CREATE, WM_CTLCOLOREDIT, WM_CTLCOLORSTATIC, WM_DESTROY, WM_ERASEBKGND,
         WM_KEYDOWN, WM_KILLFOCUS, WM_LBUTTONDOWN, WM_USER, WNDCLASSW, WNDPROC, WS_CHILD,
@@ -280,6 +280,7 @@ mod win32 {
                         if parent != 0 {
                             ShowWindow(parent, SW_HIDE);
                         }
+                        crate::tray::resume_hotkeys();
                         return 0;
                     }
                     0x1B => {
@@ -289,6 +290,7 @@ mod win32 {
                         if parent != 0 {
                             ShowWindow(parent, SW_HIDE);
                         }
+                        crate::tray::resume_hotkeys();
                         return 0;
                     }
                     _ => {}
@@ -302,6 +304,7 @@ mod win32 {
                 let parent = PROMPT_HWND.load(Ordering::Acquire);
                 if parent != 0 && new_focus != parent && IsChild(parent, new_focus) == 0 {
                     ShowWindow(parent, SW_HIDE);
+                    crate::tray::resume_hotkeys();
                 }
             }
 
@@ -415,6 +418,8 @@ mod win32 {
                 LIGHT_BRUSH as LRESULT
             }
             WM_SHOW_PROMPT => {
+                crate::tray::pause_hotkeys();
+
                 // Determine work area of active/foreground monitor for multi-monitor setups
                 let fg = GetForegroundWindow();
                 let mut monitor_info: MONITORINFO = std::mem::zeroed();
@@ -434,9 +439,7 @@ mod win32 {
                     wa
                 };
 
-                ShowWindow(hwnd, SW_HIDE);
-
-                // Move the hidden window onto the foreground monitor first so its
+                // Move the window onto the foreground monitor first so its
                 // per-monitor DPI query reflects the monitor the prompt will occupy.
                 SetWindowPos(
                     hwnd,
@@ -473,7 +476,7 @@ mod win32 {
                     geom.y,
                     geom.width,
                     geom.height,
-                    SWP_NOACTIVATE,
+                    SWP_SHOWWINDOW,
                 );
 
                 // Resize and reposition inner edit control for target DPI
@@ -552,7 +555,11 @@ mod win32 {
                     None
                 };
 
-                SetForegroundWindow(hwnd);
+                if SetForegroundWindow(hwnd) == 0 {
+                    keybd_event(0x12 /* VK_MENU */, 0, 0, 0);
+                    keybd_event(0x12 /* VK_MENU */, 0, KEYEVENTF_KEYUP, 0);
+                    SetForegroundWindow(hwnd);
+                }
                 BringWindowToTop(hwnd);
 
                 if edit != 0 {
@@ -580,6 +587,7 @@ mod win32 {
                     let edit_hwnd = EDIT_HWND.load(Ordering::Acquire);
                     if activating_hwnd != hwnd && activating_hwnd != edit_hwnd {
                         ShowWindow(hwnd, SW_HIDE);
+                        crate::tray::resume_hotkeys();
                     }
                 } else {
                     // Window becoming active: ensure edit control holds keyboard focus
@@ -592,6 +600,7 @@ mod win32 {
             }
             WM_CLOSE => {
                 ShowWindow(hwnd, SW_HIDE);
+                crate::tray::resume_hotkeys();
                 0
             }
             WM_DESTROY => {
@@ -691,6 +700,7 @@ mod win32 {
         let hwnd = PROMPT_HWND.load(Ordering::Acquire);
         if hwnd != 0 {
             unsafe {
+                AllowSetForegroundWindow(0xFFFF_FFFF /* ASFW_ANY */);
                 PostMessageW(hwnd, WM_SHOW_PROMPT, 0, 0);
             }
         }
