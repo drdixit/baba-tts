@@ -29,6 +29,13 @@ base64 = "0.23.1"
 opt-level = 2
 strip = true
 
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.58", features = [
+    "Win32_Media_Speech",
+    "Win32_System_Com",
+    "Win32_System_Ole",
+] }
+
 [target.'cfg(windows)'.dependencies.windows-sys]
 version = "0.52"
 features = [

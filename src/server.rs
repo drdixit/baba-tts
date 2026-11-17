@@ -1,7 +1,7 @@
 use crate::colors::get_deterministic_color;
 use crate::db::Db;
 use crate::tts_queue::{TtsHandle, WsBroadcastMessage};
-use crate::types::{AppSettings, ChatMessage, MessageStatus};
+use crate::types::{AppSettings, ChatMessage, MessageStatus, VoiceCatalogEntry};
 use crate::ws::handle_websocket;
 use axum::extract::ws::WebSocketUpgrade;
 use axum::extract::{ConnectInfo, Query, Request, State};
@@ -290,11 +290,17 @@ async fn execute_speak_as_banned(state: &AppState, custom_text: Option<String>) 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct SettingsResponse {
+    tts_provider: String,
     azure_speech_key_configured: bool,
     azure_speech_region: String,
     azure_speech_voice: String,
     azure_speech_voices: Vec<String>,
     azure_speech_voice_rotation: bool,
+    sapi_voice: String,
+    sapi_voices: Vec<String>,
+    sapi_voice_rotation: bool,
+    sapi_rate: i32,
+    sapi_volume: u32,
     youtube_channel_id: String,
     youtube_live_id: Option<String>,
     enable_youtube: bool,
@@ -303,11 +309,17 @@ struct SettingsResponse {
 impl From<&AppSettings> for SettingsResponse {
     fn from(settings: &AppSettings) -> Self {
         Self {
+            tts_provider: settings.tts_provider.clone(),
             azure_speech_key_configured: !settings.azure_speech_key.trim().is_empty(),
             azure_speech_region: settings.azure_speech_region.clone(),
             azure_speech_voice: settings.azure_speech_voice.clone(),
             azure_speech_voices: settings.azure_speech_voices.clone(),
             azure_speech_voice_rotation: settings.azure_speech_voice_rotation,
+            sapi_voice: settings.sapi_voice.clone(),
+            sapi_voices: settings.sapi_voices.clone(),
+            sapi_voice_rotation: settings.sapi_voice_rotation,
+            sapi_rate: settings.sapi_rate,
+            sapi_volume: settings.sapi_volume,
             youtube_channel_id: settings.youtube_channel_id.clone(),
             youtube_live_id: settings.youtube_live_id.clone(),
             enable_youtube: settings.enable_youtube,
@@ -319,6 +331,8 @@ impl From<&AppSettings> for SettingsResponse {
 #[serde(rename_all = "camelCase")]
 struct SaveSettingsPayload {
     #[serde(default)]
+    tts_provider: Option<String>,
+    #[serde(default)]
     azure_speech_key: Option<String>,
     #[serde(default)]
     clear_azure_speech_key: bool,
@@ -328,6 +342,16 @@ struct SaveSettingsPayload {
     azure_speech_voices: Option<Vec<String>>,
     #[serde(default)]
     azure_speech_voice_rotation: bool,
+    #[serde(default)]
+    sapi_voice: Option<String>,
+    #[serde(default)]
+    sapi_voices: Option<Vec<String>>,
+    #[serde(default)]
+    sapi_voice_rotation: Option<bool>,
+    #[serde(default)]
+    sapi_rate: Option<i32>,
+    #[serde(default)]
+    sapi_volume: Option<u32>,
     youtube_channel_id: String,
     youtube_live_id: Option<String>,
     enable_youtube: bool,
@@ -335,6 +359,11 @@ struct SaveSettingsPayload {
 
 impl SaveSettingsPayload {
     fn into_settings(self, current: AppSettings) -> AppSettings {
+        let tts_provider = self
+            .tts_provider
+            .filter(|p| p == "azure" || p == "sapi5")
+            .unwrap_or(current.tts_provider);
+
         let azure_speech_key = if self.clear_azure_speech_key {
             String::new()
         } else {
@@ -364,12 +393,40 @@ impl SaveSettingsPayload {
             azure_speech_voice = azure_speech_voices[0].clone();
         }
 
+        let sapi_voice = self.sapi_voice.unwrap_or(current.sapi_voice);
+        let mut sapi_voices = self.sapi_voices.unwrap_or_else(|| {
+            vec![sapi_voice.clone()]
+        });
+        sapi_voices = sapi_voices
+            .into_iter()
+            .map(|voice| voice.trim().to_string())
+            .filter(|voice| !voice.is_empty())
+            .fold(Vec::new(), |mut voices, voice| {
+                if !voices.contains(&voice) {
+                    voices.push(voice);
+                }
+                voices
+            });
+        if sapi_voices.is_empty() {
+            sapi_voices.push(sapi_voice.clone());
+        }
+
+        let sapi_voice_rotation = self.sapi_voice_rotation.unwrap_or(current.sapi_voice_rotation);
+        let sapi_rate = self.sapi_rate.unwrap_or(current.sapi_rate).clamp(-10, 10);
+        let sapi_volume = self.sapi_volume.unwrap_or(current.sapi_volume).min(100);
+
         AppSettings {
+            tts_provider,
             azure_speech_key,
             azure_speech_region: self.azure_speech_region,
             azure_speech_voice,
             azure_speech_voices,
             azure_speech_voice_rotation: self.azure_speech_voice_rotation,
+            sapi_voice,
+            sapi_voices,
+            sapi_voice_rotation,
+            sapi_rate,
+            sapi_volume,
             youtube_channel_id: self.youtube_channel_id,
             youtube_live_id: self.youtube_live_id,
             enable_youtube: self.enable_youtube,
@@ -380,21 +437,7 @@ impl SaveSettingsPayload {
 #[derive(Deserialize)]
 struct VoiceQuery {
     region: Option<String>,
-}
-
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-struct VoiceCatalogEntry {
-    short_name: String,
-    display_name: String,
-    local_name: Option<String>,
-    locale: String,
-    locale_name: Option<String>,
-    gender: Option<String>,
-    voice_type: Option<String>,
-    status: Option<String>,
-    style_list: Option<Vec<String>>,
-    secondary_locale_list: Option<Vec<String>>,
+    provider: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -506,6 +549,26 @@ async fn get_voices_handler(
             return (StatusCode::INTERNAL_SERVER_ERROR, error.to_string()).into_response();
         }
     };
+
+    let is_sapi = query.provider.as_deref() == Some("sapi5")
+        || (query.provider.is_none() && settings.tts_provider == "sapi5");
+
+    if is_sapi {
+        return match crate::sapi_tts::get_installed_voices().await {
+            Ok(voices) => Json(VoiceCatalogResponse {
+                region: "local".to_string(),
+                count: voices.len(),
+                voices,
+            })
+            .into_response(),
+            Err(err) => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({ "error": format!("Failed to retrieve SAPI voices: {}", err) })),
+            )
+                .into_response(),
+        };
+    }
+
     if settings.azure_speech_key.trim().is_empty() {
         return (
             StatusCode::PRECONDITION_REQUIRED,
@@ -734,11 +797,17 @@ mod tests {
 
         // Test POST /api/settings
         let updated = AppSettings {
+            tts_provider: "sapi5".to_string(),
             azure_speech_key: "new_key".to_string(),
             azure_speech_region: "centralus".to_string(),
             azure_speech_voice: "hi-IN-SwaraNeural".to_string(),
             azure_speech_voices: vec!["hi-IN-SwaraNeural".to_string()],
             azure_speech_voice_rotation: false,
+            sapi_voice: "Microsoft David Desktop".to_string(),
+            sapi_voices: vec!["Microsoft David Desktop".to_string()],
+            sapi_voice_rotation: false,
+            sapi_rate: 2,
+            sapi_volume: 90,
             youtube_channel_id: "test_channel".to_string(),
             youtube_live_id: Some("live123".to_string()),
             enable_youtube: false,
@@ -761,8 +830,12 @@ mod tests {
         assert_eq!(save_response["settings"]["azureSpeechKeyConfigured"], true);
         assert!(save_response["settings"].get("azureSpeechKey").is_none());
         let reloaded = db.load_settings().unwrap();
+        assert_eq!(reloaded.tts_provider, "sapi5");
         assert_eq!(reloaded.azure_speech_region, "centralus");
         assert_eq!(reloaded.azure_speech_voice, "hi-IN-SwaraNeural");
+        assert_eq!(reloaded.sapi_voice, "Microsoft David Desktop");
+        assert_eq!(reloaded.sapi_rate, 2);
+        assert_eq!(reloaded.sapi_volume, 90);
 
         // Test POST /api/baba-say
         let response = app

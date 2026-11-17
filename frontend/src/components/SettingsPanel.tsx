@@ -11,25 +11,40 @@ import {
   RotateCcw,
   Save,
   Search,
+  Volume2,
+  Gauge,
+  Cpu,
 } from 'lucide-react';
 
 interface AppSettings {
+  tts_provider: 'azure' | 'sapi5';
   azure_speech_key: string;
   azure_speech_region: string;
   azure_speech_voice: string;
   azure_speech_voices: string[];
   azure_speech_voice_rotation: boolean;
+  sapi_voice: string;
+  sapi_voices: string[];
+  sapi_voice_rotation: boolean;
+  sapi_rate: number;
+  sapi_volume: number;
   youtube_channel_id: string;
   youtube_live_id: string | null;
   enable_youtube: boolean;
 }
 
 interface ApiSettings {
+  ttsProvider?: 'azure' | 'sapi5';
   azureSpeechKeyConfigured: boolean;
   azureSpeechRegion: string;
   azureSpeechVoice: string;
   azureSpeechVoices?: string[];
   azureSpeechVoiceRotation?: boolean;
+  sapiVoice?: string;
+  sapiVoices?: string[];
+  sapiVoiceRotation?: boolean;
+  sapiRate?: number;
+  sapiVolume?: number;
   youtubeChannelId: string;
   youtubeLiveId: string | null;
   enableYoutube: boolean;
@@ -56,6 +71,7 @@ interface VoiceCatalog {
 
 function apiToForm(api: ApiSettings): AppSettings {
   return {
+    tts_provider: api.ttsProvider === 'sapi5' ? 'sapi5' : 'azure',
     azure_speech_key: '',
     azure_speech_region: api.azureSpeechRegion || 'centralindia',
     azure_speech_voice: api.azureSpeechVoice || 'hi-IN-MadhurNeural',
@@ -63,6 +79,11 @@ function apiToForm(api: ApiSettings): AppSettings {
       ? api.azureSpeechVoices
       : [api.azureSpeechVoice || 'hi-IN-MadhurNeural'],
     azure_speech_voice_rotation: api.azureSpeechVoiceRotation ?? false,
+    sapi_voice: api.sapiVoice || 'default',
+    sapi_voices: api.sapiVoices?.length ? api.sapiVoices : [api.sapiVoice || 'default'],
+    sapi_voice_rotation: api.sapiVoiceRotation ?? false,
+    sapi_rate: api.sapiRate ?? 0,
+    sapi_volume: api.sapiVolume ?? 100,
     youtube_channel_id: api.youtubeChannelId || '',
     youtube_live_id: api.youtubeLiveId || null,
     enable_youtube: api.enableYoutube ?? true,
@@ -70,11 +91,17 @@ function apiToForm(api: ApiSettings): AppSettings {
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
+  tts_provider: 'azure',
   azure_speech_key: '',
   azure_speech_region: 'centralindia',
   azure_speech_voice: 'hi-IN-MadhurNeural',
   azure_speech_voices: ['hi-IN-MadhurNeural'],
   azure_speech_voice_rotation: false,
+  sapi_voice: 'default',
+  sapi_voices: ['default'],
+  sapi_voice_rotation: false,
+  sapi_rate: 0,
+  sapi_volume: 100,
   youtube_channel_id: 'UCiz4lqlVpaB4PpK-1aecMgQ',
   youtube_live_id: null,
   enable_youtube: true,
@@ -147,7 +174,7 @@ export default function SettingsPanel({ onRestart, serverPort }: SettingsPanelPr
   const [justSaved, setJustSaved] = useState(false);
   const catalogRequest = useRef<AbortController | null>(null);
 
-  const loadVoiceCatalog = useCallback(async (region: string) => {
+  const loadVoiceCatalog = useCallback(async (region: string, provider: 'azure' | 'sapi5' = 'azure') => {
     catalogRequest.current?.abort();
     const controller = new AbortController();
     catalogRequest.current = controller;
@@ -155,7 +182,10 @@ export default function SettingsPanel({ onRestart, serverPort }: SettingsPanelPr
     setCatalogError('');
 
     try {
-      const response = await fetch(`/api/voices?region=${encodeURIComponent(region)}`, {
+      const endpoint = provider === 'sapi5'
+        ? '/api/voices?provider=sapi5'
+        : `/api/voices?region=${encodeURIComponent(region)}`;
+      const response = await fetch(endpoint, {
         signal: controller.signal,
       });
       const result: unknown = await response.json().catch(() => null);
@@ -166,7 +196,7 @@ export default function SettingsPanel({ onRestart, serverPort }: SettingsPanelPr
         throw new Error(message);
       }
       if (!result || typeof result !== 'object' || !('voices' in result) || !Array.isArray(result.voices)) {
-        throw new Error('Azure Speech returned an invalid voice list.');
+        throw new Error('TTS service returned an invalid voice list.');
       }
 
       setVoiceCatalog(result as VoiceCatalog);
@@ -176,7 +206,7 @@ export default function SettingsPanel({ onRestart, serverPort }: SettingsPanelPr
       if (controller.signal.aborted) return;
       setVoiceCatalog(null);
       setCatalogState('error');
-      setCatalogError(error instanceof Error ? error.message : 'Could not load Azure voices.');
+      setCatalogError(error instanceof Error ? error.message : 'Could not load voices.');
     }
   }, []);
 
@@ -192,11 +222,17 @@ export default function SettingsPanel({ onRestart, serverPort }: SettingsPanelPr
         if (cancelled) return;
 
         const region = data.azureSpeechRegion || 'centralindia';
-        setSettings(apiToForm(data));
+        const formSettings = apiToForm(data);
+        setSettings(formSettings);
         setSavedRegion(region);
         setCustomRegion(!presetRegionIds.has(region as (typeof REGION_PRESETS)[number][0]));
         setKeyConfigured(data.azureSpeechKeyConfigured);
-        if (data.azureSpeechKeyConfigured) void loadVoiceCatalog(region);
+        
+        if (formSettings.tts_provider === 'sapi5') {
+          void loadVoiceCatalog('', 'sapi5');
+        } else if (data.azureSpeechKeyConfigured) {
+          void loadVoiceCatalog(region, 'azure');
+        }
       } catch (error) {
         if (cancelled || controller.signal.aborted) return;
         setBanner({
@@ -228,43 +264,92 @@ export default function SettingsPanel({ onRestart, serverPort }: SettingsPanelPr
     }
   };
 
+  const handleProviderSwitch = (provider: 'azure' | 'sapi5') => {
+    updateField('tts_provider', provider);
+    if (provider === 'sapi5') {
+      void loadVoiceCatalog('', 'sapi5');
+    } else {
+      if (keyConfigured) {
+        void loadVoiceCatalog(savedRegion || settings.azure_speech_region, 'azure');
+      } else {
+        setVoiceCatalog(null);
+        setCatalogState('idle');
+      }
+    }
+  };
+
   const selectSingleVoice = (voice: string) => {
-    setCustomVoice(false);
-    setCustomVoiceHidden(false);
-    setSettings((previous) => ({
-      ...previous,
-      azure_speech_voice: voice,
-      azure_speech_voices: [voice],
-    }));
+    if (settings.tts_provider === 'sapi5') {
+      setSettings((previous) => ({
+        ...previous,
+        sapi_voice: voice,
+        sapi_voices: [voice],
+      }));
+    } else {
+      setCustomVoice(false);
+      setCustomVoiceHidden(false);
+      setSettings((previous) => ({
+        ...previous,
+        azure_speech_voice: voice,
+        azure_speech_voices: [voice],
+      }));
+    }
   };
 
   const toggleRotationVoice = (voice: string, checked: boolean) => {
-    setCustomVoice(false);
-    setCustomVoiceHidden(false);
-    setSettings((previous) => {
-      const selected = previous.azure_speech_voices;
-      const next = checked
-        ? [...selected.filter((item) => item !== voice), voice]
-        : selected.filter((item) => item !== voice);
-      if (next.length === 0) return previous;
-      const primary = next.includes(previous.azure_speech_voice) ? previous.azure_speech_voice : next[0];
-      return {
-        ...previous,
-        azure_speech_voice: primary,
-        azure_speech_voices: next,
-      };
-    });
+    if (settings.tts_provider === 'sapi5') {
+      setSettings((previous) => {
+        const selected = previous.sapi_voices;
+        const next = checked
+          ? [...selected.filter((item) => item !== voice), voice]
+          : selected.filter((item) => item !== voice);
+        if (next.length === 0) return previous;
+        const primary = next.includes(previous.sapi_voice) ? previous.sapi_voice : next[0];
+        return {
+          ...previous,
+          sapi_voice: primary,
+          sapi_voices: next,
+        };
+      });
+    } else {
+      setCustomVoice(false);
+      setCustomVoiceHidden(false);
+      setSettings((previous) => {
+        const selected = previous.azure_speech_voices;
+        const next = checked
+          ? [...selected.filter((item) => item !== voice), voice]
+          : selected.filter((item) => item !== voice);
+        if (next.length === 0) return previous;
+        const primary = next.includes(previous.azure_speech_voice) ? previous.azure_speech_voice : next[0];
+        return {
+          ...previous,
+          azure_speech_voice: primary,
+          azure_speech_voices: next,
+        };
+      });
+    }
   };
 
   const moveRotationVoice = (voice: string, offset: -1 | 1) => {
-    setSettings((previous) => {
-      const voices = [...previous.azure_speech_voices];
-      const index = voices.indexOf(voice);
-      const nextIndex = index + offset;
-      if (index < 0 || nextIndex < 0 || nextIndex >= voices.length) return previous;
-      [voices[index], voices[nextIndex]] = [voices[nextIndex], voices[index]];
-      return { ...previous, azure_speech_voice: voices[0], azure_speech_voices: voices };
-    });
+    if (settings.tts_provider === 'sapi5') {
+      setSettings((previous) => {
+        const voices = [...previous.sapi_voices];
+        const index = voices.indexOf(voice);
+        const nextIndex = index + offset;
+        if (index < 0 || nextIndex < 0 || nextIndex >= voices.length) return previous;
+        [voices[index], voices[nextIndex]] = [voices[nextIndex], voices[index]];
+        return { ...previous, sapi_voice: voices[0], sapi_voices: voices };
+      });
+    } else {
+      setSettings((previous) => {
+        const voices = [...previous.azure_speech_voices];
+        const index = voices.indexOf(voice);
+        const nextIndex = index + offset;
+        if (index < 0 || nextIndex < 0 || nextIndex >= voices.length) return previous;
+        [voices[index], voices[nextIndex]] = [voices[nextIndex], voices[index]];
+        return { ...previous, azure_speech_voice: voices[0], azure_speech_voices: voices };
+      });
+    }
   };
 
   const toggleCustomRegion = () => {
@@ -280,14 +365,20 @@ export default function SettingsPanel({ onRestart, serverPort }: SettingsPanelPr
 
   const validate = () => {
     const errors: Record<string, string> = {};
-    if (!settings.azure_speech_region.trim()) {
-      errors.azure_speech_region = 'Enter your Azure Speech region.';
+    if (settings.tts_provider === 'azure') {
+      if (!settings.azure_speech_region.trim()) {
+        errors.azure_speech_region = 'Enter your Azure Speech region.';
+      }
+      if (settings.azure_speech_voice_rotation && settings.azure_speech_voices.length === 0) {
+        errors.azure_speech_voices = 'Select at least one voice for rotation.';
+      }
+    } else if (settings.tts_provider === 'sapi5') {
+      if (settings.sapi_voice_rotation && settings.sapi_voices.length === 0) {
+        errors.sapi_voices = 'Select at least one SAPI voice for rotation.';
+      }
     }
     if (settings.enable_youtube && !settings.youtube_channel_id.trim()) {
       errors.youtube_channel_id = 'Enter a YouTube channel ID or turn off the listener.';
-    }
-    if (settings.azure_speech_voice_rotation && settings.azure_speech_voices.length === 0) {
-      errors.azure_speech_voices = 'Select at least one voice for rotation.';
     }
     setFieldErrors(errors);
     return Object.keys(errors).length === 0;
@@ -306,12 +397,18 @@ export default function SettingsPanel({ onRestart, serverPort }: SettingsPanelPr
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          ttsProvider: settings.tts_provider,
           azureSpeechKey: settings.azure_speech_key.trim(),
           clearAzureSpeechKey: clearKey,
           azureSpeechRegion: settings.azure_speech_region.trim() || 'centralindia',
           azureSpeechVoice: settings.azure_speech_voice.trim() || 'hi-IN-MadhurNeural',
           azureSpeechVoices: settings.azure_speech_voices.length ? settings.azure_speech_voices : [settings.azure_speech_voice],
           azureSpeechVoiceRotation: settings.azure_speech_voice_rotation,
+          sapiVoice: settings.sapi_voice.trim() || 'default',
+          sapiVoices: settings.sapi_voices.length ? settings.sapi_voices : [settings.sapi_voice],
+          sapiVoiceRotation: settings.sapi_voice_rotation,
+          sapiRate: settings.sapi_rate,
+          sapiVolume: settings.sapi_volume,
           youtubeChannelId: settings.youtube_channel_id.trim(),
           youtubeLiveId: settings.youtube_live_id?.trim() || null,
           enableYoutube: settings.enable_youtube,
@@ -333,8 +430,10 @@ export default function SettingsPanel({ onRestart, serverPort }: SettingsPanelPr
       setJustSaved(true);
       window.setTimeout(() => setJustSaved(false), 2200);
 
-      if (hasKey) {
-        await loadVoiceCatalog(region);
+      if (settings.tts_provider === 'sapi5') {
+        await loadVoiceCatalog('', 'sapi5');
+      } else if (hasKey) {
+        await loadVoiceCatalog(region, 'azure');
       } else {
         catalogRequest.current?.abort();
         setVoiceCatalog(null);
@@ -394,8 +493,9 @@ export default function SettingsPanel({ onRestart, serverPort }: SettingsPanelPr
   }, [localeFilter, voiceCatalog, voiceSearch]);
 
   const regionNeedsSave = settings.azure_speech_region.trim().toLowerCase() !== savedRegion.toLowerCase();
+  const currentVoice = settings.tts_provider === 'sapi5' ? settings.sapi_voice : settings.azure_speech_voice;
   const currentVoiceAvailable = voiceCatalog?.voices.some(
-    (voice) => voice.shortName === settings.azure_speech_voice,
+    (voice) => voice.shortName === currentVoice,
   ) ?? false;
   const showCustomVoice = !customVoiceHidden && customVoice;
 
@@ -407,6 +507,8 @@ export default function SettingsPanel({ onRestart, serverPort }: SettingsPanelPr
       </div>
     );
   }
+
+  const isSapi = settings.tts_provider === 'sapi5';
 
   return (
     <div className="flex w-full min-w-0 flex-col gap-2 px-2 pt-2 pb-0 text-[#1F1F1F]">
@@ -428,88 +530,209 @@ export default function SettingsPanel({ onRestart, serverPort }: SettingsPanelPr
         </div>
       )}
 
+      {/* TTS Engine Switcher */}
       <fieldset className="desktop-groupbox">
-        <legend className="desktop-groupbox-legend">Azure Speech</legend>
+        <legend className="desktop-groupbox-legend">TTS Engine / Provider</legend>
         <div className="desktop-setting-row">
-          <label htmlFor="azure-key" className="desktop-setting-label">Speech key</label>
-          <div className="min-w-0">
-            <div className="flex gap-1.5">
+          <span className="desktop-setting-label">Active Provider</span>
+          <div className="flex flex-wrap items-center gap-4 text-xs">
+            <label className="flex cursor-pointer items-center gap-1.5 font-medium">
               <input
-                id="azure-key"
-                type={showKey ? 'text' : 'password'}
-                autoComplete="new-password"
-                value={settings.azure_speech_key}
-                onChange={(event) => updateField('azure_speech_key', event.target.value)}
-                placeholder={keyConfigured ? 'Enter a new key to replace the saved key' : 'Paste Azure Speech key'}
-                className={`${fieldClass} font-mono`}
+                type="radio"
+                name="tts_provider"
+                value="azure"
+                checked={!isSapi}
+                onChange={() => handleProviderSwitch('azure')}
+                className="h-3.5 w-3.5 accent-[#555] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#555]"
               />
-              <button type="button" onClick={() => setShowKey((visible) => !visible)} className={secondaryButtonClass} title={showKey ? 'Hide key' : 'Show key'} aria-label={showKey ? 'Hide Azure Speech key' : 'Show Azure Speech key'}>
-                {showKey ? <EyeOff className="h-3.5 w-3.5" aria-hidden="true" /> : <Eye className="h-3.5 w-3.5" aria-hidden="true" />}
-              </button>
-              {keyConfigured && <button type="button" onClick={() => { setSettings((previous) => ({ ...previous, azure_speech_key: '' })); setClearKey((requested) => !requested); }} className={secondaryButtonClass} aria-pressed={clearKey}>{clearKey ? 'Keep key' : 'Clear key'}</button>}
-              <span className="flex shrink-0 items-center px-1 text-[11px] text-[#555]">{keyConfigured ? 'Saved' : 'Not set'}</span>
-            </div>
-            <p className="desktop-help-text">{clearKey ? 'The saved key will be removed when you save.' : 'Leave blank to keep the saved key. Settings never returns the saved key.'}</p>
+              Azure Speech (Cloud Neural)
+            </label>
+            <label className="flex cursor-pointer items-center gap-1.5 font-medium text-[#1A4D2E]">
+              <input
+                type="radio"
+                name="tts_provider"
+                value="sapi5"
+                checked={isSapi}
+                onChange={() => handleProviderSwitch('sapi5')}
+                className="h-3.5 w-3.5 accent-[#1A4D2E] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#1A4D2E]"
+              />
+              Windows Native SAPI5 (Offline / Free)
+            </label>
           </div>
         </div>
-
-        <div className="desktop-setting-row">
-          <label htmlFor="azure-region" className="desktop-setting-label">Speech region</label>
-          <div className="min-w-0">
-            <div className="flex gap-1.5">
-              {customRegion ? (
-                <input
-                  id="azure-region"
-                  type="text"
-                  value={settings.azure_speech_region}
-                  onChange={(event) => updateField('azure_speech_region', event.target.value)}
-                  placeholder="centralindia"
-                  className={`${fieldClass} font-mono ${fieldErrors.azure_speech_region ? 'border-[#A4262C]' : ''}`}
-                  aria-invalid={Boolean(fieldErrors.azure_speech_region)}
-                  aria-describedby={fieldErrors.azure_speech_region ? 'azure-region-error' : undefined}
-                />
-              ) : (
-                <select
-                  id="azure-region"
-                  value={presetRegionIds.has(settings.azure_speech_region as (typeof REGION_PRESETS)[number][0]) ? settings.azure_speech_region : 'centralindia'}
-                  onChange={(event) => updateField('azure_speech_region', event.target.value)}
-                  className={fieldClass}
-                >
-                  {REGION_PRESETS.map(([region, label]) => <option key={region} value={region}>{label} ({region})</option>)}
-                </select>
-              )}
-              <button type="button" onClick={toggleCustomRegion} className={secondaryButtonClass}>{customRegion ? 'Use region list' : 'Edit…'}</button>
-            </div>
-            <p className="desktop-help-text">
-              {fieldErrors.azure_speech_region ? <span id="azure-region-error" className="text-[#A4262C]">{fieldErrors.azure_speech_region}</span> : customRegion ? 'Enter the region ID shown in your Azure Speech resource.' : `Preset region · ${REGION_PRESETS.find(([region]) => region === settings.azure_speech_region)?.[1] ?? 'Central India'}.`}
-              {regionNeedsSave && !fieldErrors.azure_speech_region && <span> Save settings before refreshing voices.</span>}
-            </p>
-          </div>
-        </div>
+        <p className="desktop-help-text pl-[132px]">
+          {isSapi
+            ? 'Using Microsoft SAPI5 COM engine on Windows. Runs completely offline without API keys or usage fees.'
+            : 'Using Microsoft Azure Cognitive Services Speech. High-quality neural voices requiring an Azure API key.'}
+        </p>
       </fieldset>
 
+      {/* SAPI5 Controls */}
+      {isSapi && (
+        <fieldset className="desktop-groupbox">
+          <legend className="desktop-groupbox-legend flex items-center gap-1.5">
+            <Cpu className="h-3.5 w-3.5 text-[#1A4D2E]" aria-hidden="true" />
+            <span>Windows SAPI5 Voice & Controls</span>
+          </legend>
+
+          <div className="desktop-setting-row">
+            <label htmlFor="sapi-rate" className="desktop-setting-label flex items-center gap-1">
+              <Gauge className="h-3.5 w-3.5" aria-hidden="true" />
+              <span>Speaking Speed</span>
+            </label>
+            <div className="flex min-w-0 flex-1 items-center gap-3">
+              <input
+                id="sapi-rate"
+                type="range"
+                min={-10}
+                max={10}
+                step={1}
+                value={settings.sapi_rate}
+                onChange={(e) => updateField('sapi_rate', parseInt(e.target.value, 10))}
+                className="h-2 w-full max-w-56 cursor-pointer accent-[#555]"
+              />
+              <span className="w-12 font-mono text-xs font-semibold text-[#333]">
+                {settings.sapi_rate > 0 ? `+${settings.sapi_rate}` : settings.sapi_rate}
+              </span>
+              <button
+                type="button"
+                onClick={() => updateField('sapi_rate', 0)}
+                className={secondaryButtonClass}
+                title="Reset to 0 (normal speed)"
+              >
+                Reset (0)
+              </button>
+            </div>
+          </div>
+
+          <div className="desktop-setting-row">
+            <label htmlFor="sapi-volume" className="desktop-setting-label flex items-center gap-1">
+              <Volume2 className="h-3.5 w-3.5" aria-hidden="true" />
+              <span>Volume</span>
+            </label>
+            <div className="flex min-w-0 flex-1 items-center gap-3">
+              <input
+                id="sapi-volume"
+                type="range"
+                min={0}
+                max={100}
+                step={1}
+                value={settings.sapi_volume}
+                onChange={(e) => updateField('sapi_volume', parseInt(e.target.value, 10))}
+                className="h-2 w-full max-w-56 cursor-pointer accent-[#555]"
+              />
+              <span className="w-12 font-mono text-xs font-semibold text-[#333]">
+                {settings.sapi_volume}%
+              </span>
+              <button
+                type="button"
+                onClick={() => updateField('sapi_volume', 100)}
+                className={secondaryButtonClass}
+                title="Reset to 100% (max volume)"
+              >
+                Max (100)
+              </button>
+            </div>
+          </div>
+        </fieldset>
+      )}
+
+      {/* Azure Configuration */}
+      {!isSapi && (
+        <fieldset className="desktop-groupbox">
+          <legend className="desktop-groupbox-legend">Azure Speech Configuration</legend>
+          <div className="desktop-setting-row">
+            <label htmlFor="azure-key" className="desktop-setting-label">Speech key</label>
+            <div className="min-w-0">
+              <div className="flex gap-1.5">
+                <input
+                  id="azure-key"
+                  type={showKey ? 'text' : 'password'}
+                  autoComplete="new-password"
+                  value={settings.azure_speech_key}
+                  onChange={(event) => updateField('azure_speech_key', event.target.value)}
+                  placeholder={keyConfigured ? 'Enter a new key to replace the saved key' : 'Paste Azure Speech key'}
+                  className={`${fieldClass} font-mono`}
+                />
+                <button type="button" onClick={() => setShowKey((visible) => !visible)} className={secondaryButtonClass} title={showKey ? 'Hide key' : 'Show key'} aria-label={showKey ? 'Hide Azure Speech key' : 'Show Azure Speech key'}>
+                  {showKey ? <EyeOff className="h-3.5 w-3.5" aria-hidden="true" /> : <Eye className="h-3.5 w-3.5" aria-hidden="true" />}
+                </button>
+                {keyConfigured && <button type="button" onClick={() => { setSettings((previous) => ({ ...previous, azure_speech_key: '' })); setClearKey((requested) => !requested); }} className={secondaryButtonClass} aria-pressed={clearKey}>{clearKey ? 'Keep key' : 'Clear key'}</button>}
+                <span className="flex shrink-0 items-center px-1 text-[11px] text-[#555]">{keyConfigured ? 'Saved' : 'Not set'}</span>
+              </div>
+              <p className="desktop-help-text">{clearKey ? 'The saved key will be removed when you save.' : 'Leave blank to keep the saved key. Settings never returns the saved key.'}</p>
+            </div>
+          </div>
+
+          <div className="desktop-setting-row">
+            <label htmlFor="azure-region" className="desktop-setting-label">Speech region</label>
+            <div className="min-w-0">
+              <div className="flex gap-1.5">
+                {customRegion ? (
+                  <input
+                    id="azure-region"
+                    type="text"
+                    value={settings.azure_speech_region}
+                    onChange={(event) => updateField('azure_speech_region', event.target.value)}
+                    placeholder="centralindia"
+                    className={`${fieldClass} font-mono ${fieldErrors.azure_speech_region ? 'border-[#A4262C]' : ''}`}
+                    aria-invalid={Boolean(fieldErrors.azure_speech_region)}
+                    aria-describedby={fieldErrors.azure_speech_region ? 'azure-region-error' : undefined}
+                  />
+                ) : (
+                  <select
+                    id="azure-region"
+                    value={presetRegionIds.has(settings.azure_speech_region as (typeof REGION_PRESETS)[number][0]) ? settings.azure_speech_region : 'centralindia'}
+                    onChange={(event) => updateField('azure_speech_region', event.target.value)}
+                    className={fieldClass}
+                  >
+                    {REGION_PRESETS.map(([region, label]) => <option key={region} value={region}>{label} ({region})</option>)}
+                  </select>
+                )}
+                <button type="button" onClick={toggleCustomRegion} className={secondaryButtonClass}>{customRegion ? 'Use region list' : 'Edit…'}</button>
+              </div>
+              <p className="desktop-help-text">
+                {fieldErrors.azure_speech_region ? <span id="azure-region-error" className="text-[#A4262C]">{fieldErrors.azure_speech_region}</span> : customRegion ? 'Enter the region ID shown in your Azure Speech resource.' : `Preset region · ${REGION_PRESETS.find(([region]) => region === settings.azure_speech_region)?.[1] ?? 'Central India'}.`}
+                {regionNeedsSave && !fieldErrors.azure_speech_region && <span> Save settings before refreshing voices.</span>}
+              </p>
+            </div>
+          </div>
+        </fieldset>
+      )}
+
+      {/* Voice Selection Catalog */}
       <fieldset className="desktop-groupbox shrink-0">
-        <legend className="desktop-groupbox-legend">Voice selection</legend>
+        <legend className="desktop-groupbox-legend">
+          {isSapi ? 'SAPI5 Voice Selection' : 'Azure Voice Selection'}
+        </legend>
         <div className="desktop-setting-row">
           <span className="desktop-setting-label">Current voice</span>
           <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-            <span className="min-w-0 truncate font-mono text-xs" title={settings.azure_speech_voice}>{settings.azure_speech_voice || 'hi-IN-MadhurNeural'}</span>
-            <button type="button" onClick={() => { setCustomVoiceHidden(showCustomVoice); if (!showCustomVoice) setCustomVoice(true); }} className={secondaryButtonClass}>{showCustomVoice ? 'Hide custom ID' : 'Edit custom ID…'}</button>
+            <span className="min-w-0 truncate font-mono text-xs" title={currentVoice}>
+              {currentVoice || (isSapi ? 'default' : 'hi-IN-MadhurNeural')}
+            </span>
+            {!isSapi && (
+              <button type="button" onClick={() => { setCustomVoiceHidden(showCustomVoice); if (!showCustomVoice) setCustomVoice(true); }} className={secondaryButtonClass}>
+                {showCustomVoice ? 'Hide custom ID' : 'Edit custom ID…'}
+              </button>
+            )}
             <button
               type="button"
-              onClick={() => void loadVoiceCatalog(savedRegion || settings.azure_speech_region)}
-              disabled={!keyConfigured || regionNeedsSave || catalogState === 'loading'}
+              onClick={() => void loadVoiceCatalog(savedRegion || settings.azure_speech_region, settings.tts_provider)}
+              disabled={(!isSapi && !keyConfigured) || (!isSapi && regionNeedsSave) || catalogState === 'loading'}
               className={secondaryButtonClass}
-              title={regionNeedsSave ? 'Save settings to load voices for the edited region' : 'Refresh voices from Azure Speech'}
+              title={isSapi ? 'Refresh installed SAPI voices' : regionNeedsSave ? 'Save settings to load voices for the edited region' : 'Refresh voices from Azure Speech'}
             >
               <RefreshCw className={`h-3 w-3 ${catalogState === 'loading' ? 'animate-spin' : ''}`} aria-hidden="true" />
               Refresh
             </button>
-            <span className="ml-auto text-[11px] text-[#555]">{voiceCatalog ? `${voiceCatalog.count} voices · ${localeOptions.length} locales` : ''}</span>
+            <span className="ml-auto text-[11px] text-[#555]">
+              {voiceCatalog ? `${voiceCatalog.count} voices · ${localeOptions.length} locales` : ''}
+            </span>
           </div>
         </div>
 
-        {showCustomVoice && (
+        {!isSapi && showCustomVoice && (
           <div className="desktop-setting-row">
             <label htmlFor="azure-voice-id" className="desktop-setting-label">Custom voice ID</label>
             <input
@@ -529,17 +752,23 @@ export default function SettingsPanel({ onRestart, serverPort }: SettingsPanelPr
           </div>
         )}
         <p id="voice-selection-status" className="desktop-help-text pl-[132px]">
-          {regionNeedsSave
-            ? `Save to load the ${settings.azure_speech_region || 'edited'} region catalog.`
-            : voiceCatalog && !currentVoiceAvailable
-              ? `Saved voice is not listed in ${voiceCatalog.region}; it remains available as a custom ID.`
-              : catalogState === 'error'
-                ? catalogError
-                : catalogState === 'loading'
-                  ? `Loading voices for ${savedRegion || settings.azure_speech_region}…`
-                  : catalogState === 'ready'
-                    ? `${visibleVoices.length} of ${voiceCatalog?.count ?? 0} voices shown.`
-                    : keyConfigured ? 'Refresh to browse the saved region catalog.' : 'Save an Azure Speech key to load the catalog.'}
+          {isSapi
+            ? catalogState === 'loading'
+              ? 'Loading installed Windows voices…'
+              : catalogState === 'ready'
+                ? `${visibleVoices.length} of ${voiceCatalog?.count ?? 0} SAPI voices available.`
+                : 'Refresh to query installed Windows SAPI voices.'
+            : regionNeedsSave
+              ? `Save to load the ${settings.azure_speech_region || 'edited'} region catalog.`
+              : voiceCatalog && !currentVoiceAvailable
+                ? `Saved voice is not listed in ${voiceCatalog.region}; it remains available as a custom ID.`
+                : catalogState === 'error'
+                  ? catalogError
+                  : catalogState === 'loading'
+                    ? `Loading voices for ${savedRegion || settings.azure_speech_region}…`
+                    : catalogState === 'ready'
+                      ? `${visibleVoices.length} of ${voiceCatalog?.count ?? 0} voices shown.`
+                      : keyConfigured ? 'Refresh to browse the saved region catalog.' : 'Save an Azure Speech key to load the catalog.'}
         </p>
 
         <div className="desktop-setting-row mt-1">
@@ -548,26 +777,44 @@ export default function SettingsPanel({ onRestart, serverPort }: SettingsPanelPr
             <input
               id="voice-rotation"
               type="checkbox"
-              checked={settings.azure_speech_voice_rotation}
-              onChange={(event) => updateField('azure_speech_voice_rotation', event.target.checked)}
+              checked={isSapi ? settings.sapi_voice_rotation : settings.azure_speech_voice_rotation}
+              onChange={(event) => updateField(isSapi ? 'sapi_voice_rotation' : 'azure_speech_voice_rotation', event.target.checked)}
               className="h-3.5 w-3.5 accent-[#555] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#555]"
             />
             Rotate between selected voices, one voice per message
           </label>
         </div>
 
-        {settings.azure_speech_voice_rotation && (
+        {(isSapi ? settings.sapi_voice_rotation : settings.azure_speech_voice_rotation) && (
           <div className="desktop-setting-row items-start">
             <span className="desktop-setting-label pt-1">Rotation order</span>
             <div className="min-w-0">
-              {settings.azure_speech_voices.length ? (
+              {(isSapi ? settings.sapi_voices : settings.azure_speech_voices).length ? (
                 <ol className="flex flex-wrap gap-1.5" aria-label="Voice rotation order">
-                  {settings.azure_speech_voices.map((voice, index) => (
+                  {(isSapi ? settings.sapi_voices : settings.azure_speech_voices).map((voice, index) => (
                     <li key={`${voice}-${index}`} className="flex h-7 items-center gap-1 border border-[#C8C8C8] bg-[#F7F7F7] px-1.5 font-mono text-[11px]">
                       <span className="font-sans font-semibold text-[#555]">{index + 1}.</span>
                       <span className="max-w-48 truncate" title={voice}>{voice}</span>
-                      <button type="button" onClick={() => moveRotationVoice(voice, -1)} disabled={index === 0} className="desktop-icon-button" aria-label={`Move ${voice} earlier`} title="Move earlier"><ArrowUp className="h-3 w-3" aria-hidden="true" /></button>
-                      <button type="button" onClick={() => moveRotationVoice(voice, 1)} disabled={index === settings.azure_speech_voices.length - 1} className="desktop-icon-button" aria-label={`Move ${voice} later`} title="Move later"><ArrowDown className="h-3 w-3" aria-hidden="true" /></button>
+                      <button
+                        type="button"
+                        onClick={() => moveRotationVoice(voice, -1)}
+                        disabled={index === 0}
+                        className="desktop-icon-button"
+                        aria-label={`Move ${voice} earlier`}
+                        title="Move earlier"
+                      >
+                        <ArrowUp className="h-3 w-3" aria-hidden="true" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => moveRotationVoice(voice, 1)}
+                        disabled={index === (isSapi ? settings.sapi_voices.length : settings.azure_speech_voices.length) - 1}
+                        className="desktop-icon-button"
+                        aria-label={`Move ${voice} later`}
+                        title="Move later"
+                      >
+                        <ArrowDown className="h-3 w-3" aria-hidden="true" />
+                      </button>
                     </li>
                   ))}
                 </ol>
@@ -580,7 +827,14 @@ export default function SettingsPanel({ onRestart, serverPort }: SettingsPanelPr
         <div className="mt-1 grid min-w-0 grid-cols-[minmax(0,1fr)_minmax(0,220px)] gap-1.5 max-[420px]:grid-cols-1">
           <div className="relative">
             <Search className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#666]" aria-hidden="true" />
-            <input type="search" value={voiceSearch} onChange={(event) => setVoiceSearch(event.target.value)} placeholder="Search voices or languages" aria-label="Search Azure voices" className={`${fieldClass} pl-7`} />
+            <input
+              type="search"
+              value={voiceSearch}
+              onChange={(event) => setVoiceSearch(event.target.value)}
+              placeholder="Search voices or languages"
+              aria-label="Search voices"
+              className={`${fieldClass} pl-7`}
+            />
           </div>
           <select value={localeFilter} onChange={(event) => setLocaleFilter(event.target.value)} aria-label="Filter voices by locale" className={fieldClass}>
             <option value="all">All locales</option>
@@ -589,13 +843,11 @@ export default function SettingsPanel({ onRestart, serverPort }: SettingsPanelPr
         </div>
 
         <div
-          role={settings.azure_speech_voice_rotation ? 'group' : 'radiogroup'}
-          aria-label="Azure Speech voices"
-          aria-describedby="voice-list-instructions"
+          role={(isSapi ? settings.sapi_voice_rotation : settings.azure_speech_voice_rotation) ? 'group' : 'radiogroup'}
+          aria-label="Voice list"
           aria-busy={catalogState === 'loading'}
           className="mt-1 min-w-0 max-h-[min(300px,35dvh)] overflow-x-hidden overflow-y-auto border border-[#BDBDBD] bg-white focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-[#555]"
         >
-          <p id="voice-list-instructions" className="sr-only">{settings.azure_speech_voice_rotation ? 'Check voices to add them to the rotation. Use the rotation order controls to reorder them.' : 'Use the arrow keys to move between voices and select a single default voice.'}</p>
           <div aria-hidden="true" className="sticky top-0 z-10 grid min-h-7 grid-cols-[20px_minmax(0,1fr)_minmax(110px,0.8fr)_60px_64px] items-center gap-2 border-b border-[#BDBDBD] bg-[#F1F1F1] px-2 text-[11px] font-semibold text-[#444] max-[560px]:grid-cols-[20px_minmax(0,1fr)_minmax(0,0.7fr)]">
             <span />
             <span>Voice</span>
@@ -603,16 +855,24 @@ export default function SettingsPanel({ onRestart, serverPort }: SettingsPanelPr
             <span className="max-[560px]:hidden">Gender</span>
             <span className="text-right max-[560px]:hidden">Type</span>
           </div>
-          {catalogState === 'loading' && <div className="flex min-h-14 items-center gap-2 px-3 text-xs text-[#555]"><Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />Loading Azure voice list…</div>}
+          {catalogState === 'loading' && (
+            <div className="flex min-h-14 items-center gap-2 px-3 text-xs text-[#555]">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+              Loading voice list…
+            </div>
+          )}
           {catalogState === 'ready' && visibleVoices.map((voice) => {
-            const selected = settings.azure_speech_voice_rotation
-              ? settings.azure_speech_voices.includes(voice.shortName)
-              : settings.azure_speech_voice === voice.shortName;
-            const control = settings.azure_speech_voice_rotation ? (
+            const rotationEnabled = isSapi ? settings.sapi_voice_rotation : settings.azure_speech_voice_rotation;
+            const currentPool = isSapi ? settings.sapi_voices : settings.azure_speech_voices;
+            const activeVoice = isSapi ? settings.sapi_voice : settings.azure_speech_voice;
+            const selected = rotationEnabled
+              ? currentPool.includes(voice.shortName)
+              : activeVoice === voice.shortName;
+            const control = rotationEnabled ? (
               <input
                 type="checkbox"
                 checked={selected}
-                disabled={regionNeedsSave || (selected && settings.azure_speech_voices.length === 1)}
+                disabled={(!isSapi && regionNeedsSave) || (selected && currentPool.length === 1)}
                 onChange={(event) => toggleRotationVoice(voice.shortName, event.target.checked)}
                 aria-label={`${selected ? 'Remove' : 'Add'} ${voice.shortName} ${selected ? 'from' : 'to'} voice rotation`}
                 className="h-3.5 w-3.5 accent-[#555] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#555]"
@@ -620,17 +880,17 @@ export default function SettingsPanel({ onRestart, serverPort }: SettingsPanelPr
             ) : (
               <input
                 type="radio"
-                name="azure-speech-voice-option"
+                name="speech-voice-option"
                 value={voice.shortName}
                 checked={selected}
-                disabled={regionNeedsSave}
+                disabled={!isSapi && regionNeedsSave}
                 onChange={() => selectSingleVoice(voice.shortName)}
                 aria-label={`Set ${voice.shortName} as the speech voice`}
                 className="h-3.5 w-3.5 accent-[#555] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#555]"
               />
             );
             return (
-              <label key={voice.shortName} className={`grid min-h-9 w-full grid-cols-[20px_minmax(0,1fr)_minmax(110px,0.8fr)_60px_64px] items-center gap-2 border-b border-[#E7E7E7] px-2 text-left text-xs last:border-b-0 max-[560px]:grid-cols-[20px_minmax(0,1fr)_minmax(0,0.7fr)] ${selected ? 'bg-[#ECECEC]' : 'hover:bg-[#F6F6F6]'} ${regionNeedsSave ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}>
+              <label key={voice.shortName} className={`grid min-h-9 w-full grid-cols-[20px_minmax(0,1fr)_minmax(110px,0.8fr)_60px_64px] items-center gap-2 border-b border-[#E7E7E7] px-2 text-left text-xs last:border-b-0 max-[560px]:grid-cols-[20px_minmax(0,1fr)_minmax(0,0.7fr)] ${selected ? 'bg-[#ECECEC]' : 'hover:bg-[#F6F6F6]'} ${(!isSapi && regionNeedsSave) ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}>
                 {control}
                 <span className="min-w-0">
                   <span className="block truncate font-medium text-[#222]">{voice.displayName || voice.localName || voice.shortName}</span>
@@ -638,16 +898,31 @@ export default function SettingsPanel({ onRestart, serverPort }: SettingsPanelPr
                 </span>
                 <span className="truncate text-[#555]">{voice.localeName || voice.locale}</span>
                 <span className="text-[#555] max-[560px]:hidden">{voice.gender || '—'}</span>
-                <span className="text-right text-[#666] max-[560px]:hidden">{voice.voiceType || 'Neural'}</span>
+                <span className="text-right text-[#666] max-[560px]:hidden">{voice.voiceType || (isSapi ? 'SAPI5' : 'Neural')}</span>
               </label>
             );
           })}
-          {catalogState === 'ready' && visibleVoices.length === 0 && <div className="px-3 py-5 text-center text-xs text-[#666]">No voices match this search.</div>}
-          {catalogState === 'idle' && <div className="px-3 py-5 text-xs text-[#666]">{keyConfigured ? 'Select Refresh to load the voice catalog.' : 'Save an Azure Speech key to browse all available voices.'}</div>}
-          {catalogState === 'error' && <div className="px-3 py-5 text-xs text-[#666]">{catalogError || 'The saved voice remains usable. Refresh after correcting the Azure settings.'}</div>}
+          {catalogState === 'ready' && visibleVoices.length === 0 && (
+            <div className="px-3 py-5 text-center text-xs text-[#666]">No voices match this search.</div>
+          )}
+          {catalogState === 'idle' && (
+            <div className="px-3 py-5 text-xs text-[#666]">
+              {isSapi
+                ? 'Select Refresh to scan installed SAPI voices.'
+                : keyConfigured
+                  ? 'Select Refresh to load the voice catalog.'
+                  : 'Save an Azure Speech key to browse all available voices.'}
+            </div>
+          )}
+          {catalogState === 'error' && (
+            <div className="px-3 py-5 text-xs text-[#666]">
+              {catalogError || 'The saved voice remains usable. Refresh after correcting the settings.'}
+            </div>
+          )}
         </div>
       </fieldset>
 
+      {/* YouTube Live Chat */}
       <fieldset className="desktop-groupbox">
         <legend className="desktop-groupbox-legend">YouTube live chat</legend>
         <div className="desktop-setting-row">
@@ -670,6 +945,7 @@ export default function SettingsPanel({ onRestart, serverPort }: SettingsPanelPr
         </div>
       </fieldset>
 
+      {/* Maintenance */}
       <fieldset className="desktop-groupbox">
         <legend className="desktop-groupbox-legend">Maintenance</legend>
         <div className="flex flex-wrap items-center gap-1.5 text-xs text-[#555]">
@@ -679,6 +955,7 @@ export default function SettingsPanel({ onRestart, serverPort }: SettingsPanelPr
         </div>
       </fieldset>
 
+      {/* Bottom Sticky Action Bar */}
       <div className="sticky bottom-0 -mx-2 flex flex-wrap items-center justify-between gap-2 border-t border-[#C8C8C8] bg-[#F0F0F0] px-2 py-1.5">
         <span className="text-xs text-[#666]">Save to apply settings.</span>
         <button

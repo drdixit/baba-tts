@@ -176,6 +176,7 @@ pub struct TtsActor {
     broadcast_tx: broadcast::Sender<WsBroadcastMessage>,
     settings: AppSettings,
     voice_round_robin_index: usize,
+    sapi_voice_round_robin_index: usize,
     self_handle: mpsc::Sender<TtsCommand>,
     recent_cache: RecentMessageCache,
 }
@@ -209,6 +210,7 @@ impl TtsActor {
             broadcast_tx,
             settings: initial_settings,
             voice_round_robin_index: 0,
+            sapi_voice_round_robin_index: 0,
             self_handle: tx.clone(),
             recent_cache: RecentMessageCache::default(),
         };
@@ -371,6 +373,11 @@ impl TtsActor {
                     {
                         self.voice_round_robin_index = 0;
                     }
+                    if self.settings.sapi_voices != new_settings.sapi_voices
+                        || self.settings.sapi_voice_rotation != new_settings.sapi_voice_rotation
+                    {
+                        self.sapi_voice_round_robin_index = 0;
+                    }
                     self.settings = new_settings;
                 }
                 TtsCommand::SynthesisComplete { message_id, result } => {
@@ -420,7 +427,7 @@ impl TtsActor {
                                 }
                                 Err(err) => {
                                     self.pending_audio = None;
-                                    warn!("[TTS] Azure synthesis failed for {}: {}", message_id, err);
+                                    warn!("[TTS] Speech synthesis failed for {}: {}", message_id, err);
                                     let _ = self.broadcast_tx.send(WsBroadcastMessage::TtsState {
                                         message_id,
                                         state: "error".to_string(),
@@ -459,6 +466,41 @@ impl TtsActor {
             state: "processing".to_string(),
         });
 
+        let self_handle = self.self_handle.clone();
+        let text_to_speak = format!("{} says {}", msg.author_name, msg.text);
+
+        if self.settings.tts_provider == "sapi5" {
+            let sapi_voice = if self.settings.sapi_voice_rotation {
+                let voices: Vec<&str> = self.settings.sapi_voices
+                    .iter()
+                    .map(|v| v.trim())
+                    .filter(|v| !v.is_empty())
+                    .collect();
+                if voices.is_empty() {
+                    self.settings.sapi_voice.clone()
+                } else {
+                    let index = self.sapi_voice_round_robin_index % voices.len();
+                    self.sapi_voice_round_robin_index = (index + 1) % voices.len();
+                    voices[index].to_string()
+                }
+            } else {
+                self.settings.sapi_voice.clone()
+            };
+            let sapi_rate = self.settings.sapi_rate;
+            let sapi_volume = self.settings.sapi_volume;
+
+            tokio::spawn(async move {
+                let res = crate::sapi_tts::synthesize(&text_to_speak, &sapi_voice, sapi_rate, sapi_volume)
+                    .await
+                    .map_err(|e| e.to_string());
+                let _ = self_handle.send(TtsCommand::SynthesisComplete {
+                    message_id: msg.message_id,
+                    result: res,
+                }).await;
+            });
+            return;
+        }
+
         let key = self.settings.azure_speech_key.clone();
         let region = self.settings.azure_speech_region.clone();
         let synthesis_configured = !key.trim().is_empty() && !region.trim().is_empty();
@@ -482,11 +524,9 @@ impl TtsActor {
         } else {
             self.settings.azure_speech_voice.clone()
         };
-        let self_handle = self.self_handle.clone();
 
         tokio::spawn(async move {
             let client = AzureTtsClient::new(key, region);
-            let text_to_speak = format!("{} says {}", msg.author_name, msg.text);
 
             let res = client.synthesize(&text_to_speak, &voice).await.map_err(|e| e.to_string());
             let _ = self_handle.send(TtsCommand::SynthesisComplete {
@@ -591,5 +631,44 @@ mod tests {
         // When audio finishes, pending audio is cleared
         handle.audio_finished(Some("p1".to_string())).await;
         assert!(handle.get_pending_audio().await.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_sapi_tts_provider_flow() {
+        let (broadcast_tx, mut broadcast_rx) = broadcast::channel(100);
+        let mut settings = AppSettings::default();
+        settings.tts_provider = "sapi5".to_string();
+        settings.sapi_voice = "default".to_string();
+        settings.sapi_rate = 1;
+        settings.sapi_volume = 95;
+
+        let handle = TtsActor::spawn(broadcast_tx, settings);
+
+        let msg = make_test_msg("sapi-1", "WindowsUser", "Hello SAPI offline TTS");
+        handle.enqueue(msg).await;
+
+        // Verify that synthesis completes and sends PlayAudio with wav audio data
+        let mut got_play_audio = false;
+        let timeout = tokio::time::sleep(Duration::from_secs(3));
+        tokio::pin!(timeout);
+
+        loop {
+            tokio::select! {
+                Ok(event) = broadcast_rx.recv() => {
+                    if let WsBroadcastMessage::PlayAudio { message_id, audio_data, .. } = event {
+                        if message_id == "sapi-1" {
+                            assert!(audio_data.starts_with("data:audio/wav;base64,"));
+                            got_play_audio = true;
+                            break;
+                        }
+                    }
+                }
+                _ = &mut timeout => {
+                    break;
+                }
+            }
+        }
+
+        assert!(got_play_audio, "Expected SAPI synthesis to complete and broadcast PlayAudio");
     }
 }

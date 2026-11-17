@@ -165,6 +165,12 @@ impl Db {
     pub fn load_settings(&self) -> Result<AppSettings> {
         let mut settings = AppSettings::default();
 
+        if let Some(val) = self.get_setting("tts_provider")? {
+            if val == "sapi5" || val == "azure" {
+                settings.tts_provider = val;
+            }
+        }
+
         if let Some(val) = self.get_setting("azure_speech_key")? {
             settings.azure_speech_key = val;
         } else if let Ok(env_val) = std::env::var("AZURE_SPEECH_KEY") {
@@ -203,6 +209,44 @@ impl Db {
             settings.azure_speech_voice_rotation = val == "true" || val == "1";
         }
 
+        if let Some(val) = self.get_setting("sapi_voice")? {
+            settings.sapi_voice = val;
+        }
+
+        let mut has_saved_sapi_pool = false;
+        if let Some(val) = self.get_setting("sapi_voices")? {
+            if let Ok(voices) = serde_json::from_str::<Vec<String>>(&val) {
+                let voices: Vec<String> = voices
+                    .into_iter()
+                    .map(|voice| voice.trim().to_string())
+                    .filter(|voice| !voice.is_empty())
+                    .collect();
+                if !voices.is_empty() {
+                    settings.sapi_voices = voices;
+                    has_saved_sapi_pool = true;
+                }
+            }
+        }
+        if !has_saved_sapi_pool {
+            settings.sapi_voices = vec![settings.sapi_voice.clone()];
+        }
+
+        if let Some(val) = self.get_setting("sapi_voice_rotation")? {
+            settings.sapi_voice_rotation = val == "true" || val == "1";
+        }
+
+        if let Some(val) = self.get_setting("sapi_rate")? {
+            if let Ok(rate) = val.parse::<i32>() {
+                settings.sapi_rate = rate.clamp(-10, 10);
+            }
+        }
+
+        if let Some(val) = self.get_setting("sapi_volume")? {
+            if let Ok(vol) = val.parse::<u32>() {
+                settings.sapi_volume = vol.min(100);
+            }
+        }
+
         if let Some(val) = self.get_setting("youtube_channel_id")? {
             settings.youtube_channel_id = val;
         } else if let Ok(env_val) = std::env::var("YOUTUBE_CHANNEL_ID") {
@@ -225,6 +269,7 @@ impl Db {
     }
 
     pub fn save_settings(&self, settings: &AppSettings) -> Result<()> {
+        self.set_setting("tts_provider", &settings.tts_provider)?;
         self.set_setting("azure_speech_key", &settings.azure_speech_key)?;
         self.set_setting("azure_speech_region", &settings.azure_speech_region)?;
         self.set_setting("azure_speech_voice", &settings.azure_speech_voice)?;
@@ -233,6 +278,14 @@ impl Db {
             "azure_speech_voice_rotation",
             if settings.azure_speech_voice_rotation { "true" } else { "false" },
         )?;
+        self.set_setting("sapi_voice", &settings.sapi_voice)?;
+        self.set_setting("sapi_voices", &serde_json::to_string(&settings.sapi_voices)?)?;
+        self.set_setting(
+            "sapi_voice_rotation",
+            if settings.sapi_voice_rotation { "true" } else { "false" },
+        )?;
+        self.set_setting("sapi_rate", &settings.sapi_rate.to_string())?;
+        self.set_setting("sapi_volume", &settings.sapi_volume.to_string())?;
         self.set_setting("youtube_channel_id", &settings.youtube_channel_id)?;
         self.set_setting("youtube_live_id", settings.youtube_live_id.as_deref().unwrap_or(""))?;
         self.set_setting("enable_youtube", if settings.enable_youtube { "true" } else { "false" })?;

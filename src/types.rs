@@ -54,6 +54,8 @@ pub struct BannedUser {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AppSettings {
+    #[serde(default = "default_tts_provider")]
+    pub tts_provider: String,
     pub azure_speech_key: String,
     pub azure_speech_region: String,
     pub azure_speech_voice: String,
@@ -61,22 +63,73 @@ pub struct AppSettings {
     pub azure_speech_voices: Vec<String>,
     #[serde(default)]
     pub azure_speech_voice_rotation: bool,
+    #[serde(default = "default_sapi_voice")]
+    pub sapi_voice: String,
+    #[serde(default)]
+    pub sapi_voices: Vec<String>,
+    #[serde(default)]
+    pub sapi_voice_rotation: bool,
+    #[serde(default)]
+    pub sapi_rate: i32,
+    #[serde(default = "default_sapi_volume")]
+    pub sapi_volume: u32,
     pub youtube_channel_id: String,
     pub youtube_live_id: Option<String>,
     pub enable_youtube: bool,
 }
 
+fn default_tts_provider() -> String {
+    "azure".to_string()
+}
+
+fn default_sapi_voice() -> String {
+    "default".to_string()
+}
+
+fn default_sapi_volume() -> u32 {
+    100
+}
+
 impl Default for AppSettings {
     fn default() -> Self {
         Self {
+            tts_provider: "azure".to_string(),
             azure_speech_key: String::new(),
             azure_speech_region: "centralindia".to_string(),
             azure_speech_voice: "hi-IN-MadhurNeural".to_string(),
             azure_speech_voices: vec!["hi-IN-MadhurNeural".to_string()],
             azure_speech_voice_rotation: false,
+            sapi_voice: "default".to_string(),
+            sapi_voices: vec!["default".to_string()],
+            sapi_voice_rotation: false,
+            sapi_rate: 0,
+            sapi_volume: 100,
             youtube_channel_id: "UCiz4lqlVpaB4PpK-1aecMgQ".to_string(),
             youtube_live_id: None,
             enable_youtube: true,
         }
     }
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VoiceCatalogEntry {
+    pub short_name: String,
+    pub display_name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub local_name: Option<String>,
+    pub locale: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub locale_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub gender: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub voice_type: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub status: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub style_list: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub secondary_locale_list: Option<Vec<String>>,
+}
+
