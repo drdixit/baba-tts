@@ -22,6 +22,8 @@ pub enum WsBroadcastMessage {
     BannedUsers(Vec<crate::types::BannedUser>),
 }
 
+pub const MAX_TTS_QUEUE_SIZE: usize = 200;
+
 #[derive(Clone, Debug)]
 pub struct PendingAudio {
     pub message_id: String,
@@ -36,6 +38,7 @@ pub enum TtsCommand {
     AudioFinished(Option<String>),
     SkipCurrent,
     ClearQueue,
+    #[allow(dead_code)]
     ClearPendingQueue,
     RemoveUser(String),
     RemoveUserAndSkipMessage {
@@ -48,6 +51,7 @@ pub enum TtsCommand {
     SynthesisComplete {
         message_id: String,
         result: Result<crate::azure_tts::SpeechSynthesisResult, String>,
+        is_fallback: bool,
     },
 }
 
@@ -126,6 +130,7 @@ impl TtsHandle {
     }
 
     /// Drops queued messages while allowing the current utterance to finish.
+    #[allow(dead_code)]
     pub async fn clear_pending_queue(&self) {
         let _ = self.sender.send(TtsCommand::ClearPendingQueue).await;
     }
@@ -232,31 +237,64 @@ impl TtsActor {
                         });
                         continue;
                     }
+                    if self.queue.len() >= MAX_TTS_QUEUE_SIZE {
+                        if let Some(dropped) = self.queue.pop_front() {
+                            warn!(
+                                "[TTS] Queue reached capacity ({}). Dropping oldest: {}",
+                                MAX_TTS_QUEUE_SIZE, dropped.message_id
+                            );
+                            let _ = self.broadcast_tx.send(WsBroadcastMessage::TtsState {
+                                message_id: dropped.message_id,
+                                state: "skipped".to_string(),
+                            });
+                        }
+                    }
                     self.queue.push_back(msg);
                     self.process_next();
                 }
                 TtsCommand::EnqueuePriority(msg) => {
+                    if self.queue.len() >= MAX_TTS_QUEUE_SIZE {
+                        if let Some(dropped) = self.queue.pop_back() {
+                            warn!(
+                                "[TTS] Queue reached capacity ({}). Dropping lowest priority: {}",
+                                MAX_TTS_QUEUE_SIZE, dropped.message_id
+                            );
+                            let _ = self.broadcast_tx.send(WsBroadcastMessage::TtsState {
+                                message_id: dropped.message_id,
+                                state: "skipped".to_string(),
+                            });
+                        }
+                    }
                     self.queue.push_front(msg);
                     self.process_next();
                 }
                 TtsCommand::AudioFinished(message_id) => {
-                    self.pending_audio = None;
-                    if let Some(id) = message_id {
-                        if let Some(curr) = &self.current {
-                            if curr.message_id == id {
-                                let _ = self.broadcast_tx.send(WsBroadcastMessage::TtsState {
-                                    message_id: id,
-                                    state: "done".to_string(),
-                                });
-                                self.current = None;
-                                self.is_processing = false;
-                                self.process_next();
+                    let should_clear = match (&message_id, &self.current) {
+                        (Some(id), Some(curr)) => curr.message_id == *id,
+                        (None, Some(_)) => true,
+                        _ => false,
+                    };
+
+                    if should_clear {
+                        if let Some(curr) = self.current.take() {
+                            if let Some(pending) = &self.pending_audio {
+                                if pending.message_id == curr.message_id {
+                                    self.pending_audio = None;
+                                }
+                            }
+                            let _ = self.broadcast_tx.send(WsBroadcastMessage::TtsState {
+                                message_id: curr.message_id,
+                                state: "done".to_string(),
+                            });
+                            self.is_processing = false;
+                            self.process_next();
+                        }
+                    } else if let Some(id) = message_id {
+                        if let Some(pending) = &self.pending_audio {
+                            if pending.message_id == id {
+                                self.pending_audio = None;
                             }
                         }
-                    } else {
-                        self.current = None;
-                        self.is_processing = false;
-                        self.process_next();
                     }
                 }
                 TtsCommand::SkipCurrent => {
@@ -380,7 +418,7 @@ impl TtsActor {
                     }
                     self.settings = new_settings;
                 }
-                TtsCommand::SynthesisComplete { message_id, result } => {
+                TtsCommand::SynthesisComplete { message_id, result, is_fallback } => {
                     if let Some(curr) = &self.current {
                         if curr.message_id == message_id {
                             match result {
@@ -426,8 +464,41 @@ impl TtsActor {
                                     });
                                 }
                                 Err(err) => {
+                                    if !is_fallback && self.settings.tts_provider == "azure" {
+                                        warn!(
+                                            "[TTS] Azure speech synthesis failed for {} ({}). Initiating automatic fallback to Windows SAPI5 TTS.",
+                                            message_id, err
+                                        );
+                                        let sapi_voice = self.settings.sapi_voice.clone();
+                                        let sapi_rate = self.settings.sapi_rate;
+                                        let sapi_volume = self.settings.sapi_volume;
+                                        let self_handle = self.self_handle.clone();
+                                        let text_to_speak = format!("{} says {}", curr.author_name, curr.text);
+                                        let mid = message_id.clone();
+                                        tokio::spawn(async move {
+                                            let res = match tokio::time::timeout(
+                                                Duration::from_secs(15),
+                                                crate::sapi_tts::synthesize(&text_to_speak, &sapi_voice, sapi_rate, sapi_volume),
+                                            )
+                                            .await
+                                            {
+                                                Ok(Ok(r)) => Ok(r),
+                                                Ok(Err(e)) => Err(e.to_string()),
+                                                Err(_) => Err("SAPI TTS synthesis timed out after 15 seconds".to_string()),
+                                            };
+                                            let _ = self_handle
+                                                .send(TtsCommand::SynthesisComplete {
+                                                    message_id: mid,
+                                                    result: res,
+                                                    is_fallback: true,
+                                                })
+                                                .await;
+                                        });
+                                        return;
+                                    }
+
                                     self.pending_audio = None;
-                                    warn!("[TTS] Speech synthesis failed for {}: {}", message_id, err);
+                                    warn!("[TTS] Speech synthesis completely failed for {}: {}", message_id, err);
                                     let _ = self.broadcast_tx.send(WsBroadcastMessage::TtsState {
                                         message_id,
                                         state: "error".to_string(),
@@ -490,12 +561,20 @@ impl TtsActor {
             let sapi_volume = self.settings.sapi_volume;
 
             tokio::spawn(async move {
-                let res = crate::sapi_tts::synthesize(&text_to_speak, &sapi_voice, sapi_rate, sapi_volume)
-                    .await
-                    .map_err(|e| e.to_string());
+                let res = match tokio::time::timeout(
+                    Duration::from_secs(15),
+                    crate::sapi_tts::synthesize(&text_to_speak, &sapi_voice, sapi_rate, sapi_volume),
+                )
+                .await
+                {
+                    Ok(Ok(r)) => Ok(r),
+                    Ok(Err(e)) => Err(e.to_string()),
+                    Err(_) => Err("SAPI TTS synthesis timed out after 15 seconds".to_string()),
+                };
                 let _ = self_handle.send(TtsCommand::SynthesisComplete {
                     message_id: msg.message_id,
                     result: res,
+                    is_fallback: true,
                 }).await;
             });
             return;
@@ -504,6 +583,36 @@ impl TtsActor {
         let key = self.settings.azure_speech_key.clone();
         let region = self.settings.azure_speech_region.clone();
         let synthesis_configured = !key.trim().is_empty() && !region.trim().is_empty();
+
+        if !synthesis_configured {
+            info!(
+                "[TTS] Azure credentials not configured; automatically using Windows SAPI5 TTS for {}",
+                msg.message_id
+            );
+            let sapi_voice = self.settings.sapi_voice.clone();
+            let sapi_rate = self.settings.sapi_rate;
+            let sapi_volume = self.settings.sapi_volume;
+
+            tokio::spawn(async move {
+                let res = match tokio::time::timeout(
+                    Duration::from_secs(15),
+                    crate::sapi_tts::synthesize(&text_to_speak, &sapi_voice, sapi_rate, sapi_volume),
+                )
+                .await
+                {
+                    Ok(Ok(r)) => Ok(r),
+                    Ok(Err(e)) => Err(e.to_string()),
+                    Err(_) => Err("SAPI TTS synthesis timed out after 15 seconds".to_string()),
+                };
+                let _ = self_handle.send(TtsCommand::SynthesisComplete {
+                    message_id: msg.message_id,
+                    result: res,
+                    is_fallback: true,
+                }).await;
+            });
+            return;
+        }
+
         let voice = if self.settings.azure_speech_voice_rotation {
             let voices: Vec<&str> = self.settings.azure_speech_voices
                 .iter()
@@ -514,9 +623,7 @@ impl TtsActor {
                 default_hindi_voice()
             } else {
                 let index = self.voice_round_robin_index % voices.len();
-                if synthesis_configured {
-                    self.voice_round_robin_index = (index + 1) % voices.len();
-                }
+                self.voice_round_robin_index = (index + 1) % voices.len();
                 voices[index].to_string()
             }
         } else if self.settings.azure_speech_voice.trim().is_empty() || self.settings.azure_speech_voice == "default" {
@@ -527,11 +634,21 @@ impl TtsActor {
 
         tokio::spawn(async move {
             let client = AzureTtsClient::new(key, region);
+            let res = match tokio::time::timeout(
+                Duration::from_secs(20),
+                client.synthesize(&text_to_speak, &voice),
+            )
+            .await
+            {
+                Ok(Ok(r)) => Ok(r),
+                Ok(Err(e)) => Err(e.to_string()),
+                Err(_) => Err("Azure TTS synthesis timed out after 20 seconds".to_string()),
+            };
 
-            let res = client.synthesize(&text_to_speak, &voice).await.map_err(|e| e.to_string());
             let _ = self_handle.send(TtsCommand::SynthesisComplete {
                 message_id: msg.message_id,
                 result: res,
+                is_fallback: false,
             }).await;
         });
     }
@@ -618,6 +735,7 @@ mod tests {
         let _ = handle.sender.send(TtsCommand::SynthesisComplete {
             message_id: "p1".to_string(),
             result: synthesis_result,
+            is_fallback: false,
         }).await;
 
         // Pending audio should now be available for newly connecting clients
@@ -670,5 +788,79 @@ mod tests {
         }
 
         assert!(got_play_audio, "Expected SAPI synthesis to complete and broadcast PlayAudio");
+    }
+
+    #[tokio::test]
+    async fn test_azure_missing_credentials_automatic_sapi_fallback() {
+        let (broadcast_tx, mut broadcast_rx) = broadcast::channel(100);
+        let mut settings = AppSettings::default();
+        settings.tts_provider = "azure".to_string();
+        settings.azure_speech_key = "".to_string(); // Empty credentials
+        settings.azure_speech_region = "".to_string();
+
+        let handle = TtsActor::spawn(broadcast_tx, settings);
+
+        let msg = make_test_msg("fallback-1", "OfflineUser", "Testing offline fallback");
+        handle.enqueue(msg).await;
+
+        let mut got_play_audio = false;
+        let timeout = tokio::time::sleep(Duration::from_secs(3));
+        tokio::pin!(timeout);
+
+        loop {
+            tokio::select! {
+                Ok(event) = broadcast_rx.recv() => {
+                    if let WsBroadcastMessage::PlayAudio { message_id, audio_data, .. } = event {
+                        if message_id == "fallback-1" {
+                            assert!(audio_data.starts_with("data:audio/wav;base64,"));
+                            got_play_audio = true;
+                            break;
+                        }
+                    }
+                }
+                _ = &mut timeout => {
+                    break;
+                }
+            }
+        }
+
+        assert!(got_play_audio, "Expected unconfigured Azure to automatically fall back to SAPI5");
+    }
+
+    #[tokio::test]
+    async fn test_queue_capacity_limit() {
+        let (broadcast_tx, mut broadcast_rx) = broadcast::channel(500);
+        let mut settings = AppSettings::default();
+        settings.tts_provider = "sapi".to_string();
+
+        let handle = TtsActor::spawn(broadcast_tx, settings);
+
+        // Enqueue more than MAX_TTS_QUEUE_SIZE
+        for i in 0..(MAX_TTS_QUEUE_SIZE + 30) {
+            let msg = make_test_msg(&format!("cap-msg-{}", i), "User", &format!("Message content {}", i));
+            handle.enqueue(msg).await;
+        }
+
+        // Verify that dropped messages emit "skipped" status
+        let mut skipped_count = 0;
+        let timeout = tokio::time::sleep(Duration::from_millis(500));
+        tokio::pin!(timeout);
+
+        loop {
+            tokio::select! {
+                Ok(event) = broadcast_rx.recv() => {
+                    if let WsBroadcastMessage::TtsState { state, .. } = event {
+                        if state == "skipped" {
+                            skipped_count += 1;
+                        }
+                    }
+                }
+                _ = &mut timeout => {
+                    break;
+                }
+            }
+        }
+
+        assert!(skipped_count >= 25, "Expected at least 25 messages to be dropped due to queue capacity, got {}", skipped_count);
     }
 }

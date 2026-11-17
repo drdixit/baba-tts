@@ -249,8 +249,8 @@ mod windows_impl {
                 .context("Failed to create SpMemoryStream COM instance")?;
 
             // Bind voice output directly to the memory stream.
-            // false = do not allow voice to alter stream format (enforces stream format conversion)
-            voice.SetOutput(&mem_stream, false)
+            // true = allow voice to adapt stream format automatically
+            voice.SetOutput(&mem_stream, true)
                 .context("Failed to set ISpVoice output stream")?;
 
             // Speak text (SPF_IS_NOT_XML to avoid parsing issues with plain YouTube chat)

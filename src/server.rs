@@ -538,6 +538,15 @@ async fn save_settings_handler(
         }
     };
     let settings = payload.into_settings(current);
+    if !settings.azure_speech_region.trim().is_empty()
+        && normalize_speech_region(&settings.azure_speech_region).is_none()
+    {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({ "error": "Invalid Azure Speech region format." })),
+        )
+            .into_response();
+    }
     if let Err(err) = state.db.save_settings(&settings) {
         return (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to save settings: {}", err)).into_response();
     }

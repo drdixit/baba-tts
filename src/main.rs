@@ -33,7 +33,8 @@ const MIN_SERVER_PORT: u16 = 7060;
 const MAX_SERVER_PORT: u16 = 7100;
 
 fn active_server_port() -> u16 {
-    Db::open("baba.db")
+    let db_path = crate::db::Db::default_db_path();
+    Db::open(db_path.to_str().unwrap_or("baba.db"))
         .ok()
         .and_then(|db| db.get_setting("active_port").ok().flatten())
         .and_then(|port| port.parse::<u16>().ok())
@@ -215,9 +216,10 @@ async fn real_main() -> Result<()> {
     info!("╚═════════════════════════════════════════════════╝");
 
     // 3. Database
-    let db = Db::open("baba.db")?;
+    let db_path = crate::db::Db::default_db_path();
+    let db = Db::open(db_path.to_str().unwrap_or("baba.db"))?;
     let settings = db.load_settings()?;
-    info!("Database initialized: baba.db");
+    info!("Database initialized at: {}", db_path.display());
     info!("Active YouTube Channel: {}", settings.youtube_channel_id);
     info!("Active Azure Region: {}", settings.azure_speech_region);
 

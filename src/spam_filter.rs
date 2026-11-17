@@ -39,11 +39,6 @@ impl SpamFilter {
             return SpamCheckResult { is_spam: false, reason: None };
         }
 
-        // Ignore explicit commands
-        if msg.starts_with('!') {
-            return SpamCheckResult { is_spam: false, reason: None };
-        }
-
         // 1. Emoji Spam
         if count_emojis(msg) > 3 {
             return SpamCheckResult { is_spam: true, reason: Some("too_many_emojis") };
@@ -86,7 +81,7 @@ impl SpamFilter {
         };
 
         let now = Instant::now();
-        let mut store = self.recent_messages.lock().unwrap();
+        let mut store = self.recent_messages.lock().unwrap_or_else(|p| p.into_inner());
 
         if let Some((last_compact, last_time)) = store.get(user_id) {
             if last_compact == &dedupe_key && now.duration_since(*last_time) < DUPLICATE_WINDOW {

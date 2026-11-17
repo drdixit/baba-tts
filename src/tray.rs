@@ -158,7 +158,7 @@ mod win32 {
     use windows_sys::Win32::Foundation::{HWND, LPARAM, LRESULT, POINT, WPARAM};
     use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
     use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
-        RegisterHotKey, UnregisterHotKey, MOD_NOREPEAT,
+        RegisterHotKey, UnregisterHotKey, MOD_ALT, MOD_CONTROL, MOD_NOREPEAT,
     };
     use windows_sys::Win32::UI::Shell::{
         Shell_NotifyIconW, NIF_ICON, NIF_MESSAGE, NIF_TIP, NIM_ADD, NIM_DELETE, NOTIFYICONDATAW,
@@ -533,13 +533,14 @@ mod win32 {
 
                 (*state_raw).nid.hWnd = hwnd;
 
-                // Register global Numpad hotkeys (MOD_NOREPEAT = 0x4000)
-                // VK_NUMPAD1 = 0x61, VK_NUMPAD2 = 0x62, VK_NUMPAD3 = 0x63, VK_NUMPAD0 = 0x60
-                RegisterHotKey(hwnd, HOTKEY_BAN_CURRENT, MOD_NOREPEAT, 0x61);
-                RegisterHotKey(hwnd, HOTKEY_SPEAK_AS_BANNED, MOD_NOREPEAT, 0x62);
-                RegisterHotKey(hwnd, HOTKEY_SPEAK_AS_USER, MOD_NOREPEAT, 0x64);
-                RegisterHotKey(hwnd, HOTKEY_SKIP_CURRENT, MOD_NOREPEAT, 0x63);
-                RegisterHotKey(hwnd, HOTKEY_CLEAR_QUEUE, MOD_NOREPEAT, 0x60);
+                // Register global hotkeys with Ctrl+Alt modifiers (MOD_CONTROL | MOD_ALT | MOD_NOREPEAT)
+                // so we don't hijack normal OS-wide numeric keypad typing
+                let hotkey_mods = MOD_CONTROL | MOD_ALT | MOD_NOREPEAT;
+                RegisterHotKey(hwnd, HOTKEY_BAN_CURRENT, hotkey_mods, 0x61); // Ctrl+Alt+Numpad1
+                RegisterHotKey(hwnd, HOTKEY_SPEAK_AS_BANNED, hotkey_mods, 0x62); // Ctrl+Alt+Numpad2
+                RegisterHotKey(hwnd, HOTKEY_SPEAK_AS_USER, hotkey_mods, 0x64); // Ctrl+Alt+Numpad4
+                RegisterHotKey(hwnd, HOTKEY_SKIP_CURRENT, hotkey_mods, 0x63); // Ctrl+Alt+Numpad3
+                RegisterHotKey(hwnd, HOTKEY_CLEAR_QUEUE, hotkey_mods, 0x60); // Ctrl+Alt+Numpad0
 
                 if Shell_NotifyIconW(NIM_ADD, &(*state_raw).nid) == 0 {
                     warn!("[Tray] Shell_NotifyIconW failed to add tray icon");

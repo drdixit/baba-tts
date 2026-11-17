@@ -47,6 +47,14 @@ pub struct SpeechSynthesisResult {
     pub size_kb: f64,
 }
 
+pub fn is_valid_azure_region(region: &str) -> bool {
+    let normalized = region.trim().to_ascii_lowercase();
+    (2..=32).contains(&normalized.len())
+        && normalized.chars().all(|c| c.is_ascii_alphanumeric() || c == '-')
+        && normalized.chars().next().is_some_and(|c| c.is_ascii_alphanumeric())
+        && normalized.chars().last().is_some_and(|c| c.is_ascii_alphanumeric())
+}
+
 pub struct AzureTtsClient {
     key: String,
     region: String,
@@ -60,6 +68,10 @@ impl AzureTtsClient {
     pub async fn synthesize(&self, text: &str, voice_name: &str) -> Result<SpeechSynthesisResult> {
         if self.key.is_empty() || self.region.is_empty() {
             bail!("Azure speech key or region is not configured");
+        }
+
+        if !is_valid_azure_region(&self.region) {
+            bail!("Invalid Azure speech region format: '{}'", self.region);
         }
 
         let url = format!(

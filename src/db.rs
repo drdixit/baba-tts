@@ -14,6 +14,7 @@ impl Db {
             .with_context(|| format!("Failed to open SQLite database at {}", path))?;
 
         conn.pragma_update(None, "journal_mode", "WAL")?;
+        conn.pragma_update(None, "busy_timeout", 5000)?;
 
         conn.execute_batch(
             r#"
@@ -73,8 +74,34 @@ impl Db {
         })
     }
 
+    pub fn default_db_path() -> std::path::PathBuf {
+        #[cfg(windows)]
+        {
+            if let Ok(local_app_data) = std::env::var("LOCALAPPDATA") {
+                let dir = std::path::PathBuf::from(local_app_data).join("baba-tts");
+                let _ = std::fs::create_dir_all(&dir);
+                return dir.join("baba.db");
+            }
+        }
+
+        if let Ok(home) = std::env::var("HOME") {
+            let dir = std::path::PathBuf::from(home).join(".baba-tts");
+            let _ = std::fs::create_dir_all(&dir);
+            return dir.join("baba.db");
+        }
+
+        std::path::PathBuf::from("baba.db")
+    }
+
+    fn acquire_conn(&self) -> std::sync::MutexGuard<'_, Connection> {
+        self.conn.lock().unwrap_or_else(|poisoned| {
+            tracing::warn!("[DB] Recovering from poisoned mutex");
+            poisoned.into_inner()
+        })
+    }
+
     pub fn ban_user(&self, author_id: &str, display_name: &str, profile_image_url: Option<&str>) -> Result<()> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.acquire_conn();
         conn.execute(
             "INSERT OR REPLACE INTO banned_users (author_id, display_name, profile_image_url, banned_at) VALUES (?1, ?2, ?3, CURRENT_TIMESTAMP)",
             params![author_id, display_name, profile_image_url],
@@ -83,7 +110,7 @@ impl Db {
     }
 
     pub fn unban_user(&self, author_id: &str) -> Result<()> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.acquire_conn();
         conn.execute("DELETE FROM banned_users WHERE author_id = ?1", params![author_id])?;
         Ok(())
     }
@@ -92,7 +119,7 @@ impl Db {
         if author_id.is_empty() {
             return false;
         }
-        let conn = self.conn.lock().unwrap();
+        let conn = self.acquire_conn();
         let mut stmt = match conn.prepare("SELECT 1 FROM banned_users WHERE author_id = ?1 LIMIT 1") {
             Ok(s) => s,
             Err(_) => return false,
@@ -101,7 +128,7 @@ impl Db {
     }
 
     pub fn get_banned_users(&self) -> Result<Vec<BannedUser>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.acquire_conn();
         let mut stmt = conn.prepare(
             "SELECT author_id, display_name, profile_image_url, banned_at FROM banned_users ORDER BY banned_at DESC",
         )?;
@@ -122,7 +149,7 @@ impl Db {
     }
 
     pub fn get_last_banned_user(&self) -> Result<Option<BannedUser>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.acquire_conn();
         let mut stmt = conn.prepare(
             "SELECT author_id, display_name, profile_image_url, banned_at FROM banned_users ORDER BY banned_at DESC LIMIT 1",
         )?;
@@ -143,7 +170,7 @@ impl Db {
     }
 
     pub fn get_setting(&self, key: &str) -> Result<Option<String>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.acquire_conn();
         let mut stmt = conn.prepare("SELECT value FROM settings WHERE key = ?1")?;
         let mut rows = stmt.query_map(params![key], |row| row.get(0))?;
         if let Some(r) = rows.next() {
@@ -154,7 +181,7 @@ impl Db {
     }
 
     pub fn set_setting(&self, key: &str, value: &str) -> Result<()> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.acquire_conn();
         conn.execute(
             "INSERT OR REPLACE INTO settings (key, value) VALUES (?1, ?2)",
             params![key, value],

@@ -92,11 +92,9 @@ impl YouTubePoller {
                 .await
             {
                 Ok(_) => {
-                    info!("[YouTube] Live stream ended or completed. Waiting 60s before re-checking...");
-                    if !self.stop_signal.load(Ordering::Relaxed) {
-                        self.tts_handle.clear_pending_queue().await;
-                    }
-                    Duration::from_secs(60)
+                    info!("[YouTube] Live stream ended or disconnected. Waiting 30s before re-checking...");
+                    // Preserving existing queued chat messages so in-flight TTS isn't abruptly wiped out
+                    Duration::from_secs(30)
                 }
                 Err(err) => {
                     warn!("[YouTube] Polling error: {}. Retrying in 30s...", err);
@@ -186,6 +184,7 @@ impl YouTubePoller {
 
         let themes = ["subtitle-sweep", "subtitle-karaoke", "subtitle-words", "pro-clean"];
         let mut theme_index = 0;
+        let mut missing_token_retries: usize = 0;
 
         while !self.stop_signal.load(Ordering::Relaxed) {
             let api_endpoint = format!(
@@ -287,8 +286,17 @@ impl YouTubePoller {
             if let Some(node) = next_node {
                 if let Some(next_token) = node.get("continuation").and_then(|v| v.as_str()) {
                     continuation = next_token.to_string();
+                    missing_token_retries = 0;
+                } else if missing_token_retries < 3 {
+                    missing_token_retries += 1;
+                    warn!(
+                        "[YouTube] Stream continuation token missing (attempt {}/3). Retrying in 3s...",
+                        missing_token_retries
+                    );
+                    sleep(Duration::from_secs(3)).await;
+                    continue;
                 } else {
-                    warn!("[YouTube] Stream continuation token missing");
+                    warn!("[YouTube] Stream continuation token missing after 3 retries");
                     break;
                 }
 
@@ -299,8 +307,16 @@ impl YouTubePoller {
                     .clamp(1000, 5000);
 
                 sleep(Duration::from_millis(timeout_ms)).await;
+            } else if missing_token_retries < 3 {
+                missing_token_retries += 1;
+                warn!(
+                    "[YouTube] Stream continuation node missing (attempt {}/3). Retrying in 3s...",
+                    missing_token_retries
+                );
+                sleep(Duration::from_secs(3)).await;
+                continue;
             } else {
-                warn!("[YouTube] Stream continuation ended");
+                warn!("[YouTube] Stream continuation ended after 3 failed attempts");
                 break;
             }
         }
