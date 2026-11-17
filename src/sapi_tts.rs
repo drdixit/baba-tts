@@ -75,9 +75,11 @@ pub fn estimate_word_boundaries(text: &str, duration_secs: f64) -> Vec<WordBound
 #[cfg(target_os = "windows")]
 mod windows_impl {
     use super::*;
-    use anyhow::{bail, Context};
+    use anyhow::{bail, Context, Result};
     use windows::{
         core::*,
+        Win32::Foundation::RPC_E_CHANGED_MODE,
+        Win32::Media::Audio::WAVEFORMATEX,
         Win32::Media::Speech::*,
         Win32::System::Com::*,
     };
@@ -92,10 +94,11 @@ mod windows_impl {
                 let hr = CoInitializeEx(None, COINIT_MULTITHREADED);
                 if hr.is_ok() {
                     Ok(Self { should_uninit: true })
-                } else if hr == RPC_E_CHANGED_MODE.into() {
+                } else if hr == RPC_E_CHANGED_MODE {
                     Ok(Self { should_uninit: false })
                 } else {
-                    Err(hr.into())
+                    hr.ok().context("Failed to initialize COM on thread")?;
+                    Ok(Self { should_uninit: false })
                 }
             }
         }
@@ -121,35 +124,39 @@ mod windows_impl {
                 CLSCTX_ALL,
             ).context("Failed to create SpObjectTokenCategory")?;
 
-            let id_wide: Vec<u16> = SPCAT_VOICES
-                .encode_utf16()
-                .chain(std::iter::once(0))
-                .collect();
-            cat.SetId(PCWSTR(id_wide.as_ptr()), false)?;
+            cat.SetId(SPCAT_VOICES, false)?;
 
             let tokens: IEnumSpObjectTokens = cat.EnumTokens(None, None)?;
-            let count = tokens.GetCount()?;
+            let mut count = 0u32;
+            tokens.GetCount(&mut count)?;
 
             let mut catalog = Vec::new();
 
             for i in 0..count {
                 let token: ISpObjectToken = tokens.Item(i)?;
-                let mut desc_ptr = PWSTR::null();
-                let _ = token.GetDescription(None, &mut desc_ptr);
 
-                let display_name = if !desc_ptr.is_null() {
-                    let desc = desc_ptr.to_string().unwrap_or_default();
-                    CoTaskMemFree(Some(desc_ptr.0 as _));
-                    desc
+                // ISpObjectToken dereferences to ISpDataKey; reading the default value retrieves the friendly name
+                let display_name = if let Ok(desc_ptr) = token.GetStringValue(PCWSTR::null()) {
+                    if !desc_ptr.is_null() {
+                        let desc = desc_ptr.to_string().unwrap_or_default();
+                        CoTaskMemFree(Some(desc_ptr.0 as _));
+                        desc
+                    } else {
+                        format!("Voice {}", i)
+                    }
                 } else {
                     format!("Voice {}", i)
                 };
 
-                let mut token_id_ptr = PWSTR::null();
-                let short_name = if token.GetId(&mut token_id_ptr).is_ok() && !token_id_ptr.is_null() {
-                    let id_str = token_id_ptr.to_string().unwrap_or_else(|_| display_name.clone());
-                    CoTaskMemFree(Some(token_id_ptr.0 as _));
-                    id_str
+                // GetId returns Result<PWSTR> directly in windows-rs
+                let short_name = if let Ok(token_id_ptr) = token.GetId() {
+                    if !token_id_ptr.is_null() {
+                        let id_str = token_id_ptr.to_string().unwrap_or_else(|_| display_name.clone());
+                        CoTaskMemFree(Some(token_id_ptr.0 as _));
+                        id_str
+                    } else {
+                        display_name.clone()
+                    }
                 } else {
                     display_name.clone()
                 };
@@ -186,39 +193,43 @@ mod windows_impl {
 
             // Set voice if specific voice requested
             if !voice_desc.is_empty() && voice_desc != "default" {
-                if let Ok(cat) = CoCreateInstance::<ISpObjectTokenCategory>(&SpObjectTokenCategory, None, CLSCTX_ALL) {
-                    let id_wide: Vec<u16> = SPCAT_VOICES
-                        .encode_utf16()
-                        .chain(std::iter::once(0))
-                        .collect();
-                    let _ = cat.SetId(PCWSTR(id_wide.as_ptr()), false);
+                let cat_res: windows::core::Result<ISpObjectTokenCategory> =
+                    CoCreateInstance(&SpObjectTokenCategory, None, CLSCTX_ALL);
+                if let Ok(cat) = cat_res {
+                    if cat.SetId(SPCAT_VOICES, false).is_ok() {
+                        if let Ok(tokens) = cat.EnumTokens(None, None) {
+                            let mut count = 0u32;
+                            if tokens.GetCount(&mut count).is_ok() {
+                                for i in 0..count {
+                                    if let Ok(token) = tokens.Item(i) {
+                                        let matched = if let Ok(desc_ptr) = token.GetStringValue(PCWSTR::null()) {
+                                            if !desc_ptr.is_null() {
+                                                let desc = desc_ptr.to_string().unwrap_or_default();
+                                                CoTaskMemFree(Some(desc_ptr.0 as _));
+                                                desc.eq_ignore_ascii_case(voice_desc)
+                                            } else {
+                                                false
+                                            }
+                                        } else {
+                                            false
+                                        };
 
-                    if let Ok(tokens) = cat.EnumTokens(None, None) {
-                        if let Ok(count) = tokens.GetCount() {
-                            for i in 0..count {
-                                if let Ok(token) = tokens.Item(i) {
-                                    let mut desc_ptr = PWSTR::null();
-                                    let _ = token.GetDescription(None, &mut desc_ptr);
-                                    let matched = if !desc_ptr.is_null() {
-                                        let desc = desc_ptr.to_string().unwrap_or_default();
-                                        CoTaskMemFree(Some(desc_ptr.0 as _));
-                                        desc.eq_ignore_ascii_case(voice_desc)
-                                    } else {
-                                        false
-                                    };
+                                        let id_matched = if let Ok(id_ptr) = token.GetId() {
+                                            if !id_ptr.is_null() {
+                                                let id_str = id_ptr.to_string().unwrap_or_default();
+                                                CoTaskMemFree(Some(id_ptr.0 as _));
+                                                id_str.eq_ignore_ascii_case(voice_desc)
+                                            } else {
+                                                false
+                                            }
+                                        } else {
+                                            false
+                                        };
 
-                                    let mut id_ptr = PWSTR::null();
-                                    let id_matched = if token.GetId(&mut id_ptr).is_ok() && !id_ptr.is_null() {
-                                        let id_str = id_ptr.to_string().unwrap_or_default();
-                                        CoTaskMemFree(Some(id_ptr.0 as _));
-                                        id_str.eq_ignore_ascii_case(voice_desc)
-                                    } else {
-                                        false
-                                    };
-
-                                    if matched || id_matched {
-                                        let _ = voice.SetVoice(&token);
-                                        break;
+                                        if matched || id_matched {
+                                            let _ = voice.SetVoice(&token);
+                                            break;
+                                        }
                                     }
                                 }
                             }
@@ -237,11 +248,8 @@ mod windows_impl {
             let mem_stream: ISpStream = CoCreateInstance(&SpMemoryStream, None, CLSCTX_ALL)
                 .context("Failed to create SpMemoryStream COM instance")?;
 
-            // Configure stream format: 22050Hz, 16-bit, Mono (SPSF_22kHz16BitMono)
-            // GUID_NULL as format GUID uses standard SAPI wave format
-            mem_stream.SetBaseStream(None, &GUID::zeroed(), std::ptr::null())?;
-
-            // Bind voice output to the memory stream, enforcing stream format conversion (false = do not allow voice to alter stream format)
+            // Bind voice output directly to the memory stream.
+            // false = do not allow voice to alter stream format (enforces stream format conversion)
             voice.SetOutput(&mem_stream, false)
                 .context("Failed to set ISpVoice output stream")?;
 
@@ -282,34 +290,19 @@ mod windows_impl {
             }
 
             // Query negotiated stream format or fallback to 22050Hz 16-bit mono
-            let mut format_guid = GUID::zeroed();
-            let mut fmt_ptr: *mut u8 = std::ptr::null_mut();
-            let (sample_rate, channels, bits_per_sample) = if mem_stream
-                .GetFormat(&mut format_guid, &mut fmt_ptr as *mut *mut u8 as *mut *mut _)
-                .is_ok()
-                && !fmt_ptr.is_null()
-            {
-                let channels = u16::from_le_bytes(
-                    std::slice::from_raw_parts(fmt_ptr.add(2), 2)
-                        .try_into()
-                        .unwrap_or([1, 0]),
-                );
-                let sample_rate = u32::from_le_bytes(
-                    std::slice::from_raw_parts(fmt_ptr.add(4), 4)
-                        .try_into()
-                        .unwrap_or([0x22, 0x56, 0, 0]),
-                );
-                let bits_per_sample = u16::from_le_bytes(
-                    std::slice::from_raw_parts(fmt_ptr.add(14), 2)
-                        .try_into()
-                        .unwrap_or([16, 0]),
-                );
-                CoTaskMemFree(Some(fmt_ptr as _));
-                (
-                    if sample_rate > 0 { sample_rate } else { 22050 },
-                    if channels > 0 { channels } else { 1 },
-                    if bits_per_sample > 0 { bits_per_sample } else { 16 },
-                )
+            let format_guid = GUID::zeroed();
+            let (sample_rate, channels, bits_per_sample) = if let Ok(fmt_ptr) = mem_stream.GetFormat(&format_guid) {
+                if !fmt_ptr.is_null() {
+                    let wave_fmt: WAVEFORMATEX = *fmt_ptr;
+                    CoTaskMemFree(Some(fmt_ptr as _));
+                    (
+                        if wave_fmt.nSamplesPerSec > 0 { wave_fmt.nSamplesPerSec } else { 22050 },
+                        if wave_fmt.nChannels > 0 { wave_fmt.nChannels } else { 1 },
+                        if wave_fmt.wBitsPerSample > 0 { wave_fmt.wBitsPerSample } else { 16 },
+                    )
+                } else {
+                    (22050u32, 1u16, 16u16)
+                }
             } else {
                 (22050u32, 1u16, 16u16)
             };
