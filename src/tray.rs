@@ -159,24 +159,26 @@ mod win32 {
     use windows_sys::Win32::Foundation::{HWND, LPARAM, LRESULT, POINT, WPARAM};
     use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
     use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
-        GetKeyState, RegisterHotKey, UnregisterHotKey, MOD_NOREPEAT,
+        GetAsyncKeyState, GetKeyState, VK_CONTROL, VK_LWIN, VK_MENU, VK_NUMLOCK, VK_RWIN,
     };
     use windows_sys::Win32::UI::Shell::{
         Shell_NotifyIconW, NIF_ICON, NIF_MESSAGE, NIF_TIP, NIM_ADD, NIM_DELETE, NOTIFYICONDATAW,
     };
     use windows_sys::Win32::UI::WindowsAndMessaging::{
-        AppendMenuW, CreatePopupMenu, CreateWindowExW, DefWindowProcW, DestroyMenu, DestroyWindow,
-        DispatchMessageW, GetCursorPos, GetMessageW, GetWindowLongPtrW, LoadIconW, LoadImageW,
-        PostMessageW, PostQuitMessage, RegisterClassW, RegisterWindowMessageW, SetForegroundWindow,
-        SetWindowLongPtrW, TrackPopupMenu, TranslateMessage, CREATESTRUCTW, GWLP_USERDATA,
-        IDI_APPLICATION, IMAGE_ICON, LR_LOADFROMFILE, MF_SEPARATOR, MF_STRING, MSG,
-        TPM_BOTTOMALIGN, TPM_RIGHTBUTTON, WM_CLOSE, WM_COMMAND, WM_CREATE, WM_DESTROY,
-        WM_LBUTTONDBLCLK, WM_LBUTTONUP, WM_NCDESTROY, WM_NULL, WM_RBUTTONUP, WM_USER, WNDCLASSW,
-        WS_EX_TOOLWINDOW, WS_POPUP,
+        AppendMenuW, CallNextHookEx, CreatePopupMenu, CreateWindowExW, DefWindowProcW, DestroyMenu,
+        DestroyWindow, DispatchMessageW, GetCursorPos, GetMessageW, GetWindowLongPtrW, LoadIconW,
+        LoadImageW, PostMessageW, PostQuitMessage, RegisterClassW, RegisterWindowMessageW,
+        SetForegroundWindow, SetWindowLongPtrW, SetWindowsHookExW, TrackPopupMenu, TranslateMessage,
+        UnhookWindowsHookEx, CREATESTRUCTW, GWLP_USERDATA, HHOOK, IDI_APPLICATION, IMAGE_ICON,
+        KBDLLHOOKSTRUCT, LR_LOADFROMFILE, MF_SEPARATOR, MF_STRING, MSG, TPM_BOTTOMALIGN,
+        TPM_RIGHTBUTTON, WH_KEYBOARD_LL, WM_APP, WM_CLOSE, WM_COMMAND, WM_CREATE, WM_DESTROY,
+        WM_KEYDOWN, WM_KEYUP, WM_LBUTTONDBLCLK, WM_LBUTTONUP, WM_NCDESTROY, WM_NULL, WM_RBUTTONUP,
+        WM_SYSKEYDOWN, WM_SYSKEYUP, WM_USER, WNDCLASSW, WS_EX_TOOLWINDOW, WS_POPUP,
     };
 
     const WM_USER_TRAY: u32 = WM_USER + 100;
     const WM_HOTKEY: u32 = 0x0312;
+    const WM_APP_HOTKEY_ACTION: u32 = WM_APP + 301;
     pub const HOTKEY_BAN_CURRENT: i32 = 2001;
     pub const HOTKEY_SPEAK_AS_BANNED: i32 = 2002;
     pub const HOTKEY_SKIP_CURRENT: i32 = 2003;
@@ -184,34 +186,65 @@ mod win32 {
     pub const HOTKEY_SPEAK_AS_USER: i32 = 2005;
 
     pub static TRAY_HWND: std::sync::atomic::AtomicIsize = std::sync::atomic::AtomicIsize::new(0);
+    static KEYBOARD_HOOK: std::sync::atomic::AtomicIsize = std::sync::atomic::AtomicIsize::new(0);
+    static HOTKEYS_PAUSED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+    static KEY_DOWN_MASK: std::sync::atomic::AtomicU8 = std::sync::atomic::AtomicU8::new(0);
 
     pub fn pause_hotkeys() {
-        let hwnd = TRAY_HWND.load(std::sync::atomic::Ordering::Acquire);
-        if hwnd != 0 {
-            unsafe {
-                UnregisterHotKey(hwnd as HWND, HOTKEY_BAN_CURRENT);
-                UnregisterHotKey(hwnd as HWND, HOTKEY_SPEAK_AS_BANNED);
-                UnregisterHotKey(hwnd as HWND, HOTKEY_SPEAK_AS_USER);
-                UnregisterHotKey(hwnd as HWND, HOTKEY_SKIP_CURRENT);
-                UnregisterHotKey(hwnd as HWND, HOTKEY_CLEAR_QUEUE);
-                tracing::debug!("[Tray] Global numpad hotkeys temporarily paused for input");
-            }
-        }
+        HOTKEYS_PAUSED.store(true, Ordering::Release);
+        tracing::debug!("[Tray] Global numpad hotkeys temporarily paused for input");
     }
 
     pub fn resume_hotkeys() {
-        let hwnd = TRAY_HWND.load(std::sync::atomic::Ordering::Acquire);
-        if hwnd != 0 {
-            unsafe {
-                let hotkey_mods = MOD_NOREPEAT;
-                RegisterHotKey(hwnd as HWND, HOTKEY_CLEAR_QUEUE, hotkey_mods, 0x60);
-                RegisterHotKey(hwnd as HWND, HOTKEY_BAN_CURRENT, hotkey_mods, 0x61);
-                RegisterHotKey(hwnd as HWND, HOTKEY_SPEAK_AS_BANNED, hotkey_mods, 0x62);
-                RegisterHotKey(hwnd as HWND, HOTKEY_SKIP_CURRENT, hotkey_mods, 0x63);
-                RegisterHotKey(hwnd as HWND, HOTKEY_SPEAK_AS_USER, hotkey_mods, 0x64);
-                tracing::debug!("[Tray] Global numpad hotkeys resumed");
+        KEY_DOWN_MASK.store(0, Ordering::Release);
+        HOTKEYS_PAUSED.store(false, Ordering::Release);
+        tracing::debug!("[Tray] Global numpad hotkeys resumed");
+    }
+
+    pub unsafe extern "system" fn low_level_keyboard_proc(
+        code: i32,
+        wparam: WPARAM,
+        lparam: LPARAM,
+    ) -> LRESULT {
+        if code < 0 {
+            return CallNextHookEx(0, code, wparam, lparam);
+        }
+
+        let msg = wparam as u32;
+        let kbd = &*(lparam as *const KBDLLHOOKSTRUCT);
+        let vk = kbd.vkCode;
+
+        // Monitor physical Numpad 0 through Numpad 4 (0x60 - 0x64)
+        if (0x60..=0x64).contains(&vk) {
+            let bit = 1u8 << (vk - 0x60);
+
+            if msg == WM_KEYDOWN || msg == WM_SYSKEYDOWN {
+                let prev = KEY_DOWN_MASK.fetch_or(bit, Ordering::AcqRel);
+                let is_repeat = (prev & bit) != 0;
+
+                // Only trigger action on initial key press (emulating MOD_NOREPEAT)
+                // and only when hotkeys are not paused (e.g. prompt modal not active)
+                if !is_repeat && !HOTKEYS_PAUSED.load(Ordering::Acquire) {
+                    // Filter modifier chords: if Ctrl, Alt, or Win is held, it is an application macro (e.g. Blender/OBS), not a raw TTS trigger!
+                    let ctrl_down = (GetAsyncKeyState(VK_CONTROL as i32) as u16 & 0x8000) != 0;
+                    let alt_down = (GetAsyncKeyState(VK_MENU as i32) as u16 & 0x8000) != 0;
+                    let win_down = ((GetAsyncKeyState(VK_LWIN as i32) as u16 & 0x8000) != 0)
+                        || ((GetAsyncKeyState(VK_RWIN as i32) as u16 & 0x8000) != 0);
+
+                    if !ctrl_down && !alt_down && !win_down {
+                        let hwnd = TRAY_HWND.load(Ordering::Acquire) as HWND;
+                        if hwnd != 0 {
+                            PostMessageW(hwnd, WM_APP_HOTKEY_ACTION, vk as WPARAM, 0);
+                        }
+                    }
+                }
+            } else if msg == WM_KEYUP || msg == WM_SYSKEYUP {
+                KEY_DOWN_MASK.fetch_and(!bit, Ordering::AcqRel);
             }
         }
+
+        // Unconditionally pass through so active foreground application (Notepad, games, etc.) receives the keystroke!
+        CallNextHookEx(0, code, wparam, lparam)
     }
 
     struct TrayState {
@@ -407,6 +440,53 @@ mod win32 {
                 }
                 0
             }
+            WM_APP_HOTKEY_ACTION => {
+                let vk = wparam as u32;
+                match vk {
+                    0x60 => {
+                        TrayCommand::ClearQueue.execute(
+                            state.port,
+                            &state.tts_handle,
+                            &state.shutdown_tx,
+                            &state.runtime,
+                        );
+                    }
+                    0x61 => {
+                        TrayCommand::BanCurrent.execute(
+                            state.port,
+                            &state.tts_handle,
+                            &state.shutdown_tx,
+                            &state.runtime,
+                        );
+                    }
+                    0x62 => {
+                        TrayCommand::SpeakAsBanned.execute(
+                            state.port,
+                            &state.tts_handle,
+                            &state.shutdown_tx,
+                            &state.runtime,
+                        );
+                    }
+                    0x63 => {
+                        TrayCommand::SkipCurrent.execute(
+                            state.port,
+                            &state.tts_handle,
+                            &state.shutdown_tx,
+                            &state.runtime,
+                        );
+                    }
+                    0x64 => {
+                        TrayCommand::SpeakAsUser.execute(
+                            state.port,
+                            &state.tts_handle,
+                            &state.shutdown_tx,
+                            &state.runtime,
+                        );
+                    }
+                    _ => {}
+                }
+                0
+            }
             WM_HOTKEY => {
                 let hotkey_id = wparam as i32;
                 match hotkey_id {
@@ -474,11 +554,11 @@ mod win32 {
                 0
             }
             WM_DESTROY => {
-                UnregisterHotKey(hwnd, HOTKEY_BAN_CURRENT);
-                UnregisterHotKey(hwnd, HOTKEY_SPEAK_AS_BANNED);
-                UnregisterHotKey(hwnd, HOTKEY_SPEAK_AS_USER);
-                UnregisterHotKey(hwnd, HOTKEY_SKIP_CURRENT);
-                UnregisterHotKey(hwnd, HOTKEY_CLEAR_QUEUE);
+                let hook = KEYBOARD_HOOK.swap(0, Ordering::AcqRel) as HHOOK;
+                if hook != 0 {
+                    UnhookWindowsHookEx(hook);
+                    info!("[Tray] Unhooked WH_KEYBOARD_LL pass-through hook");
+                }
                 Shell_NotifyIconW(NIM_DELETE, &state.nid);
                 PostQuitMessage(0);
                 0
@@ -499,6 +579,12 @@ mod win32 {
 
     impl Drop for TrayHandle {
         fn drop(&mut self) {
+            let hook = KEYBOARD_HOOK.swap(0, Ordering::AcqRel) as HHOOK;
+            if hook != 0 {
+                unsafe {
+                    UnhookWindowsHookEx(hook);
+                }
+            }
             if self.hwnd != 0 {
                 unsafe {
                     PostMessageW(self.hwnd, WM_CLOSE, 0, 0);
@@ -592,24 +678,25 @@ mod win32 {
 
                 TRAY_HWND.store(hwnd as isize, Ordering::Release);
 
-                // Register global hotkeys directly on numeric keypad keys (MOD_NOREPEAT)
-                // Hotkeys are paused while the quick prompt window is active so numbers can be typed.
-                let hotkey_mods = MOD_NOREPEAT;
-                let r1 = RegisterHotKey(hwnd, HOTKEY_CLEAR_QUEUE, hotkey_mods, 0x60); // Numpad 0
-                let r2 = RegisterHotKey(hwnd, HOTKEY_BAN_CURRENT, hotkey_mods, 0x61); // Numpad 1
-                let r3 = RegisterHotKey(hwnd, HOTKEY_SPEAK_AS_BANNED, hotkey_mods, 0x62); // Numpad 2
-                let r4 = RegisterHotKey(hwnd, HOTKEY_SKIP_CURRENT, hotkey_mods, 0x63); // Numpad 3
-                let r5 = RegisterHotKey(hwnd, HOTKEY_SPEAK_AS_USER, hotkey_mods, 0x64); // Numpad 4
-
-                let numlock = GetKeyState(0x90 /* VK_NUMLOCK */);
-                info!(
-                    "[Tray] Registered Numpad hotkeys: Numpad0={}, Numpad1={}, Numpad2={}, Numpad3={}, Numpad4={} (NumLock={})",
-                    r1, r2, r3, r4, r5, if numlock & 1 != 0 { "ON" } else { "OFF" }
+                // Install low-level keyboard pass-through hook for numeric keypad keys 0..4 (0x60 - 0x64)
+                // This ensures keystrokes pass through to active apps (Notepad, games, etc.) while triggering Baba TTS actions.
+                let hook = SetWindowsHookExW(
+                    WH_KEYBOARD_LL,
+                    Some(low_level_keyboard_proc),
+                    GetModuleHandleW(std::ptr::null()),
+                    0,
                 );
+                KEYBOARD_HOOK.store(hook as isize, Ordering::Release);
 
-                if r1 == 0 || r2 == 0 || r3 == 0 || r4 == 0 || r5 == 0 {
+                let numlock = GetKeyState(VK_NUMLOCK as i32);
+                if hook != 0 {
+                    info!(
+                        "[Tray] Successfully installed WH_KEYBOARD_LL pass-through hook for Numpad 0..4 (NumLock={})",
+                        if numlock & 1 != 0 { "ON" } else { "OFF" }
+                    );
+                } else {
                     let err = windows_sys::Win32::Foundation::GetLastError();
-                    warn!("[Tray] Some Numpad hotkeys failed to register (GetLastError={}). Another app may have claimed them.", err);
+                    warn!("[Tray] Failed to install WH_KEYBOARD_LL hook (GetLastError={})", err);
                 }
 
                 if Shell_NotifyIconW(NIM_ADD, &(*state_raw).nid) == 0 {

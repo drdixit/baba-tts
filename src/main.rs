@@ -3,6 +3,7 @@
 mod azure_tts;
 mod colors;
 mod db;
+mod native_audio;
 mod native_prompt;
 mod sapi_tts;
 mod server;

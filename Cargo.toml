@@ -30,6 +30,7 @@ opt-level = 2
 strip = true
 
 [target.'cfg(windows)'.dependencies]
+rodio = { version = "0.20", default-features = false, features = ["wav", "mp3"] }
 windows = { version = "0.58", features = [
     "Win32_Foundation",
     "Win32_Media_Audio",

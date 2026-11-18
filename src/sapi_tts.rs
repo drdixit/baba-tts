@@ -317,6 +317,7 @@ mod windows_impl {
 
             Ok(SpeechSynthesisResult {
                 audio_data_uri,
+                audio_bytes: wav_bytes,
                 word_boundaries,
                 size_kb,
             })
@@ -385,6 +386,7 @@ pub async fn synthesize(
 
         Ok(SpeechSynthesisResult {
             audio_data_uri,
+            audio_bytes: wav_bytes,
             word_boundaries,
             size_kb,
         })

@@ -13,7 +13,7 @@
 
 ## 2. Numpad Hotkeys & Quick Prompt Behavior
 
-- **Physical Key Mapping:** Hotkeys `Numpad 0` through `Numpad 4` (`0x60` to `0x64`) are registered with `MOD_NOREPEAT` directly, without requiring Ctrl or Alt modifier combinations, to accommodate streamer macro workflows.
+- **Physical Key Mapping & Pass-Through:** Hotkeys `Numpad 0` through `Numpad 4` (`0x60` to `0x64`) use a low-level keyboard hook (`WH_KEYBOARD_LL`) with `CallNextHookEx` so keystrokes pass through to active applications (e.g. Notepad, games) without being swallowed, while triggering Baba TTS actions. Typematic auto-repeats are filtered via atomic key-down masks (`MOD_NOREPEAT` behavior), and modifier chords (Ctrl, Alt, Win) pass through untouched to preserve external application hotkeys.
 - **Input Hotkey Suspension:** Whenever the floating prompt input window is opened (`WM_SHOW_PROMPT`), global hotkeys must be paused via `crate::tray::pause_hotkeys()`. Hotkeys must resume via `crate::tray::resume_hotkeys()` when the prompt is hidden, submitted (`VK_RETURN`), cancelled (`VK_ESCAPE`), or deactivated (`WM_ACTIVATE` / `WM_KILLFOCUS`).
 - **Foreground Focus & UIPI:** Cross-thread focus handoff between the tray worker and the prompt window must allow foreground transitions (`AllowSetForegroundWindow(ASFW_ANY)`). If `SetForegroundWindow` is blocked by Windows UIPI, an Alt-key tap event (`keybd_event(VK_MENU)`) bypasses the restriction.
 

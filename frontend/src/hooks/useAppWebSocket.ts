@@ -58,8 +58,20 @@ export function useAppWebSocket(playAudio: boolean = false) {
             useStore.getState().setBannedUsers(data.users);
           } else if (data.type === 'tts_state') {
             useStore.getState().updateMessageStatus(data.messageId, data.state);
+            if (data.state === 'done' || data.state === 'skipped' || data.state === 'error') {
+              if (rafRef.current !== null) {
+                cancelAnimationFrame(rafRef.current);
+                rafRef.current = null;
+              }
+              setCurrentAudioTime(0);
+            }
           } else if (data.type === 'tts_error') {
             useStore.getState().updateMessageStatus(data.messageId, 'error');
+            if (rafRef.current !== null) {
+              cancelAnimationFrame(rafRef.current);
+              rafRef.current = null;
+            }
+            setCurrentAudioTime(0);
           } else if (data.type === 'KILL_AUDIO') {
             if (pendingUnlockRef.current) {
               pendingUnlockRef.current();

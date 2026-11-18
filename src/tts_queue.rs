@@ -1,4 +1,5 @@
 use crate::azure_tts::AzureTtsClient;
+use crate::native_audio::NativeAudioPlayer;
 use crate::types::{AppSettings, ChatMessage, WordBoundary};
 use std::collections::{HashMap, VecDeque};
 use std::time::{Duration, Instant};
@@ -184,6 +185,7 @@ pub struct TtsActor {
     sapi_voice_round_robin_index: usize,
     self_handle: mpsc::Sender<TtsCommand>,
     recent_cache: RecentMessageCache,
+    audio_player: NativeAudioPlayer,
 }
 
 fn default_hindi_voice() -> String {
@@ -218,6 +220,7 @@ impl TtsActor {
             sapi_voice_round_robin_index: 0,
             self_handle: tx.clone(),
             recent_cache: RecentMessageCache::default(),
+            audio_player: NativeAudioPlayer::new(),
         };
 
         tokio::spawn(actor.run());
@@ -299,6 +302,7 @@ impl TtsActor {
                 }
                 TtsCommand::SkipCurrent => {
                     self.pending_audio = None;
+                    self.audio_player.stop();
                     if let Some(curr) = self.current.take() {
                         let _ = self.broadcast_tx.send(WsBroadcastMessage::TtsState {
                             message_id: curr.message_id,
@@ -311,6 +315,7 @@ impl TtsActor {
                 }
                 TtsCommand::ClearQueue => {
                     self.pending_audio = None;
+                    self.audio_player.stop();
                     for msg in self.queue.drain(..) {
                         let _ = self.broadcast_tx.send(WsBroadcastMessage::TtsState {
                             message_id: msg.message_id,
@@ -350,6 +355,7 @@ impl TtsActor {
                     if let Some(curr) = &self.current {
                         if curr.author_id.as_deref() == Some(&author_id) {
                             self.pending_audio = None;
+                            self.audio_player.stop();
                             let id = curr.message_id.clone();
                             self.current = None;
                             let _ = self.broadcast_tx.send(WsBroadcastMessage::TtsState {
@@ -388,6 +394,7 @@ impl TtsActor {
                     });
                     if should_skip_current {
                         self.pending_audio = None;
+                        self.audio_player.stop();
                         if let Some(current) = self.current.take() {
                             let _ = self.broadcast_tx.send(WsBroadcastMessage::TtsState {
                                 message_id: current.message_id,
@@ -442,7 +449,19 @@ impl TtsActor {
 
                                     self.pending_audio = Some(pending);
 
-                                    // Dynamic watchdog timer based on audio length
+                                    // Play audio natively on the baba-tts.exe process (WASAPI on Windows)
+                                    let playback_handle = self.self_handle.clone();
+                                    self.audio_player.play(
+                                        message_id.clone(),
+                                        synthesis.audio_bytes,
+                                        move |mid| {
+                                            if let Err(e) = playback_handle.try_send(TtsCommand::AudioFinished(Some(mid))) {
+                                                warn!("[TTS] Failed to dispatch AudioFinished to queue channel: {}", e);
+                                            }
+                                        },
+                                    );
+
+                                    // Dynamic watchdog timer based on audio length as safety fallback
                                     let last_offset = synthesis
                                         .word_boundaries
                                         .last()
@@ -724,6 +743,7 @@ mod tests {
         // Simulate synthesis completion directly via internal command sender
         let synthesis_result = Ok(crate::azure_tts::SpeechSynthesisResult {
             audio_data_uri: "data:audio/mp3;base64,dummydata".to_string(),
+            audio_bytes: vec![1, 2, 3],
             word_boundaries: vec![WordBoundary {
                 audio_offset: 0.1,
                 duration: 0.5,

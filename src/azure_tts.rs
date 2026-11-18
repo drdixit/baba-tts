@@ -42,6 +42,7 @@ struct AzureWordText {
 #[derive(Debug, Clone)]
 pub struct SpeechSynthesisResult {
     pub audio_data_uri: String,
+    pub audio_bytes: Vec<u8>,
     pub word_boundaries: Vec<WordBoundary>,
     #[allow(dead_code)]
     pub size_kb: f64,
@@ -213,6 +214,7 @@ impl AzureTtsClient {
 
         Ok(SpeechSynthesisResult {
             audio_data_uri,
+            audio_bytes,
             word_boundaries,
             size_kb,
         })

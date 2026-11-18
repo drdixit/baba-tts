@@ -56,7 +56,7 @@ export default function App() {
 
 function DesktopApp() {
   const { messages } = useStore();
-  const { wsRef, currentAudioTime, isConnected } = useAppWebSocket(true);
+  const { wsRef, currentAudioTime, isConnected } = useAppWebSocket(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const navRef = useRef<HTMLElement>(null);
 
