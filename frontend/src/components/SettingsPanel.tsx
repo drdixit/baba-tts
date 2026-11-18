@@ -28,6 +28,7 @@ interface AppSettings {
   sapi_voice_rotation: boolean;
   sapi_rate: number;
   sapi_volume: number;
+  master_volume: number;
   youtube_channel_id: string;
   youtube_live_id: string | null;
   enable_youtube: boolean;
@@ -46,6 +47,7 @@ interface ApiSettings {
   sapiVoiceRotation?: boolean;
   sapiRate?: number;
   sapiVolume?: number;
+  masterVolume?: number;
   youtubeChannelId: string;
   youtubeLiveId: string | null;
   enableYoutube: boolean;
@@ -86,6 +88,7 @@ function apiToForm(api: ApiSettings): AppSettings {
     sapi_voice_rotation: api.sapiVoiceRotation ?? false,
     sapi_rate: api.sapiRate ?? 0,
     sapi_volume: api.sapiVolume ?? 100,
+    master_volume: api.masterVolume ?? 100,
     youtube_channel_id: api.youtubeChannelId || '',
     youtube_live_id: api.youtubeLiveId || null,
     enable_youtube: api.enableYoutube ?? true,
@@ -105,6 +108,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   sapi_voice_rotation: false,
   sapi_rate: 0,
   sapi_volume: 100,
+  master_volume: 100,
   youtube_channel_id: 'UCiz4lqlVpaB4PpK-1aecMgQ',
   youtube_live_id: null,
   enable_youtube: true,
@@ -413,6 +417,7 @@ export default function SettingsPanel({ onRestart, serverPort }: SettingsPanelPr
           sapiVoiceRotation: settings.sapi_voice_rotation,
           sapiRate: settings.sapi_rate,
           sapiVolume: settings.sapi_volume,
+          masterVolume: settings.master_volume,
           youtubeChannelId: settings.youtube_channel_id.trim(),
           youtubeLiveId: settings.youtube_live_id?.trim() || null,
           enableYoutube: settings.enable_youtube,
@@ -569,6 +574,54 @@ export default function SettingsPanel({ onRestart, serverPort }: SettingsPanelPr
           {isSapi
             ? 'Using Microsoft SAPI5 COM engine on Windows. Runs completely offline without API keys or usage fees.'
             : 'Using Microsoft Azure Cognitive Services Speech. High-quality neural voices requiring an Azure API key.'}
+        </p>
+      </fieldset>
+
+      {/* Master Audio & Output Volume */}
+      <fieldset className="desktop-groupbox">
+        <legend className="desktop-groupbox-legend flex items-center gap-1.5">
+          <Volume2 className="h-3.5 w-3.5 text-[#333]" aria-hidden="true" />
+          <span>Audio Output & Master Volume</span>
+        </legend>
+
+        <div className="desktop-setting-row">
+          <label htmlFor="master-volume" className="desktop-setting-label flex items-center gap-1">
+            <span>Master Volume</span>
+          </label>
+          <div className="flex min-w-0 flex-1 items-center gap-3">
+            <input
+              id="master-volume"
+              type="range"
+              min={0}
+              max={100}
+              step={1}
+              value={settings.master_volume}
+              onChange={(e) => updateField('master_volume', parseInt(e.target.value, 10))}
+              className="h-2 w-full max-w-56 cursor-pointer accent-[#333]"
+            />
+            <span className="w-12 font-mono text-xs font-semibold text-[#333]">
+              {settings.master_volume}%
+            </span>
+            <button
+              type="button"
+              onClick={() => updateField('master_volume', 100)}
+              className={secondaryButtonClass}
+              title="Reset to 100% (max volume)"
+            >
+              100%
+            </button>
+            <button
+              type="button"
+              onClick={() => updateField('master_volume', 0)}
+              className={secondaryButtonClass}
+              title="Mute volume"
+            >
+              Mute (0%)
+            </button>
+          </div>
+        </div>
+        <p className="desktop-help-text pl-[132px]">
+          Controls native audio output across both Azure Neural and SAPI5 voices. Tip: Press <strong>Numpad 5</strong> to toggle mute mid-speech.
         </p>
       </fieldset>
 

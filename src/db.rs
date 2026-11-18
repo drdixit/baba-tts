@@ -274,6 +274,12 @@ impl Db {
             }
         }
 
+        if let Some(val) = self.get_setting("master_volume")? {
+            if let Ok(vol) = val.parse::<u32>() {
+                settings.master_volume = vol.min(100);
+            }
+        }
+
         if let Some(val) = self.get_setting("youtube_channel_id")? {
             settings.youtube_channel_id = val;
         } else if let Ok(env_val) = std::env::var("YOUTUBE_CHANNEL_ID") {
@@ -319,6 +325,7 @@ impl Db {
         )?;
         self.set_setting("sapi_rate", &settings.sapi_rate.to_string())?;
         self.set_setting("sapi_volume", &settings.sapi_volume.to_string())?;
+        self.set_setting("master_volume", &settings.master_volume.to_string())?;
         self.set_setting("youtube_channel_id", &settings.youtube_channel_id)?;
         self.set_setting("youtube_live_id", settings.youtube_live_id.as_deref().unwrap_or(""))?;
         self.set_setting("enable_youtube", if settings.enable_youtube { "true" } else { "false" })?;

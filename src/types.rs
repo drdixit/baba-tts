@@ -73,6 +73,8 @@ pub struct AppSettings {
     pub sapi_rate: i32,
     #[serde(default = "default_sapi_volume")]
     pub sapi_volume: u32,
+    #[serde(default = "default_master_volume")]
+    pub master_volume: u32,
     pub youtube_channel_id: String,
     pub youtube_live_id: Option<String>,
     pub enable_youtube: bool,
@@ -89,6 +91,10 @@ fn default_sapi_voice() -> String {
 }
 
 fn default_sapi_volume() -> u32 {
+    100
+}
+
+fn default_master_volume() -> u32 {
     100
 }
 
@@ -110,6 +116,7 @@ impl Default for AppSettings {
             sapi_voice_rotation: false,
             sapi_rate: 0,
             sapi_volume: 100,
+            master_volume: 100,
             youtube_channel_id: "UCiz4lqlVpaB4PpK-1aecMgQ".to_string(),
             youtube_live_id: None,
             enable_youtube: true,

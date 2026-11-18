@@ -49,6 +49,9 @@ pub enum TtsCommand {
     GetCurrentProcessing(oneshot::Sender<Option<ChatMessage>>),
     GetPendingAudio(oneshot::Sender<Option<PendingAudio>>),
     UpdateSettings(AppSettings),
+    ToggleMute,
+    #[allow(dead_code)]
+    SetVolume(f32),
     SynthesisComplete {
         message_id: String,
         result: Result<crate::azure_tts::SpeechSynthesisResult, String>,
@@ -171,6 +174,15 @@ impl TtsHandle {
     pub async fn update_settings(&self, settings: AppSettings) {
         let _ = self.sender.send(TtsCommand::UpdateSettings(settings)).await;
     }
+
+    pub async fn toggle_mute(&self) {
+        let _ = self.sender.send(TtsCommand::ToggleMute).await;
+    }
+
+    #[allow(dead_code)]
+    pub async fn set_volume(&self, vol: f32) {
+        let _ = self.sender.send(TtsCommand::SetVolume(vol)).await;
+    }
 }
 
 pub struct TtsActor {
@@ -208,6 +220,8 @@ impl TtsActor {
         initial_settings: AppSettings,
     ) -> TtsHandle {
         let (tx, rx) = mpsc::channel(100);
+        let audio_player = NativeAudioPlayer::new();
+        audio_player.set_volume(initial_settings.master_volume as f32 / 100.0);
         let actor = Self {
             receiver: rx,
             queue: VecDeque::new(),
@@ -220,7 +234,7 @@ impl TtsActor {
             sapi_voice_round_robin_index: 0,
             self_handle: tx.clone(),
             recent_cache: RecentMessageCache::default(),
-            audio_player: NativeAudioPlayer::new(),
+            audio_player,
         };
 
         tokio::spawn(actor.run());
@@ -412,7 +426,16 @@ impl TtsActor {
                 TtsCommand::GetPendingAudio(tx) => {
                     let _ = tx.send(self.pending_audio.clone());
                 }
+                TtsCommand::ToggleMute => {
+                    self.audio_player.toggle_mute();
+                }
+                TtsCommand::SetVolume(vol) => {
+                    self.audio_player.set_volume(vol);
+                }
                 TtsCommand::UpdateSettings(new_settings) => {
+                    if self.settings.master_volume != new_settings.master_volume {
+                        self.audio_player.set_volume(new_settings.master_volume as f32 / 100.0);
+                    }
                     if self.settings.azure_speech_voices != new_settings.azure_speech_voices
                         || self.settings.azure_speech_voice_rotation != new_settings.azure_speech_voice_rotation
                     {
@@ -882,5 +905,18 @@ mod tests {
         }
 
         assert!(skipped_count >= 25, "Expected at least 25 messages to be dropped due to queue capacity, got {}", skipped_count);
+    }
+
+    #[tokio::test]
+    async fn test_tts_toggle_mute_and_volume_commands() {
+        let (broadcast_tx, _broadcast_rx) = broadcast::channel(10);
+        let settings = AppSettings::default();
+        let handle = TtsActor::spawn(broadcast_tx, settings);
+
+        // Verify that sending toggle_mute and set_volume does not block or panic
+        handle.toggle_mute().await;
+        handle.set_volume(0.5).await;
+        handle.toggle_mute().await;
+        handle.set_volume(1.0).await;
     }
 }

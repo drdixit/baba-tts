@@ -14,6 +14,7 @@ pub enum TrayCommand {
     ClearQueue,
     RestartServer,
     Exit,
+    ToggleMute,
 }
 
 
@@ -67,6 +68,7 @@ impl TrayCommand {
             1008 => Some(Self::ClearQueue),
             1009 => Some(Self::RestartServer),
             1010 => Some(Self::Exit),
+            1011 => Some(Self::ToggleMute),
             _ => None,
         }
     }
@@ -83,6 +85,7 @@ impl TrayCommand {
             Self::ClearQueue => 1008,
             Self::RestartServer => 1009,
             Self::Exit => 1010,
+            Self::ToggleMute => 1011,
         }
     }
 
@@ -139,6 +142,12 @@ impl TrayCommand {
             }
             Self::Exit => {
                 let _ = shutdown_tx.try_send(());
+            }
+            Self::ToggleMute => {
+                let handle = tts_handle.clone();
+                runtime.spawn(async move {
+                    handle.toggle_mute().await;
+                });
             }
         }
     }
@@ -214,8 +223,8 @@ mod win32 {
         let kbd = &*(lparam as *const KBDLLHOOKSTRUCT);
         let vk = kbd.vkCode;
 
-        // Monitor physical Numpad 0 through Numpad 4 (0x60 - 0x64)
-        if (0x60..=0x64).contains(&vk) {
+        // Monitor physical Numpad 0 through Numpad 5 (0x60 - 0x65)
+        if (0x60..=0x65).contains(&vk) {
             let bit = 1u8 << (vk - 0x60);
 
             if msg == WM_KEYDOWN || msg == WM_SYSKEYDOWN {
@@ -483,6 +492,14 @@ mod win32 {
                             &state.runtime,
                         );
                     }
+                    0x65 => {
+                        TrayCommand::ToggleMute.execute(
+                            state.port,
+                            &state.tts_handle,
+                            &state.shutdown_tx,
+                            &state.runtime,
+                        );
+                    }
                     _ => {}
                 }
                 0
@@ -678,7 +695,7 @@ mod win32 {
 
                 TRAY_HWND.store(hwnd as isize, Ordering::Release);
 
-                // Install low-level keyboard pass-through hook for numeric keypad keys 0..4 (0x60 - 0x64)
+                // Install low-level keyboard pass-through hook for numeric keypad keys 0..5 (0x60 - 0x65)
                 // This ensures keystrokes pass through to active apps (Notepad, games, etc.) while triggering Baba TTS actions.
                 let hook = SetWindowsHookExW(
                     WH_KEYBOARD_LL,
@@ -691,7 +708,7 @@ mod win32 {
                 let numlock = GetKeyState(VK_NUMLOCK as i32);
                 if hook != 0 {
                     info!(
-                        "[Tray] Successfully installed WH_KEYBOARD_LL pass-through hook for Numpad 0..4 (NumLock={})",
+                        "[Tray] Successfully installed WH_KEYBOARD_LL pass-through hook for Numpad 0..5 (NumLock={})",
                         if numlock & 1 != 0 { "ON" } else { "OFF" }
                     );
                 } else {
@@ -772,6 +789,7 @@ mod tests {
         assert_eq!(TrayCommand::from_id(1008), Some(TrayCommand::ClearQueue));
         assert_eq!(TrayCommand::from_id(1009), Some(TrayCommand::RestartServer));
         assert_eq!(TrayCommand::from_id(1010), Some(TrayCommand::Exit));
+        assert_eq!(TrayCommand::from_id(1011), Some(TrayCommand::ToggleMute));
         assert_eq!(TrayCommand::from_id(9999), None);
 
         assert_eq!(TrayCommand::OpenDashboard.to_id(), 1001);
@@ -784,6 +802,7 @@ mod tests {
         assert_eq!(TrayCommand::ClearQueue.to_id(), 1008);
         assert_eq!(TrayCommand::RestartServer.to_id(), 1009);
         assert_eq!(TrayCommand::Exit.to_id(), 1010);
+        assert_eq!(TrayCommand::ToggleMute.to_id(), 1011);
     }
 
     #[test]

@@ -16,6 +16,9 @@ mod windows_impl {
             on_finished: Box<dyn FnOnce(String) + Send + 'static>,
         },
         Stop,
+        #[allow(dead_code)]
+        SetVolume(f32),
+        ToggleMute,
     }
 
     #[derive(Clone)]
@@ -53,6 +56,14 @@ mod windows_impl {
         pub fn stop(&self) {
             let _ = self.cmd_tx.send(AudioCmd::Stop);
         }
+
+        pub fn set_volume(&self, vol: f32) {
+            let _ = self.cmd_tx.send(AudioCmd::SetVolume(vol));
+        }
+
+        pub fn toggle_mute(&self) {
+            let _ = self.cmd_tx.send(AudioCmd::ToggleMute);
+        }
     }
 
     fn audio_worker_loop(cmd_rx: Receiver<AudioCmd>) {
@@ -75,6 +86,16 @@ mod windows_impl {
 
         let mut current_sink: Option<Sink> = None;
         let mut active_msg: Option<(String, Box<dyn FnOnce(String) + Send + 'static>)> = None;
+        let mut master_volume: f32 = 1.0;
+        let mut is_muted: bool = false;
+
+        let calc_effective_volume = |vol: f32, muted: bool| -> f32 {
+            if muted {
+                0.0
+            } else {
+                vol.clamp(0.0, 1.0)
+            }
+        };
 
         loop {
             // Check if we have an active sink currently playing
@@ -90,10 +111,19 @@ mod windows_impl {
                 // Blocking wait for next command when idle
                 match cmd_rx.recv() {
                     Ok(AudioCmd::Play { message_id, bytes, on_finished }) => {
-                        start_playback(&stream_handle, message_id, bytes, on_finished, &mut current_sink, &mut active_msg);
+                        let eff_vol = calc_effective_volume(master_volume, is_muted);
+                        start_playback(&stream_handle, message_id, bytes, eff_vol, on_finished, &mut current_sink, &mut active_msg);
                     }
                     Ok(AudioCmd::Stop) => {
                         // Already idle
+                    }
+                    Ok(AudioCmd::SetVolume(vol)) => {
+                        master_volume = vol.clamp(0.0, 1.0);
+                        info!("[NativeAudio] Master volume set to {:.2} (idle)", master_volume);
+                    }
+                    Ok(AudioCmd::ToggleMute) => {
+                        is_muted = !is_muted;
+                        info!("[NativeAudio] Mute toggled (idle): muted={}", is_muted);
                     }
                     Err(_) => {
                         // Channel closed (app shutdown)
@@ -112,7 +142,8 @@ mod windows_impl {
                             info!("[NativeAudio] Preempted playback for message {}", old_id);
                             old_cb(old_id);
                         }
-                        start_playback(&stream_handle, message_id, bytes, on_finished, &mut current_sink, &mut active_msg);
+                        let eff_vol = calc_effective_volume(master_volume, is_muted);
+                        start_playback(&stream_handle, message_id, bytes, eff_vol, on_finished, &mut current_sink, &mut active_msg);
                     }
                     Ok(AudioCmd::Stop) => {
                         if let Some(sink) = current_sink.take() {
@@ -122,6 +153,22 @@ mod windows_impl {
                             info!("[NativeAudio] Stopped playback for message {}", old_id);
                             old_cb(old_id);
                         }
+                    }
+                    Ok(AudioCmd::SetVolume(vol)) => {
+                        master_volume = vol.clamp(0.0, 1.0);
+                        let eff_vol = calc_effective_volume(master_volume, is_muted);
+                        if let Some(sink) = &current_sink {
+                            sink.set_volume(eff_vol);
+                        }
+                        info!("[NativeAudio] Real-time master volume set to {:.2} (effective={:.2})", master_volume, eff_vol);
+                    }
+                    Ok(AudioCmd::ToggleMute) => {
+                        is_muted = !is_muted;
+                        let eff_vol = calc_effective_volume(master_volume, is_muted);
+                        if let Some(sink) = &current_sink {
+                            sink.set_volume(eff_vol);
+                        }
+                        info!("[NativeAudio] Real-time mute toggled: muted={} (effective={:.2})", is_muted, eff_vol);
                     }
                     Err(TryRecvError::Empty) => {
                         thread::sleep(Duration::from_millis(15));
@@ -141,6 +188,7 @@ mod windows_impl {
         stream_handle: &OutputStreamHandle,
         message_id: String,
         bytes: Vec<u8>,
+        volume: f32,
         on_finished: Box<dyn FnOnce(String) + Send + 'static>,
         current_sink: &mut Option<Sink>,
         active_msg: &mut Option<(String, Box<dyn FnOnce(String) + Send + 'static>)>,
@@ -150,7 +198,8 @@ mod windows_impl {
             Ok(source) => {
                 match Sink::try_new(stream_handle) {
                     Ok(sink) => {
-                        info!("[NativeAudio] Starting native playback for message {}", message_id);
+                        info!("[NativeAudio] Starting native playback for message {} at volume {:.2}", message_id, volume);
+                        sink.set_volume(volume);
                         sink.append(source);
                         sink.play();
                         *current_sink = Some(sink);
@@ -183,6 +232,9 @@ mod non_windows_impl {
             on_finished: Box<dyn FnOnce(String) + Send + 'static>,
         },
         Stop,
+        #[allow(dead_code)]
+        SetVolume(f32),
+        ToggleMute,
     }
 
     #[derive(Clone)]
@@ -216,6 +268,8 @@ mod non_windows_impl {
                                 }
                             }
                             AudioCmd::Stop => {}
+                            AudioCmd::SetVolume(_) => {}
+                            AudioCmd::ToggleMute => {}
                         }
                     }
                 })
@@ -239,6 +293,14 @@ mod non_windows_impl {
 
         pub fn stop(&self) {
             let _ = self.cmd_tx.send(AudioCmd::Stop);
+        }
+
+        pub fn set_volume(&self, vol: f32) {
+            let _ = self.cmd_tx.send(AudioCmd::SetVolume(vol));
+        }
+
+        pub fn toggle_mute(&self) {
+            let _ = self.cmd_tx.send(AudioCmd::ToggleMute);
         }
     }
 }

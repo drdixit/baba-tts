@@ -301,6 +301,7 @@ struct SettingsResponse {
     sapi_voice_rotation: bool,
     sapi_rate: i32,
     sapi_volume: u32,
+    master_volume: u32,
     youtube_channel_id: String,
     youtube_live_id: Option<String>,
     enable_youtube: bool,
@@ -321,6 +322,7 @@ impl From<&AppSettings> for SettingsResponse {
             sapi_voice_rotation: settings.sapi_voice_rotation,
             sapi_rate: settings.sapi_rate,
             sapi_volume: settings.sapi_volume,
+            master_volume: settings.master_volume,
             youtube_channel_id: settings.youtube_channel_id.clone(),
             youtube_live_id: settings.youtube_live_id.clone(),
             enable_youtube: settings.enable_youtube,
@@ -354,6 +356,8 @@ struct SaveSettingsPayload {
     sapi_rate: Option<i32>,
     #[serde(default)]
     sapi_volume: Option<u32>,
+    #[serde(default)]
+    master_volume: Option<u32>,
     youtube_channel_id: String,
     youtube_live_id: Option<String>,
     enable_youtube: bool,
@@ -418,6 +422,7 @@ impl SaveSettingsPayload {
         let sapi_voice_rotation = self.sapi_voice_rotation.unwrap_or(current.sapi_voice_rotation);
         let sapi_rate = self.sapi_rate.unwrap_or(current.sapi_rate).clamp(-10, 10);
         let sapi_volume = self.sapi_volume.unwrap_or(current.sapi_volume).min(100);
+        let master_volume = self.master_volume.unwrap_or(current.master_volume).min(100);
 
         let youtube_chat_mode = self
             .youtube_chat_mode
@@ -436,6 +441,7 @@ impl SaveSettingsPayload {
             sapi_voice_rotation,
             sapi_rate,
             sapi_volume,
+            master_volume,
             youtube_channel_id: self.youtube_channel_id,
             youtube_live_id: self.youtube_live_id,
             enable_youtube: self.enable_youtube,
@@ -828,6 +834,7 @@ mod tests {
             sapi_voice_rotation: false,
             sapi_rate: 2,
             sapi_volume: 90,
+            master_volume: 85,
             youtube_channel_id: "test_channel".to_string(),
             youtube_live_id: Some("live123".to_string()),
             enable_youtube: false,
@@ -857,6 +864,7 @@ mod tests {
         assert_eq!(reloaded.sapi_voice, "Microsoft David Desktop");
         assert_eq!(reloaded.sapi_rate, 2);
         assert_eq!(reloaded.sapi_volume, 90);
+        assert_eq!(reloaded.master_volume, 85);
         assert_eq!(reloaded.youtube_chat_mode, "top");
 
         // Test POST /api/baba-say
