@@ -417,7 +417,6 @@ export default function SettingsPanel({ onRestart, serverPort }: SettingsPanelPr
           sapiVoiceRotation: settings.sapi_voice_rotation,
           sapiRate: settings.sapi_rate,
           sapiVolume: settings.sapi_volume,
-          masterVolume: settings.master_volume,
           youtubeChannelId: settings.youtube_channel_id.trim(),
           youtubeLiveId: settings.youtube_live_id?.trim() || null,
           enableYoutube: settings.enable_youtube,
@@ -574,54 +573,6 @@ export default function SettingsPanel({ onRestart, serverPort }: SettingsPanelPr
           {isSapi
             ? 'Using Microsoft SAPI5 COM engine on Windows. Runs completely offline without API keys or usage fees.'
             : 'Using Microsoft Azure Cognitive Services Speech. High-quality neural voices requiring an Azure API key.'}
-        </p>
-      </fieldset>
-
-      {/* Master Audio & Output Volume */}
-      <fieldset className="desktop-groupbox">
-        <legend className="desktop-groupbox-legend flex items-center gap-1.5">
-          <Volume2 className="h-3.5 w-3.5 text-[#333]" aria-hidden="true" />
-          <span>Audio Output & Master Volume</span>
-        </legend>
-
-        <div className="desktop-setting-row">
-          <label htmlFor="master-volume" className="desktop-setting-label flex items-center gap-1">
-            <span>Master Volume</span>
-          </label>
-          <div className="flex min-w-0 flex-1 items-center gap-3">
-            <input
-              id="master-volume"
-              type="range"
-              min={0}
-              max={100}
-              step={1}
-              value={settings.master_volume}
-              onChange={(e) => updateField('master_volume', parseInt(e.target.value, 10))}
-              className="h-2 w-full max-w-56 cursor-pointer accent-[#333]"
-            />
-            <span className="w-12 font-mono text-xs font-semibold text-[#333]">
-              {settings.master_volume}%
-            </span>
-            <button
-              type="button"
-              onClick={() => updateField('master_volume', 100)}
-              className={secondaryButtonClass}
-              title="Reset to 100% (max volume)"
-            >
-              100%
-            </button>
-            <button
-              type="button"
-              onClick={() => updateField('master_volume', 0)}
-              className={secondaryButtonClass}
-              title="Mute volume"
-            >
-              Mute (0%)
-            </button>
-          </div>
-        </div>
-        <p className="desktop-help-text pl-[132px]">
-          Controls native audio output across both Azure Neural and SAPI5 voices. Tip: Press <strong>Numpad 5</strong> to toggle mute mid-speech.
         </p>
       </fieldset>
 

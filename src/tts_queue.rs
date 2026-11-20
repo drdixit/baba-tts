@@ -430,6 +430,7 @@ impl TtsActor {
                     self.audio_player.toggle_mute();
                 }
                 TtsCommand::SetVolume(vol) => {
+                    self.settings.master_volume = (vol * 100.0).round().clamp(0.0, 100.0) as u32;
                     self.audio_player.set_volume(vol);
                 }
                 TtsCommand::UpdateSettings(new_settings) => {

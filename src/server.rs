@@ -41,6 +41,7 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/speak-as-banned", post(speak_as_banned_post_handler))
         .route("/api/settings", get(get_settings_handler).post(save_settings_handler))
         .route("/api/voices", get(get_voices_handler))
+        .route("/api/volume", get(get_volume_handler).post(set_volume_handler))
         .route_layer(middleware::from_fn(local_origin_guard))
         .fallback(static_handler)
         .with_state(state)
@@ -564,6 +565,29 @@ async fn save_settings_handler(
     .into_response()
 }
 
+#[derive(Deserialize)]
+struct VolumePayload {
+    volume: u32,
+}
+
+async fn get_volume_handler(State(state): State<AppState>) -> Response {
+    let volume = state.db.load_settings().map(|s| s.master_volume).unwrap_or(100);
+    Json(serde_json::json!({ "volume": volume })).into_response()
+}
+
+async fn set_volume_handler(
+    State(state): State<AppState>,
+    Json(payload): Json<VolumePayload>,
+) -> Response {
+    let vol = payload.volume.min(100);
+    if let Err(err) = state.db.set_setting("master_volume", &vol.to_string()) {
+        tracing::error!("Failed to save master_volume setting: {}", err);
+        return (StatusCode::INTERNAL_SERVER_ERROR, err.to_string()).into_response();
+    }
+    state.tts_handle.set_volume(vol as f32 / 100.0).await;
+    Json(serde_json::json!({ "success": true, "volume": vol })).into_response()
+}
+
 async fn get_voices_handler(
     State(state): State<AppState>,
     Query(query): Query<VoiceQuery>,
@@ -983,6 +1007,43 @@ mod tests {
         remote_req.extensions_mut().insert(ConnectInfo(SocketAddr::from(([192, 168, 1, 100], 55555))));
         let response = app.clone().oneshot(remote_req).await.unwrap();
         assert_eq!(response.status(), StatusCode::FORBIDDEN);
+
+        // Test GET /api/volume and POST /api/volume
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/api/volume")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = response.into_body().collect().await.unwrap().to_bytes();
+        let vol_json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(vol_json["volume"], 85);
+
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/volume")
+                    .header("Content-Type", "application/json")
+                    .body(Body::from(r#"{"volume":42}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = response.into_body().collect().await.unwrap().to_bytes();
+        let vol_json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(vol_json["success"], true);
+        assert_eq!(vol_json["volume"], 42);
+
+        let reloaded = db.load_settings().unwrap();
+        assert_eq!(reloaded.master_volume, 42);
 
         // Test POST /api/restart from loopback IP (should succeed)
         let mut local_req = Request::builder()

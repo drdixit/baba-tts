@@ -2,6 +2,8 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
   Volume2,
+  Volume1,
+  VolumeX,
   ShieldAlert,
   RotateCcw,
   Trash2,
@@ -111,6 +113,75 @@ function DesktopApp() {
       })
       .catch(() => {});
   }, []);
+
+  // Master Volume State & Auto-Save
+  const [masterVolume, setMasterVolume] = useState<number>(() => {
+    const saved = localStorage.getItem('baba_master_volume');
+    if (saved !== null) {
+      const parsed = parseInt(saved, 10);
+      if (!isNaN(parsed) && parsed >= 0 && parsed <= 100) return parsed;
+    }
+    return 100;
+  });
+
+  const prevVolumeRef = useRef<number>(100);
+  const volumeDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  // Sync initial volume from server
+  useEffect(() => {
+    fetch('/api/volume')
+      .then((res) => res.json())
+      .then((data) => {
+        if (typeof data.volume === 'number') {
+          const vol = Math.max(0, Math.min(100, Math.round(data.volume)));
+          setMasterVolume(vol);
+          if (vol > 0) prevVolumeRef.current = vol;
+          localStorage.setItem('baba_master_volume', vol.toString());
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const handleVolumeChange = useCallback((newVol: number) => {
+    const clamped = Math.max(0, Math.min(100, Math.round(newVol)));
+    setMasterVolume(clamped);
+    if (clamped > 0) {
+      prevVolumeRef.current = clamped;
+    }
+    localStorage.setItem('baba_master_volume', clamped.toString());
+
+    if (volumeDebounceRef.current) {
+      clearTimeout(volumeDebounceRef.current);
+    }
+
+    volumeDebounceRef.current = setTimeout(() => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+      abortControllerRef.current = new AbortController();
+
+      fetch('/api/volume', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ volume: clamped }),
+        signal: abortControllerRef.current.signal,
+      }).catch((err) => {
+        if (err.name !== 'AbortError') {
+          console.error('Failed to auto-save volume:', err);
+        }
+      });
+    }, 120);
+  }, []);
+
+  const handleToggleMute = useCallback(() => {
+    if (masterVolume > 0) {
+      prevVolumeRef.current = masterVolume;
+      handleVolumeChange(0);
+    } else {
+      handleVolumeChange(prevVolumeRef.current > 0 ? prevVolumeRef.current : 100);
+    }
+  }, [masterVolume, handleVolumeChange]);
 
   const handleSkipCurrent = useCallback(() => {
     fetch('/api/skip-current', { method: 'POST' })
@@ -353,6 +424,40 @@ function DesktopApp() {
                 </button>
           </div>
         )}
+
+        {/* Persistent Master Volume Control (Always Accessible across all tabs) */}
+        <div className="flex shrink-0 items-center gap-1.5 border-l border-[#BDBDBD] pl-2 pr-1" title="Master Audio Output Volume">
+          <button
+            type="button"
+            onClick={handleToggleMute}
+            className="flex h-6 w-6 items-center justify-center rounded-xs text-[#444] transition-colors hover:bg-[#EAEAEA] active:bg-[#DDD] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#555]"
+            aria-label={masterVolume === 0 ? "Unmute master volume" : "Mute master volume"}
+            title={masterVolume === 0 ? "Unmute audio output (click to restore)" : "Mute audio output"}
+          >
+            {masterVolume === 0 ? (
+              <VolumeX className="h-4 w-4 text-[#A4262C]" aria-hidden="true" />
+            ) : masterVolume < 50 ? (
+              <Volume1 className="h-4 w-4 text-[#333]" aria-hidden="true" />
+            ) : (
+              <Volume2 className="h-4 w-4 text-[#333]" aria-hidden="true" />
+            )}
+          </button>
+          <input
+            id="header-master-volume"
+            type="range"
+            min={0}
+            max={100}
+            step={1}
+            value={masterVolume}
+            onChange={(e) => handleVolumeChange(parseInt(e.target.value, 10))}
+            className="h-1.5 w-16 sm:w-20 cursor-pointer accent-[#333]"
+            aria-label="Master Volume"
+            title={`Master Volume: ${masterVolume}%`}
+          />
+          <span className="w-8 font-mono text-[11px] font-semibold text-[#333]">
+            {masterVolume}%
+          </span>
+        </div>
       </header>
 
       {/* Main Tab Views */}
@@ -362,16 +467,18 @@ function DesktopApp() {
         {activeTab === 'monitor' && (
           <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden p-2 lg:flex-row">
             <div className="desktop-monitor-tools flex min-h-0 w-full shrink-0 flex-col gap-2 overflow-y-auto overscroll-contain lg:max-h-none lg:w-[340px]">
-              <fieldset className="desktop-groupbox h-[min(128px,22dvh)] min-h-24 shrink-0 overflow-hidden">
+              <fieldset className="desktop-groupbox min-h-[160px] max-h-[300px] shrink-0 flex flex-col overflow-hidden">
                 <legend className="desktop-groupbox-legend">Now speaking</legend>
-                {activeMessage ? (
-                  <ChatMessage message={activeMessage} currentAudioTime={currentAudioTime} hideHistory variant="inline" />
-                ) : (
-                  <div className="flex min-h-16 items-center gap-2 text-xs text-[#666]">
-                    <Volume2 className="h-4 w-4 text-[#777]" aria-hidden="true" />
-                    <span>Nothing is speaking. New messages will appear here.</span>
-                  </div>
-                )}
+                <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
+                  {activeMessage ? (
+                    <ChatMessage message={activeMessage} currentAudioTime={currentAudioTime} hideHistory variant="inline" />
+                  ) : (
+                    <div className="flex min-h-16 items-center gap-2 text-xs text-[#666]">
+                      <Volume2 className="h-4 w-4 text-[#777]" aria-hidden="true" />
+                      <span>Nothing is speaking. New messages will appear here.</span>
+                    </div>
+                  )}
+                </div>
               </fieldset>
 
               <fieldset className="desktop-groupbox">

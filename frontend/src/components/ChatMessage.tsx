@@ -75,7 +75,7 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({ message, currentAu
           <div
             className={`${
               variant === 'inline'
-                ? 'relative w-full p-2 flex flex-row items-center gap-2 text-left overflow-hidden border border-[#BDBDBD] bg-white'
+                ? 'relative w-full p-2 flex flex-row items-start gap-2 text-left overflow-hidden border border-[#BDBDBD] bg-white'
                 : 'fixed bottom-[630px] left-[49px] right-[51px] z-50 p-6 rounded-3xl animate-spotlight flex flex-row items-center gap-8 text-left overflow-hidden shadow-2xl'
             } ${message.theme === 'pro-clean' ? 'border-l-[6px]' : ''}`}
             style={{
@@ -106,7 +106,7 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({ message, currentAu
               ></div>
             )}
 
-            <div className={`flex flex-col items-center justify-center gap-2 shrink-0 ${variant === 'inline' ? 'w-12' : 'w-36'}`}>
+            <div className={`flex flex-col items-center justify-start gap-2 shrink-0 ${variant === 'inline' ? 'w-10 mt-0.5' : 'w-36'}`}>
               {message.authorProfileImageUrl && (
               <img
                   src={message.authorProfileImageUrl}
@@ -153,10 +153,10 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({ message, currentAu
                       const isPast = i < activeWordIndex;
                       const isRead = isHighlighted || isPast;
 
+                      let content: React.ReactNode;
                       if (message.theme === 'subtitle-karaoke' || !message.theme) {
-                        return (
+                        content = (
                           <span
-                            key={i}
                             className={`transition-colors duration-150 ${
                               variant === 'inline'
                                 ? (isRead ? 'font-bold' : 'text-slate-500')
@@ -169,12 +169,9 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({ message, currentAu
                             {word.text}
                           </span>
                         );
-                      }
-
-                      if (message.theme === 'subtitle-words') {
-                        return (
+                      } else if (message.theme === 'subtitle-words') {
+                        content = (
                           <span
-                            key={i}
                             className={`inline-block px-1.5 py-0.5 mx-0.5 rounded-md transition-all ${
                               isHighlighted
                                 ? 'scale-105 font-bold shadow-xs'
@@ -188,12 +185,9 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({ message, currentAu
                             {word.text}
                           </span>
                         );
-                      }
-
-                      if (message.theme === 'pro-clean') {
-                        return (
+                      } else if (message.theme === 'pro-clean') {
+                        content = (
                           <span
-                            key={i}
                             className="px-1 transition-all duration-100"
                             style={{
                               color: isHighlighted ? authorColor : (variant === 'inline' ? '#1e293b' : '#f9fafb'),
@@ -204,20 +198,24 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({ message, currentAu
                             {word.text}
                           </span>
                         );
-                      }
-
-                      if (message.theme === 'subtitle-sweep') {
-                        return (
+                      } else if (message.theme === 'subtitle-sweep') {
+                        content = (
                           <span
-                            key={i}
                             className={isRead ? (variant === 'inline' ? 'text-slate-900 font-bold' : 'text-white') : (variant === 'inline' ? 'text-slate-400' : 'text-gray-500')}
                           >
                             {word.text}
                           </span>
                         );
+                      } else {
+                        content = <span className={variant === 'inline' ? 'text-slate-900' : 'text-white'}>{word.text}</span>;
                       }
 
-                      return <span key={i} className={variant === 'inline' ? 'text-slate-900' : 'text-white'}>{word.text}</span>;
+                      return (
+                        <React.Fragment key={i}>
+                          {content}
+                          {variant === 'inline' && i < messageBoundaries.length - 1 ? ' ' : ''}
+                        </React.Fragment>
+                      );
                     });
                 })()}
               </p>

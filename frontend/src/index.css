@@ -47,20 +47,14 @@
   }
 
   .desktop-now-message {
-    display: -webkit-box;
-    overflow: hidden;
     overflow-wrap: break-word;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 3;
+    word-break: break-word;
+    white-space: normal;
   }
 
   @media (max-height: 520px) {
     .desktop-monitor-tools {
       max-height: calc(100dvh - 80px);
-    }
-
-    .desktop-now-message {
-      -webkit-line-clamp: 2;
     }
   }
 
