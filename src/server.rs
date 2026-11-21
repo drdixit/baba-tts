@@ -216,6 +216,7 @@ async fn baba_say_handler(
         status: MessageStatus::Queued,
         theme: Some("subtitle-karaoke".to_string()),
         word_boundaries: None,
+        is_superchat: None,
     };
 
     let _ = state.broadcast_tx.send(WsBroadcastMessage::Messages(vec![msg.clone()]));
@@ -275,6 +276,7 @@ async fn execute_speak_as_banned(state: &AppState, custom_text: Option<String>) 
         status: MessageStatus::Queued,
         theme: Some("subtitle-words".to_string()),
         word_boundaries: None,
+        is_superchat: None,
     };
 
     let _ = state.broadcast_tx.send(WsBroadcastMessage::Messages(vec![msg.clone()]));

@@ -66,6 +66,7 @@ impl YouTubePoller {
     }
 
     async fn run_loop(&self) {
+        let mut offline_attempts: u32 = 0;
         while !self.stop_signal.load(Ordering::Relaxed) {
             let settings = match self.db.load_settings() {
                 Ok(s) => s,
@@ -77,6 +78,7 @@ impl YouTubePoller {
             };
 
             if !settings.enable_youtube {
+                offline_attempts = 0;
                 info!("[YouTube] Polling disabled in settings. Checking again in 10s...");
                 sleep(Duration::from_secs(10)).await;
                 continue;
@@ -92,13 +94,23 @@ impl YouTubePoller {
                 .await
             {
                 Ok(_) => {
+                    offline_attempts = 0;
                     info!("[YouTube] Live stream ended or disconnected. Waiting 30s before re-checking...");
                     // Preserving existing queued chat messages so in-flight TTS isn't abruptly wiped out
                     Duration::from_secs(30)
                 }
                 Err(err) => {
-                    warn!("[YouTube] Polling error: {}. Retrying in 30s...", err);
-                    Duration::from_secs(30)
+                    offline_attempts = offline_attempts.saturating_add(1);
+                    let secs = match offline_attempts {
+                        1 => 30,
+                        2 => 60,
+                        _ => 120,
+                    };
+                    warn!(
+                        "[YouTube] Polling error: {}. Retrying in {}s (attempt {})...",
+                        err, secs, offline_attempts
+                    );
+                    Duration::from_secs(secs)
                 }
             };
 
@@ -203,7 +215,17 @@ impl YouTubePoller {
             });
 
             let poll_resp = match self.client.post(&api_endpoint).json(&body).send().await {
-                Ok(r) => r,
+                Ok(r) => {
+                    if !r.status().is_success() {
+                        warn!(
+                            "[YouTube] Polling returned HTTP status: {}. Retrying in 5s...",
+                            r.status()
+                        );
+                        sleep(Duration::from_secs(5)).await;
+                        continue;
+                    }
+                    r
+                }
                 Err(err) => {
                     warn!("[YouTube] HTTP request failed: {}. Retrying in 5s...", err);
                     sleep(Duration::from_secs(5)).await;
@@ -232,15 +254,17 @@ impl YouTubePoller {
                         }
                     }
 
-                    // Spam filter check
-                    let user_key = parsed.author_id.as_deref().unwrap_or(&parsed.author_name);
-                    let spam_check = self.spam_filter.is_spam(user_key, &parsed.text);
-                    if spam_check.is_spam {
-                        info!(
-                            "[Spam Filter] Blocked message from {}: {:?}",
-                            parsed.author_name, spam_check.reason
-                        );
-                        continue;
+                    // Spam filter check (exempt paid superchats)
+                    if !parsed.is_superchat {
+                        let user_key = parsed.author_id.as_deref().unwrap_or(&parsed.author_name);
+                        let spam_check = self.spam_filter.is_spam(user_key, &parsed.text);
+                        if spam_check.is_spam {
+                            info!(
+                                "[Spam Filter] Blocked message from {}: {:?}",
+                                parsed.author_name, spam_check.reason
+                            );
+                            continue;
+                        }
                     }
 
                     let theme = themes[theme_index % themes.len()].to_string();
@@ -248,6 +272,7 @@ impl YouTubePoller {
 
                     let author_color = get_deterministic_color(&parsed.author_name).to_string();
 
+                    let is_superchat = parsed.is_superchat;
                     let chat_msg = ChatMessage {
                         message_id: if parsed.msg_id.is_empty() {
                             format!("msg-{}", uuid::Uuid::new_v4())
@@ -262,6 +287,7 @@ impl YouTubePoller {
                         status: MessageStatus::Queued,
                         theme: Some(theme),
                         word_boundaries: None,
+                        is_superchat: Some(is_superchat),
                     };
 
                     new_messages.push(chat_msg);
@@ -273,7 +299,11 @@ impl YouTubePoller {
                         .send(WsBroadcastMessage::Messages(new_messages.clone()));
 
                     for m in new_messages {
-                        self.tts_handle.enqueue(m).await;
+                        if m.is_superchat.unwrap_or(false) {
+                            self.tts_handle.enqueue_priority(m).await;
+                        } else {
+                            self.tts_handle.enqueue(m).await;
+                        }
                     }
                 }
             }
@@ -481,6 +511,7 @@ pub struct ParsedChatAction {
     pub author_id: Option<String>,
     pub author_avatar: Option<String>,
     pub text: String,
+    pub is_superchat: bool,
 }
 
 pub fn parse_chat_action(action: &Value) -> Option<ParsedChatAction> {
@@ -531,6 +562,7 @@ pub fn parse_chat_action(action: &Value) -> Option<ParsedChatAction> {
             author_id,
             author_avatar,
             text: trimmed_text.to_string(),
+            is_superchat: false,
         });
     }
 
@@ -587,6 +619,7 @@ pub fn parse_chat_action(action: &Value) -> Option<ParsedChatAction> {
             author_id,
             author_avatar,
             text: final_text,
+            is_superchat: true,
         });
     }
 
@@ -761,6 +794,7 @@ mod tests {
         assert_eq!(parsed_text.author_name, "Chatter1");
         assert_eq!(parsed_text.author_id.as_deref(), Some("channel-1"));
         assert_eq!(parsed_text.text, "Hello world!");
+        assert!(!parsed_text.is_superchat);
 
         // 2. Paid Super Chat
         let super_chat_action = json!({
@@ -785,6 +819,7 @@ mod tests {
         assert_eq!(parsed_paid.msg_id, "paid-1");
         assert_eq!(parsed_paid.author_name, "SuperDonor");
         assert_eq!(parsed_paid.text, "Super Chat (₹500): Keep up the awesome streams!");
+        assert!(parsed_paid.is_superchat);
     }
 }
 

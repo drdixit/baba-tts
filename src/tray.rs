@@ -167,6 +167,7 @@ mod win32 {
     use tracing::{error, info, warn};
     use windows_sys::Win32::Foundation::{HWND, LPARAM, LRESULT, POINT, WPARAM};
     use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
+    use windows_sys::Win32::System::Threading::GetCurrentProcessId;
     use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
         GetAsyncKeyState, GetKeyState, VK_CONTROL, VK_LWIN, VK_MENU, VK_NUMLOCK, VK_RWIN,
     };
@@ -175,14 +176,15 @@ mod win32 {
     };
     use windows_sys::Win32::UI::WindowsAndMessaging::{
         AppendMenuW, CallNextHookEx, CreatePopupMenu, CreateWindowExW, DefWindowProcW, DestroyMenu,
-        DestroyWindow, DispatchMessageW, GetCursorPos, GetMessageW, GetWindowLongPtrW, LoadIconW,
-        LoadImageW, PostMessageW, PostQuitMessage, RegisterClassW, RegisterWindowMessageW,
-        SetForegroundWindow, SetWindowLongPtrW, SetWindowsHookExW, TrackPopupMenu, TranslateMessage,
-        UnhookWindowsHookEx, CREATESTRUCTW, GWLP_USERDATA, HHOOK, IDI_APPLICATION, IMAGE_ICON,
-        KBDLLHOOKSTRUCT, LR_LOADFROMFILE, MF_SEPARATOR, MF_STRING, MSG, TPM_BOTTOMALIGN,
-        TPM_RIGHTBUTTON, WH_KEYBOARD_LL, WM_APP, WM_CLOSE, WM_COMMAND, WM_CREATE, WM_DESTROY,
-        WM_KEYDOWN, WM_KEYUP, WM_LBUTTONDBLCLK, WM_LBUTTONUP, WM_NCDESTROY, WM_NULL, WM_RBUTTONUP,
-        WM_SYSKEYDOWN, WM_SYSKEYUP, WM_USER, WNDCLASSW, WS_EX_TOOLWINDOW, WS_POPUP,
+        DestroyWindow, DispatchMessageW, GetCursorPos, GetForegroundWindow, GetMessageW,
+        GetWindowLongPtrW, GetWindowThreadProcessId, LoadIconW, LoadImageW, PostMessageW,
+        PostQuitMessage, RegisterClassW, RegisterWindowMessageW, SetForegroundWindow,
+        SetWindowLongPtrW, SetWindowsHookExW, TrackPopupMenu, TranslateMessage, UnhookWindowsHookEx,
+        CREATESTRUCTW, GWLP_USERDATA, HHOOK, IDI_APPLICATION, IMAGE_ICON, KBDLLHOOKSTRUCT,
+        LR_LOADFROMFILE, MF_SEPARATOR, MF_STRING, MSG, TPM_BOTTOMALIGN, TPM_RIGHTBUTTON,
+        WH_KEYBOARD_LL, WM_APP, WM_CLOSE, WM_COMMAND, WM_CREATE, WM_DESTROY, WM_KEYDOWN, WM_KEYUP,
+        WM_LBUTTONDBLCLK, WM_LBUTTONUP, WM_NCDESTROY, WM_NULL, WM_RBUTTONUP, WM_SYSKEYDOWN,
+        WM_SYSKEYUP, WM_USER, WNDCLASSW, WS_EX_TOOLWINDOW, WS_POPUP,
     };
 
     const WM_USER_TRAY: u32 = WM_USER + 100;
@@ -241,9 +243,20 @@ mod win32 {
                         || ((GetAsyncKeyState(VK_RWIN as i32) as u16 & 0x8000) != 0);
 
                     if !ctrl_down && !alt_down && !win_down {
-                        let hwnd = TRAY_HWND.load(Ordering::Acquire) as HWND;
-                        if hwnd != 0 {
-                            PostMessageW(hwnd, WM_APP_HOTKEY_ACTION, vk as WPARAM, 0);
+                        // Check if the foreground window belongs to our own process (e.g. WebView2 dashboard).
+                        // If focused on baba-tts dashboard, do not fire global hotkey actions so typing digits is safe.
+                        let fg_hwnd = GetForegroundWindow();
+                        let mut fg_pid: u32 = 0;
+                        if fg_hwnd != 0 {
+                            GetWindowThreadProcessId(fg_hwnd, &mut fg_pid);
+                        }
+                        let our_pid = GetCurrentProcessId();
+
+                        if fg_pid != our_pid {
+                            let hwnd = TRAY_HWND.load(Ordering::Acquire) as HWND;
+                            if hwnd != 0 {
+                                PostMessageW(hwnd, WM_APP_HOTKEY_ACTION, vk as WPARAM, 0);
+                            }
                         }
                     }
                 }

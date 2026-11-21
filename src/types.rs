@@ -27,6 +27,8 @@ pub struct ChatMessage {
     pub theme: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub word_boundaries: Option<Vec<WordBoundary>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub is_superchat: Option<bool>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

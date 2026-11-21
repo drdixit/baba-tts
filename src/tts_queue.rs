@@ -64,22 +64,22 @@ const MAX_RECENT_TEXTS: usize = 4096;
 
 #[derive(Default)]
 struct RecentMessageCache {
-    expires_at: HashMap<String, Instant>,
-    oldest_first: VecDeque<(Instant, String)>,
+    expires_at: HashMap<(String, String), Instant>,
+    oldest_first: VecDeque<(Instant, (String, String))>,
 }
 
 impl RecentMessageCache {
-    fn should_suppress(&mut self, text: &str, now: Instant) -> bool {
+    fn should_suppress(&mut self, author_key: &str, text: &str, now: Instant) -> bool {
         self.remove_expired(now);
 
-        if self.expires_at.contains_key(text) {
+        let key = (author_key.to_owned(), text.to_owned());
+        if self.expires_at.contains_key(&key) {
             return true;
         }
 
-        let text = text.to_owned();
         let expires_at = now + RECENT_TEXT_WINDOW;
-        self.expires_at.insert(text.clone(), expires_at);
-        self.oldest_first.push_back((expires_at, text));
+        self.expires_at.insert(key.clone(), expires_at);
+        self.oldest_first.push_back((expires_at, key));
 
         while self.expires_at.len() > MAX_RECENT_TEXTS {
             self.remove_oldest();
@@ -99,9 +99,9 @@ impl RecentMessageCache {
     }
 
     fn remove_oldest(&mut self) {
-        if let Some((expires_at, text)) = self.oldest_first.pop_front() {
-            if self.expires_at.get(&text) == Some(&expires_at) {
-                self.expires_at.remove(&text);
+        if let Some((expires_at, key)) = self.oldest_first.pop_front() {
+            if self.expires_at.get(&key) == Some(&expires_at) {
+                self.expires_at.remove(&key);
             }
         }
     }
@@ -198,6 +198,7 @@ pub struct TtsActor {
     self_handle: mpsc::Sender<TtsCommand>,
     recent_cache: RecentMessageCache,
     audio_player: NativeAudioPlayer,
+    watchdog_abort: Option<tokio::task::AbortHandle>,
 }
 
 fn default_hindi_voice() -> String {
@@ -235,6 +236,7 @@ impl TtsActor {
             self_handle: tx.clone(),
             recent_cache: RecentMessageCache::default(),
             audio_player,
+            watchdog_abort: None,
         };
 
         tokio::spawn(actor.run());
@@ -245,9 +247,11 @@ impl TtsActor {
         while let Some(cmd) = self.receiver.recv().await {
             match cmd {
                 TtsCommand::Enqueue(msg) => {
+                    let is_superchat = msg.is_superchat.unwrap_or(false);
+                    let author_key = msg.author_id.clone().unwrap_or_else(|| msg.author_name.clone());
                     let text_lower = msg.text.trim().to_lowercase();
-                    if self.recent_cache.should_suppress(&text_lower, Instant::now()) {
-                        info!("[TTS] Skipping duplicate message: {}", msg.text);
+                    if !is_superchat && self.recent_cache.should_suppress(&author_key, &text_lower, Instant::now()) {
+                        info!("[TTS] Skipping duplicate message from {}: {}", author_key, msg.text);
                         let _ = self.broadcast_tx.send(WsBroadcastMessage::TtsState {
                             message_id: msg.message_id.clone(),
                             state: "skipped".to_string(),
@@ -288,11 +292,13 @@ impl TtsActor {
                 TtsCommand::AudioFinished(message_id) => {
                     let should_clear = match (&message_id, &self.current) {
                         (Some(id), Some(curr)) => curr.message_id == *id,
-                        (None, Some(_)) => true,
                         _ => false,
                     };
 
                     if should_clear {
+                        if let Some(h) = self.watchdog_abort.take() {
+                            h.abort();
+                        }
                         if let Some(curr) = self.current.take() {
                             if let Some(pending) = &self.pending_audio {
                                 if pending.message_id == curr.message_id {
@@ -315,6 +321,9 @@ impl TtsActor {
                     }
                 }
                 TtsCommand::SkipCurrent => {
+                    if let Some(h) = self.watchdog_abort.take() {
+                        h.abort();
+                    }
                     self.pending_audio = None;
                     self.audio_player.stop();
                     if let Some(curr) = self.current.take() {
@@ -328,6 +337,9 @@ impl TtsActor {
                     self.process_next();
                 }
                 TtsCommand::ClearQueue => {
+                    if let Some(h) = self.watchdog_abort.take() {
+                        h.abort();
+                    }
                     self.pending_audio = None;
                     self.audio_player.stop();
                     for msg in self.queue.drain(..) {
@@ -368,6 +380,9 @@ impl TtsActor {
 
                     if let Some(curr) = &self.current {
                         if curr.author_id.as_deref() == Some(&author_id) {
+                            if let Some(h) = self.watchdog_abort.take() {
+                                h.abort();
+                            }
                             self.pending_audio = None;
                             self.audio_player.stop();
                             let id = curr.message_id.clone();
@@ -407,6 +422,9 @@ impl TtsActor {
                                 .is_some_and(|author_id| current.author_id.as_deref() == Some(author_id))
                     });
                     if should_skip_current {
+                        if let Some(h) = self.watchdog_abort.take() {
+                            h.abort();
+                        }
                         self.pending_audio = None;
                         self.audio_player.stop();
                         if let Some(current) = self.current.take() {
@@ -490,8 +508,8 @@ impl TtsActor {
                                         .word_boundaries
                                         .last()
                                         .map(|b| b.audio_offset + b.duration)
-                                        .unwrap_or(7.0);
-                                    let base_timeout = ((last_offset + 4.0).clamp(5.0, 25.0)) as u64;
+                                        .unwrap_or(15.0);
+                                    let base_timeout = ((last_offset + 10.0).clamp(10.0, 300.0)) as u64;
                                     let timeout_secs = if receiver_count == 0 {
                                         base_timeout.max(25)
                                     } else {
@@ -500,11 +518,15 @@ impl TtsActor {
 
                                     let watchdog_id = message_id.clone();
                                     let watchdog_handle = self.self_handle.clone();
-                                    tokio::spawn(async move {
+                                    let task = tokio::spawn(async move {
                                         sleep(Duration::from_secs(timeout_secs)).await;
                                         warn!("[TTS] Watchdog timeout for message {}. Auto-finishing.", watchdog_id);
                                         let _ = watchdog_handle.send(TtsCommand::AudioFinished(Some(watchdog_id))).await;
                                     });
+                                    if let Some(prev) = self.watchdog_abort.take() {
+                                        prev.abort();
+                                    }
+                                    self.watchdog_abort = Some(task.abort_handle());
                                 }
                                 Err(err) => {
                                     if !is_fallback && self.settings.tts_provider == "azure" {
@@ -516,7 +538,11 @@ impl TtsActor {
                                         let sapi_rate = self.settings.sapi_rate;
                                         let sapi_volume = self.settings.sapi_volume;
                                         let self_handle = self.self_handle.clone();
-                                        let text_to_speak = format!("{} says {}", curr.author_name, curr.text);
+                                        let text_to_speak = if curr.author_name.eq_ignore_ascii_case("BABA") {
+                                            curr.text.clone()
+                                        } else {
+                                            format!("{} says {}", curr.author_name, curr.text)
+                                        };
                                         let mid = message_id.clone();
                                         tokio::spawn(async move {
                                             let res = match tokio::time::timeout(
@@ -581,7 +607,11 @@ impl TtsActor {
         });
 
         let self_handle = self.self_handle.clone();
-        let text_to_speak = format!("{} says {}", msg.author_name, msg.text);
+        let text_to_speak = if msg.author_name.eq_ignore_ascii_case("BABA") {
+            msg.text.clone()
+        } else {
+            format!("{} says {}", msg.author_name, msg.text)
+        };
 
         if self.settings.tts_provider == "sapi5" {
             let sapi_voice = if self.settings.sapi_voice_rotation {
@@ -713,6 +743,7 @@ mod tests {
             status: MessageStatus::Queued,
             theme: None,
             word_boundaries: None,
+            is_superchat: None,
         }
     }
 
@@ -725,11 +756,11 @@ mod tests {
         };
         let handle = TtsActor::spawn(broadcast_tx, settings);
 
-        // Enqueue regular message
+        // Enqueue regular message from Alice
         let msg1 = make_test_msg("m1", "Alice", "Hello from Alice");
         handle.enqueue(msg1).await;
 
-        // Duplicate of Alice's message should be skipped
+        // Duplicate from Alice should be skipped
         let msg1_dup = make_test_msg("m2", "Alice", "Hello from Alice");
         handle.enqueue(msg1_dup).await;
 
@@ -743,7 +774,17 @@ mod tests {
                 }
             }
         }
-        assert!(got_skipped, "Duplicate message should be marked skipped");
+        assert!(got_skipped, "Duplicate message from same author should be marked skipped");
+
+        // Same message text from Bob should NOT be skipped
+        let mut msg_bob = make_test_msg("m3", "Bob", "Hello from Alice");
+        msg_bob.author_id = Some("bob".to_string());
+        handle.enqueue(msg_bob).await;
+
+        // Superchat with same text should NOT be skipped even from Alice
+        let mut msg_superchat = make_test_msg("m4", "Alice", "Hello from Alice");
+        msg_superchat.is_superchat = Some(true);
+        handle.enqueue(msg_superchat).await;
 
         // Clear queue
         handle.clear_queue().await;

@@ -40,24 +40,26 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({ message, currentAu
       : message.text.split(' ').map((text, i) => ({ text, audioOffset: i * 0.3, duration: 0.3, textOffset: undefined }));
   }, [message.wordBoundaries, message.text]);
 
-  const numAuthorWords = React.useMemo(() => message.authorName.trim().split(/\s+/).length + 1, [message.authorName]);
-  const prefixLength = React.useMemo(() => `${message.authorName} says `.length, [message.authorName]);
+  const isDirectSpeech = message.authorName.toUpperCase() === 'BABA';
+  const numAuthorWords = React.useMemo(() => isDirectSpeech ? 0 : message.authorName.trim().split(/\s+/).length + 1, [message.authorName, isDirectSpeech]);
+  const prefixLength = React.useMemo(() => isDirectSpeech ? 0 : `${message.authorName} says `.length, [message.authorName, isDirectSpeech]);
 
   const authorBoundaries = React.useMemo(() => {
-    if (!message.wordBoundaries || message.wordBoundaries.length === 0) return [];
+    if (isDirectSpeech || !message.wordBoundaries || message.wordBoundaries.length === 0) return [];
     if (message.wordBoundaries[0].textOffset === undefined) {
       return message.wordBoundaries.length > numAuthorWords ? message.wordBoundaries.slice(0, numAuthorWords) : [];
     }
     return message.wordBoundaries.filter(w => w.textOffset !== undefined && w.textOffset < prefixLength);
-  }, [message.wordBoundaries, prefixLength, numAuthorWords]);
+  }, [message.wordBoundaries, prefixLength, numAuthorWords, isDirectSpeech]);
 
   const messageBoundaries = React.useMemo(() => {
     if (!message.wordBoundaries || message.wordBoundaries.length === 0) return boundaries;
+    if (isDirectSpeech) return message.wordBoundaries;
     if (message.wordBoundaries[0].textOffset === undefined) {
       return message.wordBoundaries.length > numAuthorWords ? message.wordBoundaries.slice(numAuthorWords) : boundaries;
     }
     return message.wordBoundaries.filter(w => w.textOffset === undefined || w.textOffset >= prefixLength);
-  }, [message.wordBoundaries, boundaries, prefixLength, numAuthorWords]);
+  }, [message.wordBoundaries, boundaries, prefixLength, numAuthorWords, isDirectSpeech]);
 
   const isAuthorSpeaking = React.useMemo(() => {
     return authorBoundaries.some(word =>

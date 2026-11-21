@@ -240,18 +240,13 @@ fn looks_like_gibberish(text: &str) -> bool {
     let chars: Vec<char> = word.chars().collect();
     let mut letter_count = 0;
     let mut digit_count = 0;
-    let mut repeated_chars = 0;
 
-    for i in 0..chars.len() {
-        let c = chars[i];
+    for &c in &chars {
         if c.is_ascii_alphabetic() {
             letter_count += 1;
         }
         if c.is_ascii_digit() {
             digit_count += 1;
-        }
-        if i > 0 && c == chars[i - 1] {
-            repeated_chars += 1;
         }
     }
 
@@ -259,16 +254,35 @@ fn looks_like_gibberish(text: &str) -> bool {
         return false;
     }
 
+    // Collapse consecutive duplicate characters to evaluate underlying word entropy.
+    // e.g. "streamerrrrrr" -> "streamer", "zabardassssst" -> "zabardast"
+    let mut collapsed = Vec::new();
+    for &c in &chars {
+        if collapsed.last() != Some(&c) {
+            collapsed.push(c);
+        }
+    }
+
     let unique_count = chars.iter().collect::<HashSet<_>>().len();
     let unique_ratio = unique_count as f64 / chars.len() as f64;
+    let collapsed_unique_ratio = unique_count as f64 / collapsed.len() as f64;
 
-    // Very low character diversity
-    if unique_ratio < 0.45 {
+    // Truly repetitive single/dual-character spam
+    if unique_ratio < 0.25 || (unique_ratio < 0.45 && collapsed_unique_ratio < 0.55 && unique_count < 4) {
         return true;
     }
 
-    // Long random-looking Latin token
-    if letter_count >= 12 && digit_count == 0 && unique_ratio < 0.55 && repeated_chars >= 3 {
+    // Vowel vs consonant entropy for keyboard mashing
+    let vowels = ['a', 'e', 'i', 'o', 'u'];
+    let vowel_count = chars.iter().filter(|c| vowels.contains(c)).count();
+
+    // Long random-looking Latin token with zero vowels (e.g. "sdfghjklmnbv")
+    if letter_count >= 12 && vowel_count == 0 {
+        return true;
+    }
+
+    // Extreme consonant ratio with zero digits (e.g. 15 consonants with 1 vowel)
+    if letter_count >= 14 && digit_count == 0 && (vowel_count as f64 / letter_count as f64) < 0.08 {
         return true;
     }
 
