@@ -8,12 +8,64 @@ use regex::Regex;
 use reqwest::header::{HeaderMap, HeaderValue, ACCEPT_LANGUAGE, USER_AGENT};
 use reqwest::Client;
 use serde_json::Value;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
-use std::time::Duration;
+use std::collections::{HashSet, VecDeque};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::{Arc, Mutex};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::sync::broadcast;
 use tokio::time::sleep;
 use tracing::{info, warn};
+
+pub const DEFAULT_SEEN_CACHE_CAPACITY: usize = 4096;
+pub const SUPERCHAT_GRACE_WINDOW_USEC: u64 = 60_000_000; // 60 seconds
+
+#[derive(Debug)]
+pub struct SeenMessageCache {
+    set: HashSet<String>,
+    queue: VecDeque<String>,
+    capacity: usize,
+}
+
+impl SeenMessageCache {
+    pub fn new(capacity: usize) -> Self {
+        Self {
+            set: HashSet::with_capacity(capacity),
+            queue: VecDeque::with_capacity(capacity),
+            capacity,
+        }
+    }
+
+    /// Inserts a message ID. Returns true if the message was NOT already present (new message).
+    pub fn insert(&mut self, id: String) -> bool {
+        if id.is_empty() {
+            return true;
+        }
+        if self.set.contains(&id) {
+            return false;
+        }
+        if self.queue.len() >= self.capacity {
+            if let Some(oldest) = self.queue.pop_front() {
+                self.set.remove(&oldest);
+            }
+        }
+        self.set.insert(id.clone());
+        self.queue.push_back(id);
+        true
+    }
+
+    #[allow(dead_code)]
+    pub fn contains(&self, id: &str) -> bool {
+        if id.is_empty() {
+            return false;
+        }
+        self.set.contains(id)
+    }
+
+    pub fn clear(&mut self) {
+        self.set.clear();
+        self.queue.clear();
+    }
+}
 
 pub struct YouTubePoller {
     client: Client,
@@ -22,6 +74,9 @@ pub struct YouTubePoller {
     tts_handle: TtsHandle,
     broadcast_tx: broadcast::Sender<WsBroadcastMessage>,
     stop_signal: Arc<AtomicBool>,
+    seen_messages: Arc<Mutex<SeenMessageCache>>,
+    active_video_id: Arc<Mutex<Option<String>>>,
+    active_watermark_usec: Arc<AtomicU64>,
 }
 
 impl YouTubePoller {
@@ -55,6 +110,9 @@ impl YouTubePoller {
             tts_handle,
             broadcast_tx,
             stop_signal: stop_signal.clone(),
+            seen_messages: Arc::new(Mutex::new(SeenMessageCache::new(DEFAULT_SEEN_CACHE_CAPACITY))),
+            active_video_id: Arc::new(Mutex::new(None)),
+            active_watermark_usec: Arc::new(AtomicU64::new(0)),
         };
         (poller, stop_signal)
     }
@@ -79,6 +137,9 @@ impl YouTubePoller {
 
             if !settings.enable_youtube {
                 offline_attempts = 0;
+                *self.active_video_id.lock().unwrap() = None;
+                self.active_watermark_usec.store(0, Ordering::SeqCst);
+                self.seen_messages.lock().unwrap().clear();
                 info!("[YouTube] Polling disabled in settings. Checking again in 10s...");
                 sleep(Duration::from_secs(10)).await;
                 continue;
@@ -154,6 +215,20 @@ impl YouTubePoller {
     ) -> Result<()> {
         let (video_id, channel_html) = self.resolve_video_id(channel_id, live_id_override).await?;
 
+        // Reset watermark and seen cache if targeting a different video stream
+        {
+            let mut current_vid = self.active_video_id.lock().unwrap();
+            if current_vid.as_deref() != Some(&video_id) {
+                info!(
+                    "[YouTube] Target video ID changed from {:?} to {}. Resetting watermark and seen cache.",
+                    *current_vid, video_id
+                );
+                *current_vid = Some(video_id.clone());
+                self.active_watermark_usec.store(0, Ordering::SeqCst);
+                self.seen_messages.lock().unwrap().clear();
+            }
+        }
+
         let chat_url = format!("https://www.youtube.com/live_chat?v={}", video_id);
         info!("[YouTube] Fetching live chat standalone page: {}", chat_url);
         let chat_resp = match self.client.get(&chat_url).send().await {
@@ -197,6 +272,7 @@ impl YouTubePoller {
         let themes = ["subtitle-sweep", "subtitle-karaoke", "subtitle-words", "pro-clean"];
         let mut theme_index = 0;
         let mut missing_token_retries: usize = 0;
+        let mut is_initial_poll = true;
 
         while !self.stop_signal.load(Ordering::Relaxed) {
             let api_endpoint = format!(
@@ -240,12 +316,69 @@ impl YouTubePoller {
                 .pointer("/continuationContents/liveChatContinuation/actions")
                 .and_then(|v| v.as_array())
             {
+                let current_watermark = self.active_watermark_usec.load(Ordering::SeqCst);
+                let is_cold_start = is_initial_poll && current_watermark == 0;
+
+                // If this is the initial poll of a fresh video session, establish the watermark
+                // from the highest timestamp in this backlog batch (or current system time).
+                if is_cold_start {
+                    let max_batch_time = actions
+                        .iter()
+                        .filter_map(|act| {
+                            let text_time = act
+                                .pointer("/addChatItemAction/item/liveChatTextMessageRenderer/timestampUsec")
+                                .and_then(|v| {
+                                    v.as_str()
+                                        .and_then(|s| s.parse::<u64>().ok())
+                                        .or_else(|| v.as_u64())
+                                });
+                            let paid_time = act
+                                .pointer("/addChatItemAction/item/liveChatPaidMessageRenderer/timestampUsec")
+                                .and_then(|v| {
+                                    v.as_str()
+                                        .and_then(|s| s.parse::<u64>().ok())
+                                        .or_else(|| v.as_u64())
+                                });
+                            text_time.or(paid_time)
+                        })
+                        .max()
+                        .unwrap_or(0);
+
+                    let now_usec = SystemTime::now()
+                        .duration_since(UNIX_EPOCH)
+                        .unwrap_or_default()
+                        .as_micros() as u64;
+
+                    let initial_watermark = if max_batch_time > 0 {
+                        max_batch_time
+                    } else {
+                        now_usec
+                    };
+
+                    self.active_watermark_usec.store(initial_watermark, Ordering::SeqCst);
+                    info!(
+                        "[YouTube] Established initial chat watermark at {} usec across {} actions",
+                        initial_watermark,
+                        actions.len()
+                    );
+                }
+
+                let watermark = self.active_watermark_usec.load(Ordering::SeqCst);
                 let mut new_messages = Vec::new();
 
                 for act in actions {
                     let Some(parsed) = parse_chat_action(act) else {
                         continue;
                     };
+
+                    // Deduplication via seen_messages cache
+                    let is_new_id = {
+                        let mut seen = self.seen_messages.lock().unwrap();
+                        seen.insert(parsed.msg_id.clone())
+                    };
+                    if !is_new_id {
+                        continue;
+                    }
 
                     // Check banned
                     if let Some(ref aid) = parsed.author_id {
@@ -267,6 +400,20 @@ impl YouTubePoller {
                         }
                     }
 
+                    let status = classify_message(
+                        parsed.timestamp_usec,
+                        parsed.is_superchat,
+                        is_initial_poll,
+                        is_cold_start,
+                        watermark,
+                    );
+
+                    // Advance watermark for genuinely newer messages
+                    if parsed.timestamp_usec > watermark {
+                        self.active_watermark_usec
+                            .fetch_max(parsed.timestamp_usec, Ordering::SeqCst);
+                    }
+
                     let theme = themes[theme_index % themes.len()].to_string();
                     theme_index += 1;
 
@@ -284,7 +431,7 @@ impl YouTubePoller {
                         author_profile_image_url: parsed.author_avatar,
                         author_color: Some(author_color),
                         text: parsed.text,
-                        status: MessageStatus::Queued,
+                        status,
                         theme: Some(theme),
                         word_boundaries: None,
                         is_superchat: Some(is_superchat),
@@ -299,13 +446,17 @@ impl YouTubePoller {
                         .send(WsBroadcastMessage::Messages(new_messages.clone()));
 
                     for m in new_messages {
-                        if m.is_superchat.unwrap_or(false) {
-                            self.tts_handle.enqueue_priority(m).await;
-                        } else {
-                            self.tts_handle.enqueue(m).await;
+                        if m.status == MessageStatus::Queued {
+                            if m.is_superchat.unwrap_or(false) {
+                                self.tts_handle.enqueue_priority(m).await;
+                            } else {
+                                self.tts_handle.enqueue(m).await;
+                            }
                         }
                     }
                 }
+
+                is_initial_poll = false;
             }
 
             // Extract next continuation and server timeoutMs
@@ -482,10 +633,9 @@ pub fn extract_yt_initial_data(html: &str) -> Option<Value> {
         pos + r#"window["ytInitialData"] = "#.len()
     } else if let Some(pos) = html.find("var ytInitialData = ") {
         pos + "var ytInitialData = ".len()
-    } else if let Some(pos) = html.find("ytInitialData = ") {
-        pos + "ytInitialData = ".len()
     } else {
-        return None;
+        let pos = html.find("ytInitialData = ")?;
+        pos + "ytInitialData = ".len()
     };
 
     let remaining = &html[json_start_marker..];
@@ -512,6 +662,7 @@ pub struct ParsedChatAction {
     pub author_avatar: Option<String>,
     pub text: String,
     pub is_superchat: bool,
+    pub timestamp_usec: u64,
 }
 
 pub fn parse_chat_action(action: &Value) -> Option<ParsedChatAction> {
@@ -540,6 +691,11 @@ pub fn parse_chat_action(action: &Value) -> Option<ParsedChatAction> {
                 }
             });
 
+        let timestamp_usec = renderer
+            .get("timestampUsec")
+            .and_then(|v| v.as_str().and_then(|s| s.parse::<u64>().ok()).or_else(|| v.as_u64()))
+            .unwrap_or(0);
+
         let mut text = String::new();
         if let Some(runs) = renderer.pointer("/message/runs").and_then(|v| v.as_array()) {
             for r in runs {
@@ -563,6 +719,7 @@ pub fn parse_chat_action(action: &Value) -> Option<ParsedChatAction> {
             author_avatar,
             text: trimmed_text.to_string(),
             is_superchat: false,
+            timestamp_usec,
         });
     }
 
@@ -587,6 +744,11 @@ pub fn parse_chat_action(action: &Value) -> Option<ParsedChatAction> {
                     s.to_string()
                 }
             });
+
+        let timestamp_usec = renderer
+            .get("timestampUsec")
+            .and_then(|v| v.as_str().and_then(|s| s.parse::<u64>().ok()).or_else(|| v.as_u64()))
+            .unwrap_or(0);
 
         let purchase_amount = renderer
             .pointer("/purchaseAmountText/simpleText")
@@ -620,16 +782,90 @@ pub fn parse_chat_action(action: &Value) -> Option<ParsedChatAction> {
             author_avatar,
             text: final_text,
             is_superchat: true,
+            timestamp_usec,
         });
     }
 
     None
 }
 
+/// Pure classification function to determine whether a message should be queued for TTS speech
+/// or tagged as historical backlog.
+///
+/// Rules:
+/// 1. Cold start (`is_cold_start == true`):
+///    - Messages with timestamp <= watermark are historical (`MessageStatus::Default`).
+///    - Paid Superchats within the 60s grace window (`timestamp + 60s >= watermark`) are queued (`MessageStatus::Queued`).
+/// 2. Reconnect (`is_initial_poll == true && is_cold_start == false`):
+///    - Backlog messages with timestamp <= watermark are historical (`MessageStatus::Default`).
+///    - Genuine new messages with timestamp > watermark are queued (`MessageStatus::Queued`).
+/// 3. Live streaming polls (`is_initial_poll == false`):
+///    - All unseen messages delivered in live continuation batches are active (`MessageStatus::Queued`).
+pub fn classify_message(
+    timestamp_usec: u64,
+    is_superchat: bool,
+    is_initial_poll: bool,
+    is_cold_start: bool,
+    watermark: u64,
+) -> MessageStatus {
+    if is_initial_poll {
+        if is_cold_start {
+            if is_superchat
+                && timestamp_usec > 0
+                && timestamp_usec.saturating_add(SUPERCHAT_GRACE_WINDOW_USEC) >= watermark
+            {
+                MessageStatus::Queued
+            } else if timestamp_usec > 0 && timestamp_usec <= watermark {
+                MessageStatus::Default
+            } else if timestamp_usec > watermark {
+                MessageStatus::Queued
+            } else {
+                MessageStatus::Default
+            }
+        } else {
+            // Reconnect to an active stream session with an established watermark
+            if timestamp_usec > 0 && timestamp_usec <= watermark {
+                MessageStatus::Default
+            } else {
+                MessageStatus::Queued
+            }
+        }
+    } else {
+        // Subsequent polls: live events from timed/invalidation continuations are active
+        MessageStatus::Queued
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn test_seen_message_cache() {
+        let mut cache = SeenMessageCache::new(3);
+        assert!(cache.insert("msg-1".to_string()));
+        assert!(!cache.insert("msg-1".to_string())); // duplicate
+        assert!(cache.contains("msg-1"));
+
+        assert!(cache.insert("msg-2".to_string()));
+        assert!(cache.insert("msg-3".to_string()));
+        assert!(cache.contains("msg-1"));
+        assert!(cache.contains("msg-2"));
+        assert!(cache.contains("msg-3"));
+
+        // Capacity is 3, inserting 4th item should evict msg-1
+        assert!(cache.insert("msg-4".to_string()));
+        assert!(!cache.contains("msg-1"));
+        assert!(cache.contains("msg-2"));
+        assert!(cache.contains("msg-3"));
+        assert!(cache.contains("msg-4"));
+
+        // Clear cache
+        cache.clear();
+        assert!(!cache.contains("msg-2"));
+        assert!(cache.insert("msg-2".to_string()));
+    }
 
     #[test]
     fn test_extract_video_id_from_html() {
@@ -658,7 +894,7 @@ mod tests {
                                 "sortFilterSubMenuRenderer": {
                                     "subMenuItems": [
                                         {
-                                            "title": "Top chat",
+                                             "title": "Top chat",
                                             "selected": true,
                                             "continuation": {
                                                 "reloadContinuationData": {
@@ -778,6 +1014,7 @@ mod tests {
                         "authorName": { "simpleText": "Chatter1" },
                         "authorExternalChannelId": "channel-1",
                         "authorPhoto": { "thumbnails": [{ "url": "https://example.com/avatar.png" }] },
+                        "timestampUsec": "1710000000000000",
                         "message": {
                             "runs": [
                                 { "text": "Hello " },
@@ -794,6 +1031,7 @@ mod tests {
         assert_eq!(parsed_text.author_name, "Chatter1");
         assert_eq!(parsed_text.author_id.as_deref(), Some("channel-1"));
         assert_eq!(parsed_text.text, "Hello world!");
+        assert_eq!(parsed_text.timestamp_usec, 1710000000000000);
         assert!(!parsed_text.is_superchat);
 
         // 2. Paid Super Chat
@@ -804,6 +1042,7 @@ mod tests {
                         "id": "paid-1",
                         "authorName": { "simpleText": "SuperDonor" },
                         "authorExternalChannelId": "channel-donor",
+                        "timestampUsec": "1710000005000000",
                         "purchaseAmountText": { "simpleText": "₹500" },
                         "message": {
                             "runs": [
@@ -819,7 +1058,62 @@ mod tests {
         assert_eq!(parsed_paid.msg_id, "paid-1");
         assert_eq!(parsed_paid.author_name, "SuperDonor");
         assert_eq!(parsed_paid.text, "Super Chat (₹500): Keep up the awesome streams!");
+        assert_eq!(parsed_paid.timestamp_usec, 1710000005000000);
         assert!(parsed_paid.is_superchat);
+    }
+
+    #[test]
+    fn test_classify_message_cold_start_backlog_suppressed() {
+        let watermark = 1_000_000_000_000;
+        // Normal chat message older than or equal to watermark is historical
+        let status = classify_message(watermark - 5_000_000, false, true, true, watermark);
+        assert_eq!(status, MessageStatus::Default);
+
+        let status_equal = classify_message(watermark, false, true, true, watermark);
+        assert_eq!(status_equal, MessageStatus::Default);
+
+        // Normal chat message newer than watermark in initial batch is queued
+        let status_new = classify_message(watermark + 1_000_000, false, true, true, watermark);
+        assert_eq!(status_new, MessageStatus::Queued);
+    }
+
+    #[test]
+    fn test_classify_message_cold_start_superchat_grace_window() {
+        let watermark = 1_000_000_000_000;
+        // Superchat within 60s (SUPERCHAT_GRACE_WINDOW_USEC = 60_000_000) is queued
+        let recent_ts = watermark - 30_000_000; // 30s ago
+        let status = classify_message(recent_ts, true, true, true, watermark);
+        assert_eq!(status, MessageStatus::Queued);
+
+        // Superchat older than 60s is historical
+        let old_ts = watermark - 61_000_000; // 61s ago
+        let old_status = classify_message(old_ts, true, true, true, watermark);
+        assert_eq!(old_status, MessageStatus::Default);
+    }
+
+    #[test]
+    fn test_classify_message_reconnect() {
+        let watermark = 1_000_000_000_000;
+        // On reconnect (is_initial_poll: true, is_cold_start: false)
+        // Message with timestamp <= watermark is historical
+        let old_status = classify_message(watermark - 10_000_000, false, true, false, watermark);
+        assert_eq!(old_status, MessageStatus::Default);
+
+        // New message arrived during disconnect (timestamp > watermark) is queued
+        let new_status = classify_message(watermark + 2_000_000, false, true, false, watermark);
+        assert_eq!(new_status, MessageStatus::Queued);
+    }
+
+    #[test]
+    fn test_classify_message_live_subsequent_poll() {
+        let watermark = 1_000_000_000_000;
+        // Live polling (is_initial_poll: false) always queues unseen messages
+        let live_status = classify_message(watermark + 100_000, false, false, false, watermark);
+        assert_eq!(live_status, MessageStatus::Queued);
+
+        // Even with millisecond network timestamp jitter, live poll messages are queued
+        let jitter_status = classify_message(watermark - 50_000, false, false, false, watermark);
+        assert_eq!(jitter_status, MessageStatus::Queued);
     }
 }
 

@@ -1,6 +1,6 @@
 [package]
 name = "baba-tts"
-version = "0.0.3-beta"
+version = "0.0.4-beta"
 edition = "2021"
 
 [dependencies]
