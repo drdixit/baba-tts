@@ -42,6 +42,9 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/settings", get(get_settings_handler).post(save_settings_handler))
         .route("/api/voices", get(get_voices_handler))
         .route("/api/volume", get(get_volume_handler).post(set_volume_handler))
+        .route("/api/volume/toggle-mute", post(toggle_mute_handler))
+        .route("/api/pause-hotkeys", post(pause_hotkeys_handler))
+        .route("/api/resume-hotkeys", post(resume_hotkeys_handler))
         .route_layer(middleware::from_fn(local_origin_guard))
         .fallback(static_handler)
         .with_state(state)
@@ -568,26 +571,51 @@ async fn save_settings_handler(
 }
 
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct VolumePayload {
-    volume: u32,
+    volume: Option<u32>,
+    #[serde(default)]
+    is_muted: Option<bool>,
 }
 
 async fn get_volume_handler(State(state): State<AppState>) -> Response {
-    let volume = state.db.load_settings().map(|s| s.master_volume).unwrap_or(100);
-    Json(serde_json::json!({ "volume": volume })).into_response()
+    let (volume, is_muted) = state.tts_handle.get_volume_state().await;
+    Json(serde_json::json!({ "volume": volume, "isMuted": is_muted })).into_response()
 }
 
 async fn set_volume_handler(
     State(state): State<AppState>,
     Json(payload): Json<VolumePayload>,
 ) -> Response {
-    let vol = payload.volume.min(100);
-    if let Err(err) = state.db.set_setting("master_volume", &vol.to_string()) {
-        tracing::error!("Failed to save master_volume setting: {}", err);
-        return (StatusCode::INTERNAL_SERVER_ERROR, err.to_string()).into_response();
+    if let Some(muted) = payload.is_muted {
+        state.tts_handle.set_mute(muted).await;
     }
-    state.tts_handle.set_volume(vol as f32 / 100.0).await;
-    Json(serde_json::json!({ "success": true, "volume": vol })).into_response()
+    if let Some(vol) = payload.volume {
+        let vol = vol.min(100);
+        if let Err(err) = state.db.set_setting("master_volume", &vol.to_string()) {
+            tracing::error!("Failed to save master_volume setting: {}", err);
+            return (StatusCode::INTERNAL_SERVER_ERROR, err.to_string()).into_response();
+        }
+        state.tts_handle.set_volume(vol as f32 / 100.0).await;
+    }
+    let (volume, is_muted) = state.tts_handle.get_volume_state().await;
+    Json(serde_json::json!({ "success": true, "volume": volume, "isMuted": is_muted })).into_response()
+}
+
+async fn toggle_mute_handler(State(state): State<AppState>) -> Response {
+    state.tts_handle.toggle_mute().await;
+    let (volume, is_muted) = state.tts_handle.get_volume_state().await;
+    Json(serde_json::json!({ "success": true, "volume": volume, "isMuted": is_muted })).into_response()
+}
+
+async fn pause_hotkeys_handler() -> Response {
+    crate::tray::pause_hotkeys();
+    Json(serde_json::json!({ "success": true })).into_response()
+}
+
+async fn resume_hotkeys_handler() -> Response {
+    crate::tray::resume_hotkeys();
+    Json(serde_json::json!({ "success": true })).into_response()
 }
 
 async fn get_voices_handler(
@@ -1046,6 +1074,51 @@ mod tests {
 
         let reloaded = db.load_settings().unwrap();
         assert_eq!(reloaded.master_volume, 42);
+
+        // Test POST /api/volume/toggle-mute
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/volume/toggle-mute")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = response.into_body().collect().await.unwrap().to_bytes();
+        let toggle_json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(toggle_json["success"], true);
+        assert_eq!(toggle_json["isMuted"], true);
+
+        // Test POST /api/pause-hotkeys and POST /api/resume-hotkeys
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/pause-hotkeys")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/resume-hotkeys")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
 
         // Test POST /api/restart from loopback IP (should succeed)
         let mut local_req = Request::builder()

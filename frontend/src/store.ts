@@ -25,12 +25,18 @@ interface StoreState {
   updateMessage: (messageId: string, updates: Partial<ChatMessage>) => void;
   removeMessage: (messageId: string) => void;
   skipAllActiveMessages: () => void;
+  masterVolume: number;
+  isMuted: boolean;
+  setVolumeState: (volume: number, isMuted: boolean) => void;
 }
 
 export const useStore = create<StoreState>((set) => ({
   bannedUsers: [],
   activeUsers: [],
   setBannedUsers: (users) => set({ bannedUsers: users }),
+  masterVolume: 100,
+  isMuted: false,
+  setVolumeState: (volume, isMuted) => set({ masterVolume: volume, isMuted }),
   messages: [],
   addMessages: (newMessages) =>
     set((state) => {

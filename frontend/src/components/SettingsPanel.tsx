@@ -576,6 +576,45 @@ export default function SettingsPanel({ onRestart, serverPort }: SettingsPanelPr
         </p>
       </fieldset>
 
+      {/* Master Audio Output (WASAPI) */}
+      <fieldset className="desktop-groupbox">
+        <legend className="desktop-groupbox-legend flex items-center gap-1.5">
+          <Volume2 className="h-3.5 w-3.5 text-[#333]" aria-hidden="true" />
+          <span>Master Audio Output (WASAPI / OBS)</span>
+        </legend>
+        <div className="desktop-setting-row">
+          <label htmlFor="settings-master-volume" className="desktop-setting-label flex items-center gap-1">
+            <span>Master Volume</span>
+          </label>
+          <div className="flex min-w-0 flex-1 items-center gap-3">
+            <input
+              id="settings-master-volume"
+              type="range"
+              min={0}
+              max={100}
+              step={1}
+              value={settings.master_volume}
+              onChange={(e) => updateField('master_volume', parseInt(e.target.value, 10))}
+              className="h-2 w-full max-w-56 cursor-pointer accent-[#222]"
+            />
+            <span className="w-12 font-mono text-xs font-semibold text-[#333]">
+              {settings.master_volume}%
+            </span>
+            <button
+              type="button"
+              onClick={() => updateField('master_volume', 100)}
+              className={secondaryButtonClass}
+              title="Reset to 100% (max output volume)"
+            >
+              Reset (100%)
+            </button>
+          </div>
+        </div>
+        <p className="desktop-help-text pl-[132px]">
+          Global output volume rendered by the dedicated WASAPI audio worker. Directly controls audio captured by OBS Application Audio Capture.
+        </p>
+      </fieldset>
+
       {/* SAPI5 Controls */}
       {isSapi && (
         <fieldset className="desktop-groupbox">

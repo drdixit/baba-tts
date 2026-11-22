@@ -167,7 +167,6 @@ mod win32 {
     use tracing::{error, info, warn};
     use windows_sys::Win32::Foundation::{HWND, LPARAM, LRESULT, POINT, WPARAM};
     use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
-    use windows_sys::Win32::System::Threading::GetCurrentProcessId;
     use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
         GetAsyncKeyState, GetKeyState, VK_CONTROL, VK_LWIN, VK_MENU, VK_NUMLOCK, VK_RWIN,
     };
@@ -176,8 +175,8 @@ mod win32 {
     };
     use windows_sys::Win32::UI::WindowsAndMessaging::{
         AppendMenuW, CallNextHookEx, CreatePopupMenu, CreateWindowExW, DefWindowProcW, DestroyMenu,
-        DestroyWindow, DispatchMessageW, GetCursorPos, GetForegroundWindow, GetMessageW,
-        GetWindowLongPtrW, GetWindowThreadProcessId, LoadIconW, LoadImageW, PostMessageW,
+        DestroyWindow, DispatchMessageW, GetCursorPos, GetMessageW,
+        GetWindowLongPtrW, LoadIconW, LoadImageW, PostMessageW,
         PostQuitMessage, RegisterClassW, RegisterWindowMessageW, SetForegroundWindow,
         SetWindowLongPtrW, SetWindowsHookExW, TrackPopupMenu, TranslateMessage, UnhookWindowsHookEx,
         CREATESTRUCTW, GWLP_USERDATA, HHOOK, IDI_APPLICATION, IMAGE_ICON, KBDLLHOOKSTRUCT,
@@ -224,17 +223,35 @@ mod win32 {
         let msg = wparam as u32;
         let kbd = &*(lparam as *const KBDLLHOOKSTRUCT);
         let vk = kbd.vkCode;
+        let is_extended = (kbd.flags & 1) != 0;
 
-        // Monitor physical Numpad 0 through Numpad 5 (0x60 - 0x65)
-        if (0x60..=0x65).contains(&vk) {
-            let bit = 1u8 << (vk - 0x60);
+        // Normalize physical Numpad 0..=5 whether NumLock is ON (VK_NUMPAD0..5: 0x60..=0x65)
+        // or OFF (VK_INSERT, VK_END, VK_DOWN, VK_NEXT, VK_LEFT, VK_CLEAR with !is_extended)
+        let action_idx = if (0x60..=0x65).contains(&vk) {
+            Some((vk - 0x60) as u8)
+        } else if !is_extended {
+            match vk {
+                0x2D => Some(0), // VK_INSERT -> Numpad 0 (Clear Queue)
+                0x23 => Some(1), // VK_END    -> Numpad 1 (Ban Current)
+                0x28 => Some(2), // VK_DOWN   -> Numpad 2 (Speak as Banned)
+                0x22 => Some(3), // VK_NEXT   -> Numpad 3 (Skip Current)
+                0x25 => Some(4), // VK_LEFT   -> Numpad 4 (Speak as User)
+                0x0C => Some(5), // VK_CLEAR  -> Numpad 5 (Toggle Mute)
+                _ => None,
+            }
+        } else {
+            None
+        };
+
+        if let Some(idx) = action_idx {
+            let bit = 1u8 << idx;
 
             if msg == WM_KEYDOWN || msg == WM_SYSKEYDOWN {
                 let prev = KEY_DOWN_MASK.fetch_or(bit, Ordering::AcqRel);
                 let is_repeat = (prev & bit) != 0;
 
                 // Only trigger action on initial key press (emulating MOD_NOREPEAT)
-                // and only when hotkeys are not paused (e.g. prompt modal not active)
+                // and only when hotkeys are not paused (e.g. prompt modal or text input active)
                 if !is_repeat && !HOTKEYS_PAUSED.load(Ordering::Acquire) {
                     // Filter modifier chords: if Ctrl, Alt, or Win is held, it is an application macro (e.g. Blender/OBS), not a raw TTS trigger!
                     let ctrl_down = (GetAsyncKeyState(VK_CONTROL as i32) as u16 & 0x8000) != 0;
@@ -243,20 +260,10 @@ mod win32 {
                         || ((GetAsyncKeyState(VK_RWIN as i32) as u16 & 0x8000) != 0);
 
                     if !ctrl_down && !alt_down && !win_down {
-                        // Check if the foreground window belongs to our own process (e.g. WebView2 dashboard).
-                        // If focused on baba-tts dashboard, do not fire global hotkey actions so typing digits is safe.
-                        let fg_hwnd = GetForegroundWindow();
-                        let mut fg_pid: u32 = 0;
-                        if fg_hwnd != 0 {
-                            GetWindowThreadProcessId(fg_hwnd, &mut fg_pid);
-                        }
-                        let our_pid = GetCurrentProcessId();
-
-                        if fg_pid != our_pid {
-                            let hwnd = TRAY_HWND.load(Ordering::Acquire) as HWND;
-                            if hwnd != 0 {
-                                PostMessageW(hwnd, WM_APP_HOTKEY_ACTION, vk as WPARAM, 0);
-                            }
+                        let hwnd = TRAY_HWND.load(Ordering::Acquire) as HWND;
+                        if hwnd != 0 {
+                            let canonical_vk = (0x60 + idx as u32) as WPARAM;
+                            PostMessageW(hwnd, WM_APP_HOTKEY_ACTION, canonical_vk, 0);
                         }
                     }
                 }

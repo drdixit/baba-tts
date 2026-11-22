@@ -46,3 +46,5 @@ baba.db-wal
 *-singleton-lock
 
 .worktrees/
+*.apk
+

@@ -28,6 +28,18 @@ enum ClientWsCommand {
     BanUser { payload: BanUserPayload },
     #[serde(rename = "UNBAN_USER")]
     UnbanUser { payload: UnbanUserPayload },
+    #[serde(rename = "PAUSE_HOTKEYS")]
+    PauseHotkeys,
+    #[serde(rename = "RESUME_HOTKEYS")]
+    ResumeHotkeys,
+    #[serde(rename = "TOGGLE_MUTE")]
+    ToggleMute,
+    #[serde(rename = "SET_VOLUME")]
+    SetVolume {
+        volume: Option<u32>,
+        #[serde(default, rename = "isMuted")]
+        is_muted: Option<bool>,
+    },
 }
 
 #[derive(Debug, Deserialize)]
@@ -82,6 +94,15 @@ pub async fn handle_websocket(
         let _ = socket.send(Message::Text(play_msg.to_string().into())).await;
     }
 
+    // Sync initial master volume and mute state
+    let (init_vol, init_muted) = tts_handle.get_volume_state().await;
+    let vol_msg = serde_json::json!({
+        "type": "volume_state",
+        "volume": init_vol,
+        "isMuted": init_muted
+    });
+    let _ = socket.send(Message::Text(vol_msg.to_string().into())).await;
+
     let mut broadcast_rx = broadcast_tx.subscribe();
 
     loop {
@@ -107,6 +128,11 @@ pub async fn handle_websocket(
                             WsBroadcastMessage::BannedUsers(users) => serde_json::json!({
                                 "type": "banned_users",
                                 "users": users
+                            }),
+                            WsBroadcastMessage::VolumeState { master_volume, is_muted } => serde_json::json!({
+                                "type": "volume_state",
+                                "volume": master_volume,
+                                "isMuted": is_muted
                             }),
                         };
 
@@ -203,6 +229,25 @@ pub async fn handle_websocket(
                                     }
                                 }
                             }
+                            ClientWsCommand::PauseHotkeys => {
+                                crate::tray::pause_hotkeys();
+                            }
+                            ClientWsCommand::ResumeHotkeys => {
+                                crate::tray::resume_hotkeys();
+                            }
+                            ClientWsCommand::ToggleMute => {
+                                tts_handle.toggle_mute().await;
+                            }
+                            ClientWsCommand::SetVolume { volume, is_muted } => {
+                                if let Some(muted) = is_muted {
+                                    tts_handle.set_mute(muted).await;
+                                }
+                                if let Some(vol) = volume {
+                                    let vol = vol.min(100);
+                                    let _ = db.set_setting("master_volume", &vol.to_string());
+                                    tts_handle.set_volume(vol as f32 / 100.0).await;
+                                }
+                            }
                         }
                     }
                 }
@@ -210,5 +255,6 @@ pub async fn handle_websocket(
         }
     }
 
+    crate::tray::resume_hotkeys();
     debug!("WebSocket client disconnected");
 }

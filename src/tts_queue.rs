@@ -21,6 +21,10 @@ pub enum WsBroadcastMessage {
     },
     KillAudio,
     BannedUsers(Vec<crate::types::BannedUser>),
+    VolumeState {
+        master_volume: u32,
+        is_muted: bool,
+    },
 }
 
 pub const MAX_TTS_QUEUE_SIZE: usize = 200;
@@ -50,8 +54,10 @@ pub enum TtsCommand {
     GetPendingAudio(oneshot::Sender<Option<PendingAudio>>),
     UpdateSettings(AppSettings),
     ToggleMute,
+    SetMute(bool),
     #[allow(dead_code)]
     SetVolume(f32),
+    GetVolumeState(oneshot::Sender<(u32, bool)>),
     SynthesisComplete {
         message_id: String,
         result: Result<crate::azure_tts::SpeechSynthesisResult, String>,
@@ -179,9 +185,22 @@ impl TtsHandle {
         let _ = self.sender.send(TtsCommand::ToggleMute).await;
     }
 
+    pub async fn set_mute(&self, muted: bool) {
+        let _ = self.sender.send(TtsCommand::SetMute(muted)).await;
+    }
+
     #[allow(dead_code)]
     pub async fn set_volume(&self, vol: f32) {
         let _ = self.sender.send(TtsCommand::SetVolume(vol)).await;
+    }
+
+    pub async fn get_volume_state(&self) -> (u32, bool) {
+        let (tx, rx) = oneshot::channel();
+        if self.sender.send(TtsCommand::GetVolumeState(tx)).await.is_ok() {
+            rx.await.unwrap_or((100, false))
+        } else {
+            (100, false)
+        }
     }
 }
 
@@ -199,6 +218,7 @@ pub struct TtsActor {
     recent_cache: RecentMessageCache,
     audio_player: NativeAudioPlayer,
     watchdog_abort: Option<tokio::task::AbortHandle>,
+    is_muted: bool,
 }
 
 fn default_hindi_voice() -> String {
@@ -237,6 +257,7 @@ impl TtsActor {
             recent_cache: RecentMessageCache::default(),
             audio_player,
             watchdog_abort: None,
+            is_muted: false,
         };
 
         tokio::spawn(actor.run());
@@ -445,11 +466,36 @@ impl TtsActor {
                     let _ = tx.send(self.pending_audio.clone());
                 }
                 TtsCommand::ToggleMute => {
-                    self.audio_player.toggle_mute();
+                    self.is_muted = !self.is_muted;
+                    self.audio_player.set_mute(self.is_muted);
+                    let _ = self.broadcast_tx.send(WsBroadcastMessage::VolumeState {
+                        master_volume: self.settings.master_volume,
+                        is_muted: self.is_muted,
+                    });
+                }
+                TtsCommand::SetMute(muted) => {
+                    self.is_muted = muted;
+                    self.audio_player.set_mute(self.is_muted);
+                    let _ = self.broadcast_tx.send(WsBroadcastMessage::VolumeState {
+                        master_volume: self.settings.master_volume,
+                        is_muted: self.is_muted,
+                    });
                 }
                 TtsCommand::SetVolume(vol) => {
-                    self.settings.master_volume = (vol * 100.0).round().clamp(0.0, 100.0) as u32;
+                    let vol_u32 = (vol * 100.0).round().clamp(0.0, 100.0) as u32;
+                    self.settings.master_volume = vol_u32;
+                    if self.is_muted && vol > 0.0 {
+                        self.is_muted = false;
+                        self.audio_player.set_mute(false);
+                    }
                     self.audio_player.set_volume(vol);
+                    let _ = self.broadcast_tx.send(WsBroadcastMessage::VolumeState {
+                        master_volume: self.settings.master_volume,
+                        is_muted: self.is_muted,
+                    });
+                }
+                TtsCommand::GetVolumeState(tx) => {
+                    let _ = tx.send((self.settings.master_volume, self.is_muted));
                 }
                 TtsCommand::UpdateSettings(new_settings) => {
                     if self.settings.master_volume != new_settings.master_volume {
@@ -951,14 +997,43 @@ mod tests {
 
     #[tokio::test]
     async fn test_tts_toggle_mute_and_volume_commands() {
-        let (broadcast_tx, _broadcast_rx) = broadcast::channel(10);
+        let (broadcast_tx, mut broadcast_rx) = broadcast::channel(10);
         let settings = AppSettings::default();
         let handle = TtsActor::spawn(broadcast_tx, settings);
 
-        // Verify that sending toggle_mute and set_volume does not block or panic
+        // Verify initial state
+        let (vol, muted) = handle.get_volume_state().await;
+        assert_eq!(vol, 100);
+        assert!(!muted);
+
+        // Toggle mute -> muted=true, broadcasts VolumeState
         handle.toggle_mute().await;
-        handle.set_volume(0.5).await;
-        handle.toggle_mute().await;
-        handle.set_volume(1.0).await;
+        let (vol, muted) = handle.get_volume_state().await;
+        assert_eq!(vol, 100);
+        assert!(muted);
+        if let Ok(WsBroadcastMessage::VolumeState { master_volume, is_muted }) = broadcast_rx.recv().await {
+            assert_eq!(master_volume, 100);
+            assert!(is_muted);
+        } else {
+            panic!("Expected VolumeState broadcast message");
+        }
+
+        // Setting positive volume while muted -> auto-unmutes
+        handle.set_volume(0.8).await;
+        let (vol, muted) = handle.get_volume_state().await;
+        assert_eq!(vol, 80);
+        assert!(!muted);
+        if let Ok(WsBroadcastMessage::VolumeState { master_volume, is_muted }) = broadcast_rx.recv().await {
+            assert_eq!(master_volume, 80);
+            assert!(!is_muted);
+        } else {
+            panic!("Expected VolumeState broadcast message after set_volume");
+        }
+
+        // Explicit set_mute
+        handle.set_mute(true).await;
+        let (vol, muted) = handle.get_volume_state().await;
+        assert_eq!(vol, 80);
+        assert!(muted);
     }
 }

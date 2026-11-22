@@ -114,41 +114,64 @@ function DesktopApp() {
       .catch(() => {});
   }, []);
 
-  // Master Volume State & Auto-Save
-  const [masterVolume, setMasterVolume] = useState<number>(() => {
-    const saved = localStorage.getItem('baba_master_volume');
-    if (saved !== null) {
-      const parsed = parseInt(saved, 10);
-      if (!isNaN(parsed) && parsed >= 0 && parsed <= 100) return parsed;
-    }
-    return 100;
-  });
-
-  const prevVolumeRef = useRef<number>(100);
+  const { masterVolume, isMuted, setVolumeState } = useStore();
   const volumeDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
-  // Sync initial volume from server
+  // Sync initial volume and mute state from server
   useEffect(() => {
     fetch('/api/volume')
       .then((res) => res.json())
       .then((data) => {
         if (typeof data.volume === 'number') {
           const vol = Math.max(0, Math.min(100, Math.round(data.volume)));
-          setMasterVolume(vol);
-          if (vol > 0) prevVolumeRef.current = vol;
+          setVolumeState(vol, Boolean(data.isMuted));
           localStorage.setItem('baba_master_volume', vol.toString());
         }
       })
       .catch(() => {});
-  }, []);
+  }, [setVolumeState]);
+
+  // Pause hotkeys when user focuses on an input or textarea; resume on blur
+  useEffect(() => {
+    const isEditable = (el: EventTarget | null): boolean => {
+      if (!el || !(el instanceof HTMLElement)) return false;
+      const tag = el.tagName.toLowerCase();
+      return tag === 'input' || tag === 'textarea' || el.isContentEditable;
+    };
+
+    const handleFocusIn = (e: FocusEvent) => {
+      if (isEditable(e.target)) {
+        if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+          wsRef.current.send(JSON.stringify({ type: 'PAUSE_HOTKEYS' }));
+        } else {
+          fetch('/api/pause-hotkeys', { method: 'POST' }).catch(() => {});
+        }
+      }
+    };
+
+    const handleFocusOut = (e: FocusEvent) => {
+      if (isEditable(e.target)) {
+        if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+          wsRef.current.send(JSON.stringify({ type: 'RESUME_HOTKEYS' }));
+        } else {
+          fetch('/api/resume-hotkeys', { method: 'POST' }).catch(() => {});
+        }
+      }
+    };
+
+    window.addEventListener('focusin', handleFocusIn);
+    window.addEventListener('focusout', handleFocusOut);
+    return () => {
+      window.removeEventListener('focusin', handleFocusIn);
+      window.removeEventListener('focusout', handleFocusOut);
+    };
+  }, [wsRef]);
 
   const handleVolumeChange = useCallback((newVol: number) => {
     const clamped = Math.max(0, Math.min(100, Math.round(newVol)));
-    setMasterVolume(clamped);
-    if (clamped > 0) {
-      prevVolumeRef.current = clamped;
-    }
+    // Adjusting slider automatically un-mutes
+    setVolumeState(clamped, false);
     localStorage.setItem('baba_master_volume', clamped.toString());
 
     if (volumeDebounceRef.current) {
@@ -161,27 +184,33 @@ function DesktopApp() {
       }
       abortControllerRef.current = new AbortController();
 
-      fetch('/api/volume', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ volume: clamped }),
-        signal: abortControllerRef.current.signal,
-      }).catch((err) => {
-        if (err.name !== 'AbortError') {
-          console.error('Failed to auto-save volume:', err);
-        }
-      });
-    }, 120);
-  }, []);
+      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+        wsRef.current.send(JSON.stringify({ type: 'SET_VOLUME', volume: clamped, isMuted: false }));
+      } else {
+        fetch('/api/volume', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ volume: clamped, isMuted: false }),
+          signal: abortControllerRef.current.signal,
+        }).catch((err) => {
+          if (err.name !== 'AbortError') {
+            console.error('Failed to auto-save volume:', err);
+          }
+        });
+      }
+    }, 100);
+  }, [setVolumeState, wsRef]);
 
   const handleToggleMute = useCallback(() => {
-    if (masterVolume > 0) {
-      prevVolumeRef.current = masterVolume;
-      handleVolumeChange(0);
+    const nextMuted = !isMuted;
+    setVolumeState(masterVolume, nextMuted);
+
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({ type: 'TOGGLE_MUTE' }));
     } else {
-      handleVolumeChange(prevVolumeRef.current > 0 ? prevVolumeRef.current : 100);
+      fetch('/api/volume/toggle-mute', { method: 'POST' }).catch(() => {});
     }
-  }, [masterVolume, handleVolumeChange]);
+  }, [isMuted, masterVolume, setVolumeState, wsRef]);
 
   const handleSkipCurrent = useCallback(() => {
     fetch('/api/skip-current', { method: 'POST' })
@@ -337,8 +366,8 @@ function DesktopApp() {
 
   return (
     <div className="desktop-shell flex h-dvh w-full flex-col overflow-hidden">
-      <header className="z-40 grid h-9 shrink-0 grid-cols-[minmax(0,1fr)_auto] select-none items-center border-b border-[#BDBDBD] bg-[#F3F3F3] px-1">
-        <div className="relative flex h-full min-w-0 items-center">
+      <header className="z-40 flex h-9 shrink-0 select-none items-center justify-between border-b border-[#BDBDBD] bg-[#F3F3F3] px-1">
+        <div className="relative flex h-full min-w-0 flex-1 items-center">
           <nav
             ref={navRef}
             aria-label="Application sections"
@@ -370,7 +399,7 @@ function DesktopApp() {
               onClick={() => navRef.current?.scrollBy({ left: -180 })}
               aria-label="Show previous application sections"
               title="Show previous sections"
-            className="absolute inset-y-0 left-0 z-10 flex w-6 items-center justify-center border-r border-[#BDBDBD] bg-[#F3F3F3] text-[#555] hover:bg-white focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-[#555]"
+              className="absolute inset-y-0 left-0 z-10 flex w-6 items-center justify-center border-r border-[#BDBDBD] bg-[#F3F3F3] text-[#555] hover:bg-white focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-[#555]"
             >
               <ChevronLeft className="h-4 w-4" aria-hidden="true" />
             </button>
@@ -381,82 +410,105 @@ function DesktopApp() {
               onClick={() => navRef.current?.scrollBy({ left: 180 })}
               aria-label="Show more application sections"
               title="Show more sections"
-            className="absolute inset-y-0 right-0 z-10 flex w-6 items-center justify-center border-l border-[#BDBDBD] bg-[#F3F3F3] text-[#555] hover:bg-white focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-[#555]"
+              className="absolute inset-y-0 right-0 z-10 flex w-6 items-center justify-center border-l border-[#BDBDBD] bg-[#F3F3F3] text-[#555] hover:bg-white focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-[#555]"
             >
               <ChevronRight className="h-4 w-4" aria-hidden="true" />
             </button>
           )}
         </div>
 
-        {(activeTab === 'monitor' || activeTab === 'moderation') && (
-          <div className="flex shrink-0 items-center gap-1 border-l border-[#BDBDBD] pl-1.5">
-                <button
-                  onClick={handleSkipCurrent}
-                  disabled={!activeMessage}
-                  className="flex h-6 items-center gap-1 border border-[#C8C8C8] bg-white px-1.5 text-[11px] font-medium text-[#333] transition-colors hover:bg-[#F1F1F1] active:bg-[#E7E7E7] disabled:cursor-not-allowed disabled:opacity-45 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#555] max-lg:px-1.5"
-                  aria-label="Skip the current message"
-                  title="Skip the current message"
-                >
-                  <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
-                  <span className="max-lg:hidden">Skip</span>
-                </button>
+        {/* Right: Actions & Master Audio Toolbar Cluster (Consolidated single flex row) */}
+        <div className="flex shrink-0 items-center gap-1.5 pl-2">
+          {(activeTab === 'monitor' || activeTab === 'moderation') && (
+            <div className="flex shrink-0 items-center gap-1 border-r border-[#BDBDBD] pr-2">
+              <button
+                onClick={handleSkipCurrent}
+                disabled={!activeMessage}
+                className="flex h-6 items-center gap-1 border border-[#C8C8C8] bg-white px-1.5 text-[11px] font-medium text-[#333] transition-colors hover:bg-[#F1F1F1] active:bg-[#E7E7E7] disabled:cursor-not-allowed disabled:opacity-45 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#555] max-lg:px-1.5"
+                aria-label="Skip the current message"
+                title="Skip the current message (Numpad 3)"
+              >
+                <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
+                <span className="max-lg:hidden">Skip</span>
+              </button>
 
-                <button
-                  onClick={handleBanCurrent}
-                  disabled={!activeMessage}
-                  className="flex h-6 items-center gap-1 border border-[#A4262C]/30 bg-white px-1.5 text-[11px] font-medium text-[#8A1F24] transition-colors hover:bg-[#FFF8F8] active:bg-[#F9E7E7] disabled:cursor-not-allowed disabled:opacity-45 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#555] max-lg:px-1.5"
-                  aria-label="Ban and skip the current speaker"
-                  title="Ban and skip the current speaker"
-                >
-                  <ShieldAlert className="h-3.5 w-3.5" aria-hidden="true" />
-                  <span className="max-lg:hidden">Ban &amp; skip</span>
-                </button>
+              <button
+                onClick={handleBanCurrent}
+                disabled={!activeMessage}
+                className="flex h-6 items-center gap-1 border border-[#A4262C]/30 bg-white px-1.5 text-[11px] font-medium text-[#8A1F24] transition-colors hover:bg-[#FFF8F8] active:bg-[#F9E7E7] disabled:cursor-not-allowed disabled:opacity-45 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#555] max-lg:px-1.5"
+                aria-label="Ban and skip the current speaker"
+                title="Ban and skip the current speaker (Numpad 1)"
+              >
+                <ShieldAlert className="h-3.5 w-3.5" aria-hidden="true" />
+                <span className="max-lg:hidden">Ban &amp; skip</span>
+              </button>
 
-                <button
-                  onClick={handleClearQueue}
-                  disabled={queuedMessageCount === 0}
-                  className="flex h-6 items-center gap-1 border border-[#C8C8C8] bg-white px-1.5 text-[11px] font-medium text-[#333] transition-colors hover:bg-[#F1F1F1] active:bg-[#E7E7E7] disabled:cursor-not-allowed disabled:opacity-45 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#555] max-lg:px-1.5"
-                  aria-label="Clear the TTS queue"
-                  title="Clear the TTS queue"
-                >
-                  <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
-                  <span className="max-lg:hidden">Clear queue</span>
-                </button>
+              <button
+                onClick={handleClearQueue}
+                disabled={queuedMessageCount === 0}
+                className="flex h-6 items-center gap-1 border border-[#C8C8C8] bg-white px-1.5 text-[11px] font-medium text-[#333] transition-colors hover:bg-[#F1F1F1] active:bg-[#E7E7E7] disabled:cursor-not-allowed disabled:opacity-45 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#555] max-lg:px-1.5"
+                aria-label="Clear the TTS queue"
+                title="Clear the TTS queue (Numpad 0)"
+              >
+                <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+                <span className="max-lg:hidden">Clear queue</span>
+              </button>
+            </div>
+          )}
+
+          {/* Persistent Master Volume Control */}
+          <div className="flex shrink-0 items-center gap-1.5 pr-1" title="Master Audio Output Volume">
+            <button
+              type="button"
+              onClick={handleToggleMute}
+              aria-pressed={isMuted}
+              className={`flex h-6.5 w-6.5 items-center justify-center rounded-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#555] ${
+                isMuted
+                  ? 'bg-[#FDE7E9] text-[#A4262C] hover:bg-[#FCD8DC]'
+                  : 'text-[#333] hover:bg-[#EAEAEA] active:bg-[#DDD]'
+              }`}
+              aria-label={isMuted ? "Unmute master volume (Numpad 5)" : "Mute master volume (Numpad 5)"}
+              title={isMuted ? "Unmute audio output (Numpad 5)" : "Mute audio output (Numpad 5)"}
+            >
+              {isMuted ? (
+                <VolumeX className="h-4 w-4" aria-hidden="true" />
+              ) : masterVolume === 0 ? (
+                <VolumeX className="h-4 w-4 text-[#888]" aria-hidden="true" />
+              ) : masterVolume < 50 ? (
+                <Volume1 className="h-4 w-4 text-[#333]" aria-hidden="true" />
+              ) : (
+                <Volume2 className="h-4 w-4 text-[#333]" aria-hidden="true" />
+              )}
+            </button>
+            <div className="flex items-center gap-1.5">
+              <input
+                id="header-master-volume"
+                type="range"
+                role="slider"
+                min={0}
+                max={100}
+                step={1}
+                value={masterVolume}
+                onChange={(e) => handleVolumeChange(parseInt(e.target.value, 10))}
+                className={`h-1.5 w-16 sm:w-20 cursor-pointer accent-[#222] transition-opacity ${
+                  isMuted ? 'opacity-40' : 'opacity-100'
+                }`}
+                aria-label="Master audio output volume"
+                aria-valuenow={masterVolume}
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuetext={isMuted ? 'Muted' : `${masterVolume} percent`}
+                title={`Master Volume: ${masterVolume}%${isMuted ? ' (MUTED)' : ''} [Numpad 5 to toggle]`}
+              />
+              <span
+                className={`w-11 text-left font-mono text-[11px] font-semibold transition-colors ${
+                  isMuted ? 'text-[#A4262C]' : 'text-[#333]'
+                }`}
+              >
+                {isMuted ? 'MUTED' : `${masterVolume}%`}
+              </span>
+            </div>
           </div>
-        )}
-
-        {/* Persistent Master Volume Control (Always Accessible across all tabs) */}
-        <div className="flex shrink-0 items-center gap-1.5 border-l border-[#BDBDBD] pl-2 pr-1" title="Master Audio Output Volume">
-          <button
-            type="button"
-            onClick={handleToggleMute}
-            className="flex h-6 w-6 items-center justify-center rounded-xs text-[#444] transition-colors hover:bg-[#EAEAEA] active:bg-[#DDD] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#555]"
-            aria-label={masterVolume === 0 ? "Unmute master volume" : "Mute master volume"}
-            title={masterVolume === 0 ? "Unmute audio output (click to restore)" : "Mute audio output"}
-          >
-            {masterVolume === 0 ? (
-              <VolumeX className="h-4 w-4 text-[#A4262C]" aria-hidden="true" />
-            ) : masterVolume < 50 ? (
-              <Volume1 className="h-4 w-4 text-[#333]" aria-hidden="true" />
-            ) : (
-              <Volume2 className="h-4 w-4 text-[#333]" aria-hidden="true" />
-            )}
-          </button>
-          <input
-            id="header-master-volume"
-            type="range"
-            min={0}
-            max={100}
-            step={1}
-            value={masterVolume}
-            onChange={(e) => handleVolumeChange(parseInt(e.target.value, 10))}
-            className="h-1.5 w-16 sm:w-20 cursor-pointer accent-[#333]"
-            aria-label="Master Volume"
-            title={`Master Volume: ${masterVolume}%`}
-          />
-          <span className="w-8 font-mono text-[11px] font-semibold text-[#333]">
-            {masterVolume}%
-          </span>
         </div>
       </header>
 

@@ -18,7 +18,10 @@ mod windows_impl {
         Stop,
         #[allow(dead_code)]
         SetVolume(f32),
+        #[allow(dead_code)]
         ToggleMute,
+        #[allow(dead_code)]
+        SetMute(bool),
     }
 
     #[derive(Clone)]
@@ -61,8 +64,14 @@ mod windows_impl {
             let _ = self.cmd_tx.send(AudioCmd::SetVolume(vol));
         }
 
+        #[allow(dead_code)]
         pub fn toggle_mute(&self) {
             let _ = self.cmd_tx.send(AudioCmd::ToggleMute);
+        }
+
+        #[allow(dead_code)]
+        pub fn set_mute(&self, muted: bool) {
+            let _ = self.cmd_tx.send(AudioCmd::SetMute(muted));
         }
     }
 
@@ -119,11 +128,18 @@ mod windows_impl {
                     }
                     Ok(AudioCmd::SetVolume(vol)) => {
                         master_volume = vol.clamp(0.0, 1.0);
-                        info!("[NativeAudio] Master volume set to {:.2} (idle)", master_volume);
+                        if is_muted && master_volume > 0.0 {
+                            is_muted = false;
+                        }
+                        info!("[NativeAudio] Master volume set to {:.2} (idle, muted={})", master_volume, is_muted);
                     }
                     Ok(AudioCmd::ToggleMute) => {
                         is_muted = !is_muted;
                         info!("[NativeAudio] Mute toggled (idle): muted={}", is_muted);
+                    }
+                    Ok(AudioCmd::SetMute(muted)) => {
+                        is_muted = muted;
+                        info!("[NativeAudio] Mute set (idle): muted={}", is_muted);
                     }
                     Err(_) => {
                         // Channel closed (app shutdown)
@@ -156,11 +172,14 @@ mod windows_impl {
                     }
                     Ok(AudioCmd::SetVolume(vol)) => {
                         master_volume = vol.clamp(0.0, 1.0);
+                        if is_muted && master_volume > 0.0 {
+                            is_muted = false;
+                        }
                         let eff_vol = calc_effective_volume(master_volume, is_muted);
                         if let Some(sink) = &current_sink {
                             sink.set_volume(eff_vol);
                         }
-                        info!("[NativeAudio] Real-time master volume set to {:.2} (effective={:.2})", master_volume, eff_vol);
+                        info!("[NativeAudio] Real-time master volume set to {:.2} (effective={:.2}, muted={})", master_volume, eff_vol, is_muted);
                     }
                     Ok(AudioCmd::ToggleMute) => {
                         is_muted = !is_muted;
@@ -169,6 +188,14 @@ mod windows_impl {
                             sink.set_volume(eff_vol);
                         }
                         info!("[NativeAudio] Real-time mute toggled: muted={} (effective={:.2})", is_muted, eff_vol);
+                    }
+                    Ok(AudioCmd::SetMute(muted)) => {
+                        is_muted = muted;
+                        let eff_vol = calc_effective_volume(master_volume, is_muted);
+                        if let Some(sink) = &current_sink {
+                            sink.set_volume(eff_vol);
+                        }
+                        info!("[NativeAudio] Real-time mute set: muted={} (effective={:.2})", is_muted, eff_vol);
                     }
                     Err(TryRecvError::Empty) => {
                         thread::sleep(Duration::from_millis(15));
@@ -234,7 +261,10 @@ mod non_windows_impl {
         Stop,
         #[allow(dead_code)]
         SetVolume(f32),
+        #[allow(dead_code)]
         ToggleMute,
+        #[allow(dead_code)]
+        SetMute(bool),
     }
 
     #[derive(Clone)]
@@ -270,6 +300,7 @@ mod non_windows_impl {
                             AudioCmd::Stop => {}
                             AudioCmd::SetVolume(_) => {}
                             AudioCmd::ToggleMute => {}
+                            AudioCmd::SetMute(_) => {}
                         }
                     }
                 })
@@ -299,8 +330,14 @@ mod non_windows_impl {
             let _ = self.cmd_tx.send(AudioCmd::SetVolume(vol));
         }
 
+        #[allow(dead_code)]
         pub fn toggle_mute(&self) {
             let _ = self.cmd_tx.send(AudioCmd::ToggleMute);
+        }
+
+        #[allow(dead_code)]
+        pub fn set_mute(&self, muted: bool) {
+            let _ = self.cmd_tx.send(AudioCmd::SetMute(muted));
         }
     }
 }

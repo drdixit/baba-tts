@@ -56,6 +56,11 @@ export function useAppWebSocket(playAudio: boolean = false) {
           const data = JSON.parse(event.data);
           if (data.type === 'banned_users') {
             useStore.getState().setBannedUsers(data.users);
+          } else if (data.type === 'volume_state') {
+            useStore.getState().setVolumeState(
+              typeof data.volume === 'number' ? data.volume : 100,
+              Boolean(data.isMuted)
+            );
           } else if (data.type === 'tts_state') {
             useStore.getState().updateMessageStatus(data.messageId, data.state);
             if (data.state === 'done' || data.state === 'skipped' || data.state === 'error') {
