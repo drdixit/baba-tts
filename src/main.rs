@@ -3,6 +3,9 @@
 mod azure_tts;
 mod colors;
 mod db;
+mod facebook;
+mod instagram;
+mod meta_client;
 mod native_audio;
 mod native_prompt;
 mod sapi_tts;
@@ -229,14 +232,30 @@ async fn real_main() -> Result<()> {
     let tts_handle = TtsActor::spawn(broadcast_tx.clone(), settings.clone());
     let spam_filter = SpamFilter::new();
 
-    // 5. YouTube Poller
-    let (youtube_poller, _stop_signal) = YouTubePoller::new(
+    // 5. Stream Pollers (YouTube, Facebook Live, Instagram Live)
+    let (youtube_poller, _yt_stop_signal) = YouTubePoller::new(
+        db.clone(),
+        spam_filter.clone(),
+        tts_handle.clone(),
+        broadcast_tx.clone(),
+    );
+    youtube_poller.start();
+
+    let (facebook_poller, _fb_stop_signal) = crate::facebook::FacebookPoller::new(
+        db.clone(),
+        spam_filter.clone(),
+        tts_handle.clone(),
+        broadcast_tx.clone(),
+    );
+    facebook_poller.start();
+
+    let (instagram_poller, _ig_stop_signal) = crate::instagram::InstagramPoller::new(
         db.clone(),
         spam_filter,
         tts_handle.clone(),
         broadcast_tx.clone(),
     );
-    youtube_poller.start();
+    instagram_poller.start();
 
     // Development uses a stable port so Vite's local proxy can connect reliably.
     // Release builds may fall forward through the reserved local port range unless configured.

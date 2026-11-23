@@ -20,6 +20,33 @@ const statusBadgeStyles: Record<ChatMessageType['status'], string> = {
   done: '', // hidden
 };
 
+const renderPlatformBadge = (platform?: string) => {
+  if (!platform) return null;
+  const p = platform.toLowerCase();
+  if (p === 'youtube') {
+    return (
+      <span className="inline-flex items-center justify-center font-bold font-mono uppercase rounded px-1 py-0.5 text-[9px] leading-none bg-red-600 text-white shrink-0 shadow-2xs" title="YouTube">
+        YT
+      </span>
+    );
+  }
+  if (p === 'facebook') {
+    return (
+      <span className="inline-flex items-center justify-center font-bold font-mono uppercase rounded px-1 py-0.5 text-[9px] leading-none bg-[#1877F2] text-white shrink-0 shadow-2xs" title="Facebook Live">
+        FB
+      </span>
+    );
+  }
+  if (p === 'instagram') {
+    return (
+      <span className="inline-flex items-center justify-center font-bold font-mono uppercase rounded px-1 py-0.5 text-[9px] leading-none bg-gradient-to-r from-amber-500 via-pink-500 to-purple-600 text-white shrink-0 shadow-2xs" title="Instagram Live">
+        IG
+      </span>
+    );
+  }
+  return null;
+};
+
 const ChatMessage: React.FC<ChatMessageProps> = React.memo(({ message, currentAudioTime, hideHistory = false, hideCard = false, variant = 'overlay' }) => {
   const isFinished = message.status === 'skipped' || message.status === 'done';
   const isSpeaking = message.status === 'speaking';
@@ -124,16 +151,19 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({ message, currentAu
             </div>
 
             <div className="flex flex-col flex-1 min-w-0 z-10">
-              <span
-                className={`block min-w-0 ${variant === 'inline' ? 'truncate text-xs font-semibold tracking-normal mb-0.5' : 'text-3xl font-black mb-2 uppercase tracking-widest'} transition-all duration-200 ${isAuthorSpeaking ? 'opacity-100 scale-105 origin-left' : 'opacity-90'}`}
-                title={variant === 'inline' ? message.authorName : undefined}
-                style={{
-                  color: authorColor,
-                  textShadow: variant === 'inline' ? 'none' : '0 2px 4px rgba(0,0,0,0.8), 0 0 4px rgba(0,0,0,0.9), 0 0 1px rgba(0,0,0,1)'
-                }}
-              >
-                {message.authorName}
-              </span>
+              <div className="flex items-center gap-1.5 mb-1">
+                {renderPlatformBadge(message.platform)}
+                <span
+                  className={`block min-w-0 ${variant === 'inline' ? 'truncate text-xs font-semibold tracking-normal' : 'text-3xl font-black uppercase tracking-widest'} transition-all duration-200 ${isAuthorSpeaking ? 'opacity-100 scale-105 origin-left' : 'opacity-90'}`}
+                  title={variant === 'inline' ? message.authorName : undefined}
+                  style={{
+                    color: authorColor,
+                    textShadow: variant === 'inline' ? 'none' : '0 2px 4px rgba(0,0,0,0.8), 0 0 4px rgba(0,0,0,0.9), 0 0 1px rgba(0,0,0,1)'
+                  }}
+                >
+                  {message.authorName}
+                </span>
+              </div>
 
               <p
                 className={`${variant === 'inline' ? 'desktop-now-message text-[13px] font-semibold leading-snug text-[#222]' : 'text-5xl font-bold leading-tight text-white drop-shadow-[0_2px_4px_rgba(0,0,0,1)] flex flex-wrap gap-x-2 gap-y-1'} transition-all duration-700`}
@@ -251,13 +281,14 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({ message, currentAu
             variant === 'inline'
               ? 'text-xs font-normal leading-snug text-slate-800'
               : 'text-[42px] leading-relaxed drop-shadow-[1px_1px_2px_rgba(0,0,0,1)] text-gray-50'
-          } break-words transition-all duration-300 origin-left ${
+          } break-words transition-all duration-300 origin-left flex items-center flex-wrap gap-x-1.5 ${
             message.status === 'skipped'
               ? (variant === 'inline' ? 'line-through text-slate-500' : 'line-through text-rose-400')
               : message.status === 'done'
                 ? (variant === 'inline' ? 'text-slate-600' : 'text-gray-300')
                 : ''
           } ${isActive ? (variant === 'inline' ? 'text-slate-900 font-medium' : 'text-green-300') : ''}`}>
+            {renderPlatformBadge(message.platform)}
             <span
               className={`font-semibold mr-1.5 ${variant === 'inline' ? '' : 'drop-shadow-[1px_1px_2px_rgba(0,0,0,1)]'}`}
               style={{ color: variant === 'inline' ? '#404040' : (message.authorColor || '#0067C0') }}

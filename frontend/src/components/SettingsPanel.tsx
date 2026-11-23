@@ -33,6 +33,14 @@ interface AppSettings {
   youtube_live_id: string | null;
   enable_youtube: boolean;
   youtube_chat_mode: 'live' | 'top';
+  enable_facebook: boolean;
+  facebook_access_token: string;
+  facebook_target_id: string;
+  facebook_live_id: string | null;
+  enable_instagram: boolean;
+  instagram_access_token: string;
+  instagram_user_id: string;
+  instagram_live_id: string | null;
 }
 
 interface ApiSettings {
@@ -52,6 +60,14 @@ interface ApiSettings {
   youtubeLiveId: string | null;
   enableYoutube: boolean;
   youtubeChatMode?: 'live' | 'top';
+  enableFacebook?: boolean;
+  facebookAccessTokenConfigured?: boolean;
+  facebookTargetId?: string;
+  facebookLiveId?: string | null;
+  enableInstagram?: boolean;
+  instagramAccessTokenConfigured?: boolean;
+  instagramUserId?: string;
+  instagramLiveId?: string | null;
 }
 
 interface SpeechVoice {
@@ -93,6 +109,14 @@ function apiToForm(api: ApiSettings): AppSettings {
     youtube_live_id: api.youtubeLiveId || null,
     enable_youtube: api.enableYoutube ?? true,
     youtube_chat_mode: api.youtubeChatMode === 'top' ? 'top' : 'live',
+    enable_facebook: api.enableFacebook ?? false,
+    facebook_access_token: '',
+    facebook_target_id: api.facebookTargetId || 'me',
+    facebook_live_id: api.facebookLiveId || null,
+    enable_instagram: api.enableInstagram ?? false,
+    instagram_access_token: '',
+    instagram_user_id: api.instagramUserId || '',
+    instagram_live_id: api.instagramLiveId || null,
   };
 }
 
@@ -113,6 +137,14 @@ const DEFAULT_SETTINGS: AppSettings = {
   youtube_live_id: null,
   enable_youtube: true,
   youtube_chat_mode: 'live',
+  enable_facebook: false,
+  facebook_access_token: '',
+  facebook_target_id: 'me',
+  facebook_live_id: null,
+  enable_instagram: false,
+  instagram_access_token: '',
+  instagram_user_id: '',
+  instagram_live_id: null,
 };
 
 const REGION_PRESETS = [
@@ -168,6 +200,17 @@ export default function SettingsPanel({ onRestart, serverPort }: SettingsPanelPr
   const [showKey, setShowKey] = useState(false);
   const [keyConfigured, setKeyConfigured] = useState(false);
   const [clearKey, setClearKey] = useState(false);
+  const [showFacebookToken, setShowFacebookToken] = useState(false);
+  const [facebookTokenConfigured, setFacebookTokenConfigured] = useState(false);
+  const [clearFacebookToken, setClearFacebookToken] = useState(false);
+  const [testingFacebook, setTestingFacebook] = useState(false);
+  const [facebookTestResult, setFacebookTestResult] = useState<{ success: boolean; message: string } | null>(null);
+
+  const [showInstagramToken, setShowInstagramToken] = useState(false);
+  const [instagramTokenConfigured, setInstagramTokenConfigured] = useState(false);
+  const [clearInstagramToken, setClearInstagramToken] = useState(false);
+  const [testingInstagram, setTestingInstagram] = useState(false);
+  const [instagramTestResult, setInstagramTestResult] = useState<{ success: boolean; message: string } | null>(null);
   const [customRegion, setCustomRegion] = useState(false);
   const [customVoice, setCustomVoice] = useState(false);
   const [customVoiceHidden, setCustomVoiceHidden] = useState(false);
@@ -235,6 +278,8 @@ export default function SettingsPanel({ onRestart, serverPort }: SettingsPanelPr
         setSavedRegion(region);
         setCustomRegion(!presetRegionIds.has(region as (typeof REGION_PRESETS)[number][0]));
         setKeyConfigured(data.azureSpeechKeyConfigured);
+        setFacebookTokenConfigured(Boolean(data.facebookAccessTokenConfigured));
+        setInstagramTokenConfigured(Boolean(data.instagramAccessTokenConfigured));
         
         if (formSettings.tts_provider === 'sapi5') {
           void loadVoiceCatalog('', 'sapi5');
@@ -263,12 +308,82 @@ export default function SettingsPanel({ onRestart, serverPort }: SettingsPanelPr
   const updateField = <K extends keyof AppSettings>(field: K, value: AppSettings[K]) => {
     setSettings((previous) => ({ ...previous, [field]: value }));
     if (field === 'azure_speech_key' && value) setClearKey(false);
+    if (field === 'facebook_access_token' && value) setClearFacebookToken(false);
+    if (field === 'instagram_access_token' && value) setClearInstagramToken(false);
     if (fieldErrors[field]) {
       setFieldErrors((previous) => {
         const next = { ...previous };
         delete next[field];
         return next;
       });
+    }
+  };
+
+  const handleTestFacebook = async () => {
+    setTestingFacebook(true);
+    setFacebookTestResult(null);
+    try {
+      const resp = await fetch('/api/meta/test-facebook', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          token: settings.facebook_access_token.trim() || undefined,
+          targetId: settings.facebook_target_id.trim() || undefined,
+        }),
+      });
+      const data = await resp.json();
+      if (data.valid) {
+        setFacebookTestResult({
+          success: true,
+          message: `Connected as ${data.name || data.id || 'User'}!`,
+        });
+      } else {
+        setFacebookTestResult({
+          success: false,
+          message: data.errorMessage || 'Invalid Facebook token or Target ID.',
+        });
+      }
+    } catch (e) {
+      setFacebookTestResult({
+        success: false,
+        message: e instanceof Error ? e.message : 'Network error testing Facebook token.',
+      });
+    } finally {
+      setTestingFacebook(false);
+    }
+  };
+
+  const handleTestInstagram = async () => {
+    setTestingInstagram(true);
+    setInstagramTestResult(null);
+    try {
+      const resp = await fetch('/api/meta/test-instagram', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          token: settings.instagram_access_token.trim() || undefined,
+          targetId: settings.instagram_user_id.trim() || undefined,
+        }),
+      });
+      const data = await resp.json();
+      if (data.valid) {
+        setInstagramTestResult({
+          success: true,
+          message: `Connected as ${data.username || data.name || data.id || 'User'}!`,
+        });
+      } else {
+        setInstagramTestResult({
+          success: false,
+          message: data.errorMessage || 'Invalid Instagram token or User ID.',
+        });
+      }
+    } catch (e) {
+      setInstagramTestResult({
+        success: false,
+        message: e instanceof Error ? e.message : 'Network error testing Instagram token.',
+      });
+    } finally {
+      setTestingInstagram(false);
     }
   };
 
@@ -388,6 +503,17 @@ export default function SettingsPanel({ onRestart, serverPort }: SettingsPanelPr
     if (settings.enable_youtube && !settings.youtube_channel_id.trim()) {
       errors.youtube_channel_id = 'Enter a YouTube channel ID or turn off the listener.';
     }
+    if (settings.enable_facebook && !facebookTokenConfigured && !settings.facebook_access_token.trim()) {
+      errors.facebook_access_token = 'Enter a Meta access token or turn off Facebook Live.';
+    }
+    if (settings.enable_instagram) {
+      if (!instagramTokenConfigured && !settings.instagram_access_token.trim()) {
+        errors.instagram_access_token = 'Enter an Instagram access token or turn off Instagram Live.';
+      }
+      if (!settings.instagram_user_id.trim()) {
+        errors.instagram_user_id = 'Enter an Instagram User ID or turn off Instagram Live.';
+      }
+    }
     setFieldErrors(errors);
     return Object.keys(errors).length === 0;
   };
@@ -421,6 +547,16 @@ export default function SettingsPanel({ onRestart, serverPort }: SettingsPanelPr
           youtubeLiveId: settings.youtube_live_id?.trim() || null,
           enableYoutube: settings.enable_youtube,
           youtubeChatMode: settings.youtube_chat_mode,
+          enableFacebook: settings.enable_facebook,
+          facebookAccessToken: settings.facebook_access_token.trim(),
+          clearFacebookAccessToken: clearFacebookToken,
+          facebookTargetId: settings.facebook_target_id.trim() || 'me',
+          facebookLiveId: settings.facebook_live_id?.trim() || null,
+          enableInstagram: settings.enable_instagram,
+          instagramAccessToken: settings.instagram_access_token.trim(),
+          clearInstagramAccessToken: clearInstagramToken,
+          instagramUserId: settings.instagram_user_id.trim(),
+          instagramLiveId: settings.instagram_live_id?.trim() || null,
         }),
       });
       if (!response.ok) {
@@ -433,7 +569,16 @@ export default function SettingsPanel({ onRestart, serverPort }: SettingsPanelPr
       const region = settings.azure_speech_region.trim() || 'centralindia';
       setKeyConfigured(hasKey);
       setClearKey(false);
-      setSettings((previous) => ({ ...previous, azure_speech_key: '' }));
+      setSettings((previous) => ({
+        ...previous,
+        azure_speech_key: '',
+        facebook_access_token: '',
+        instagram_access_token: '',
+      }));
+      setFacebookTokenConfigured(Boolean(result.settings?.facebookAccessTokenConfigured));
+      setClearFacebookToken(false);
+      setInstagramTokenConfigured(Boolean(result.settings?.instagramAccessTokenConfigured));
+      setClearInstagramToken(false);
       setSavedRegion(region);
       setBanner({ type: 'success', message: 'Settings saved and applied.' });
       setJustSaved(true);
@@ -1008,7 +1153,236 @@ export default function SettingsPanel({ onRestart, serverPort }: SettingsPanelPr
         </div>
       </fieldset>
 
-      {/* Maintenance */}
+      {/* Facebook Live Chat */}
+      <fieldset className="desktop-groupbox">
+        <legend className="desktop-groupbox-legend">Facebook Live Chat (Bring Your Own Token)</legend>
+        <div className="desktop-setting-row">
+          <span className="desktop-setting-label">Listener</span>
+          <label className="flex min-h-7 items-center gap-2 text-xs">
+            <input
+              id="facebook-enabled"
+              type="checkbox"
+              checked={settings.enable_facebook}
+              onChange={(event) => updateField('enable_facebook', event.target.checked)}
+              className="h-3.5 w-3.5 accent-[#555] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#555]"
+            />
+            Enabled
+          </label>
+        </div>
+        <div className="desktop-setting-row">
+          <label htmlFor="facebook-token" className="desktop-setting-label">Access token</label>
+          <div className="min-w-0">
+            <div className="flex gap-1.5">
+              <input
+                id="facebook-token"
+                type={showFacebookToken ? 'text' : 'password'}
+                autoComplete="new-password"
+                value={settings.facebook_access_token}
+                onChange={(event) => updateField('facebook_access_token', event.target.value)}
+                placeholder={facebookTokenConfigured ? 'Enter a new token to replace the saved token' : 'Paste User or Page Access Token'}
+                className={`${fieldClass} font-mono ${fieldErrors.facebook_access_token ? 'border-[#A4262C]' : ''}`}
+                aria-invalid={Boolean(fieldErrors.facebook_access_token)}
+                aria-describedby={fieldErrors.facebook_access_token ? 'facebook-token-error' : undefined}
+              />
+              <button
+                type="button"
+                onClick={() => setShowFacebookToken((visible) => !visible)}
+                className={secondaryButtonClass}
+                title={showFacebookToken ? 'Hide token' : 'Show token'}
+                aria-label={showFacebookToken ? 'Hide Facebook token' : 'Show Facebook token'}
+              >
+                {showFacebookToken ? <EyeOff className="h-3.5 w-3.5" aria-hidden="true" /> : <Eye className="h-3.5 w-3.5" aria-hidden="true" />}
+              </button>
+              {facebookTokenConfigured && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSettings((previous) => ({ ...previous, facebook_access_token: '' }));
+                    setClearFacebookToken((requested) => !requested);
+                  }}
+                  className={secondaryButtonClass}
+                  aria-pressed={clearFacebookToken}
+                >
+                  {clearFacebookToken ? 'Keep token' : 'Clear token'}
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={handleTestFacebook}
+                disabled={testingFacebook || (!facebookTokenConfigured && !settings.facebook_access_token.trim())}
+                className={secondaryButtonClass}
+                title="Test Facebook connection"
+              >
+                {testingFacebook ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" /> : <RefreshCw className="h-3 w-3" aria-hidden="true" />}
+                Test
+              </button>
+              <span className="flex shrink-0 items-center px-1 text-[11px] text-[#555]">
+                {facebookTokenConfigured ? 'Saved' : 'Not set'}
+              </span>
+            </div>
+            {fieldErrors.facebook_access_token && (
+              <p id="facebook-token-error" className="desktop-help-text text-[#A4262C]">{fieldErrors.facebook_access_token}</p>
+            )}
+            {facebookTestResult && (
+              <p className={`desktop-help-text flex items-center gap-1 ${facebookTestResult.success ? 'text-[#107C41]' : 'text-[#A4262C]'}`}>
+                {facebookTestResult.success ? <Check className="h-3 w-3 shrink-0" /> : <AlertCircle className="h-3 w-3 shrink-0" />}
+                {facebookTestResult.message}
+              </p>
+            )}
+            <p className="desktop-help-text">
+              {clearFacebookToken
+                ? 'The saved Facebook token will be removed when you save.'
+                : 'Bring Your Own Token (BYOT). Meta User Token with pages_read_engagement or Page Access Token.'}
+            </p>
+          </div>
+        </div>
+        <div className="desktop-setting-row">
+          <label htmlFor="facebook-target-id" className="desktop-setting-label">Target ID</label>
+          <div className="min-w-0">
+            <input
+              id="facebook-target-id"
+              type="text"
+              value={settings.facebook_target_id}
+              onChange={(event) => updateField('facebook_target_id', event.target.value)}
+              placeholder="me"
+              className={`${fieldClass} font-mono`}
+            />
+            <p className="desktop-help-text">Use &apos;me&apos; for personal timeline (Professional Mode), or enter your Facebook Page ID.</p>
+          </div>
+        </div>
+        <div className="desktop-setting-row">
+          <label htmlFor="facebook-live-id" className="desktop-setting-label">Live video ID</label>
+          <div className="min-w-0">
+            <input
+              id="facebook-live-id"
+              type="text"
+              value={settings.facebook_live_id ?? ''}
+              onChange={(event) => updateField('facebook_live_id', event.target.value || null)}
+              placeholder="Blank to detect automatically"
+              className={`${fieldClass} font-mono`}
+            />
+            <p className="desktop-help-text">Leave blank to automatically discover the current live broadcast.</p>
+          </div>
+        </div>
+      </fieldset>
+
+      {/* Instagram Live Chat */}
+      <fieldset className="desktop-groupbox">
+        <legend className="desktop-groupbox-legend">Instagram Live Chat (Bring Your Own Token)</legend>
+        <div className="desktop-setting-row">
+          <span className="desktop-setting-label">Listener</span>
+          <label className="flex min-h-7 items-center gap-2 text-xs">
+            <input
+              id="instagram-enabled"
+              type="checkbox"
+              checked={settings.enable_instagram}
+              onChange={(event) => updateField('enable_instagram', event.target.checked)}
+              className="h-3.5 w-3.5 accent-[#555] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#555]"
+            />
+            Enabled
+          </label>
+        </div>
+        <div className="desktop-setting-row">
+          <label htmlFor="instagram-token" className="desktop-setting-label">Access token</label>
+          <div className="min-w-0">
+            <div className="flex gap-1.5">
+              <input
+                id="instagram-token"
+                type={showInstagramToken ? 'text' : 'password'}
+                autoComplete="new-password"
+                value={settings.instagram_access_token}
+                onChange={(event) => updateField('instagram_access_token', event.target.value)}
+                placeholder={instagramTokenConfigured ? 'Enter a new token to replace the saved token' : 'Paste Instagram User Access Token'}
+                className={`${fieldClass} font-mono ${fieldErrors.instagram_access_token ? 'border-[#A4262C]' : ''}`}
+                aria-invalid={Boolean(fieldErrors.instagram_access_token)}
+                aria-describedby={fieldErrors.instagram_access_token ? 'instagram-token-error' : undefined}
+              />
+              <button
+                type="button"
+                onClick={() => setShowInstagramToken((visible) => !visible)}
+                className={secondaryButtonClass}
+                title={showInstagramToken ? 'Hide token' : 'Show token'}
+                aria-label={showInstagramToken ? 'Hide Instagram token' : 'Show Instagram token'}
+              >
+                {showInstagramToken ? <EyeOff className="h-3.5 w-3.5" aria-hidden="true" /> : <Eye className="h-3.5 w-3.5" aria-hidden="true" />}
+              </button>
+              {instagramTokenConfigured && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSettings((previous) => ({ ...previous, instagram_access_token: '' }));
+                    setClearInstagramToken((requested) => !requested);
+                  }}
+                  className={secondaryButtonClass}
+                  aria-pressed={clearInstagramToken}
+                >
+                  {clearInstagramToken ? 'Keep token' : 'Clear token'}
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={handleTestInstagram}
+                disabled={testingInstagram || (!instagramTokenConfigured && !settings.instagram_access_token.trim())}
+                className={secondaryButtonClass}
+                title="Test Instagram connection"
+              >
+                {testingInstagram ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" /> : <RefreshCw className="h-3 w-3" aria-hidden="true" />}
+                Test
+              </button>
+              <span className="flex shrink-0 items-center px-1 text-[11px] text-[#555]">
+                {instagramTokenConfigured ? 'Saved' : 'Not set'}
+              </span>
+            </div>
+            {fieldErrors.instagram_access_token && (
+              <p id="instagram-token-error" className="desktop-help-text text-[#A4262C]">{fieldErrors.instagram_access_token}</p>
+            )}
+            {instagramTestResult && (
+              <p className={`desktop-help-text flex items-center gap-1 ${instagramTestResult.success ? 'text-[#107C41]' : 'text-[#A4262C]'}`}>
+                {instagramTestResult.success ? <Check className="h-3 w-3 shrink-0" /> : <AlertCircle className="h-3 w-3 shrink-0" />}
+                {instagramTestResult.message}
+              </p>
+            )}
+            <p className="desktop-help-text">
+              {clearInstagramToken
+                ? 'The saved Instagram token will be removed when you save.'
+                : 'Bring Your Own Token (BYOT). Meta User Token with instagram_basic permission.'}
+            </p>
+          </div>
+        </div>
+        <div className="desktop-setting-row">
+          <label htmlFor="instagram-user-id" className="desktop-setting-label">Instagram User ID</label>
+          <div className="min-w-0">
+            <input
+              id="instagram-user-id"
+              type="text"
+              value={settings.instagram_user_id}
+              onChange={(event) => updateField('instagram_user_id', event.target.value)}
+              placeholder="e.g. 17841400000000000"
+              className={`${fieldClass} font-mono ${fieldErrors.instagram_user_id ? 'border-[#A4262C]' : ''}`}
+              aria-invalid={Boolean(fieldErrors.instagram_user_id)}
+              aria-describedby={fieldErrors.instagram_user_id ? 'instagram-user-id-error' : undefined}
+            />
+            {fieldErrors.instagram_user_id && (
+              <p id="instagram-user-id-error" className="desktop-help-text text-[#A4262C]">{fieldErrors.instagram_user_id}</p>
+            )}
+            <p className="desktop-help-text">Your numeric Instagram Professional/Creator account ID.</p>
+          </div>
+        </div>
+        <div className="desktop-setting-row">
+          <label htmlFor="instagram-live-id" className="desktop-setting-label">Live media ID</label>
+          <div className="min-w-0">
+            <input
+              id="instagram-live-id"
+              type="text"
+              value={settings.instagram_live_id ?? ''}
+              onChange={(event) => updateField('instagram_live_id', event.target.value || null)}
+              placeholder="Blank to detect automatically"
+              className={`${fieldClass} font-mono`}
+            />
+            <p className="desktop-help-text">Leave blank to automatically discover the active Instagram live broadcast.</p>
+          </div>
+        </div>
+      </fieldset>
       <fieldset className="desktop-groupbox">
         <legend className="desktop-groupbox-legend">Maintenance</legend>
         <div className="flex flex-wrap items-center gap-1.5 text-xs text-[#555]">

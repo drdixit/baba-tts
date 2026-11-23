@@ -25,6 +25,11 @@ pub enum WsBroadcastMessage {
         master_volume: u32,
         is_muted: bool,
     },
+    PlatformStatus {
+        platform: String,
+        status: String,
+        message: String,
+    },
 }
 
 pub const MAX_TTS_QUEUE_SIZE: usize = 200;
@@ -790,6 +795,7 @@ mod tests {
             theme: None,
             word_boundaries: None,
             is_superchat: None,
+            platform: None,
         }
     }
 

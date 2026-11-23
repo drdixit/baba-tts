@@ -41,6 +41,8 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/speak-as-banned", post(speak_as_banned_post_handler))
         .route("/api/settings", get(get_settings_handler).post(save_settings_handler))
         .route("/api/voices", get(get_voices_handler))
+        .route("/api/meta/test-facebook", post(test_facebook_handler))
+        .route("/api/meta/test-instagram", post(test_instagram_handler))
         .route("/api/volume", get(get_volume_handler).post(set_volume_handler))
         .route("/api/volume/toggle-mute", post(toggle_mute_handler))
         .route("/api/pause-hotkeys", post(pause_hotkeys_handler))
@@ -220,6 +222,7 @@ async fn baba_say_handler(
         theme: Some("subtitle-karaoke".to_string()),
         word_boundaries: None,
         is_superchat: None,
+        platform: Some("system".to_string()),
     };
 
     let _ = state.broadcast_tx.send(WsBroadcastMessage::Messages(vec![msg.clone()]));
@@ -280,6 +283,7 @@ async fn execute_speak_as_banned(state: &AppState, custom_text: Option<String>) 
         theme: Some("subtitle-words".to_string()),
         word_boundaries: None,
         is_superchat: None,
+        platform: Some("system".to_string()),
     };
 
     let _ = state.broadcast_tx.send(WsBroadcastMessage::Messages(vec![msg.clone()]));
@@ -312,6 +316,14 @@ struct SettingsResponse {
     youtube_live_id: Option<String>,
     enable_youtube: bool,
     youtube_chat_mode: String,
+    enable_facebook: bool,
+    facebook_access_token_configured: bool,
+    facebook_target_id: String,
+    facebook_live_id: Option<String>,
+    enable_instagram: bool,
+    instagram_access_token_configured: bool,
+    instagram_user_id: String,
+    instagram_live_id: Option<String>,
 }
 
 impl From<&AppSettings> for SettingsResponse {
@@ -333,6 +345,14 @@ impl From<&AppSettings> for SettingsResponse {
             youtube_live_id: settings.youtube_live_id.clone(),
             enable_youtube: settings.enable_youtube,
             youtube_chat_mode: settings.youtube_chat_mode.clone(),
+            enable_facebook: settings.enable_facebook,
+            facebook_access_token_configured: !settings.facebook_access_token.trim().is_empty(),
+            facebook_target_id: settings.facebook_target_id.clone(),
+            facebook_live_id: settings.facebook_live_id.clone(),
+            enable_instagram: settings.enable_instagram,
+            instagram_access_token_configured: !settings.instagram_access_token.trim().is_empty(),
+            instagram_user_id: settings.instagram_user_id.clone(),
+            instagram_live_id: settings.instagram_live_id.clone(),
         }
     }
 }
@@ -369,6 +389,26 @@ struct SaveSettingsPayload {
     enable_youtube: bool,
     #[serde(default)]
     youtube_chat_mode: Option<String>,
+    #[serde(default)]
+    enable_facebook: Option<bool>,
+    #[serde(default)]
+    facebook_access_token: Option<String>,
+    #[serde(default)]
+    clear_facebook_access_token: bool,
+    #[serde(default)]
+    facebook_target_id: Option<String>,
+    #[serde(default)]
+    facebook_live_id: Option<String>,
+    #[serde(default)]
+    enable_instagram: Option<bool>,
+    #[serde(default)]
+    instagram_access_token: Option<String>,
+    #[serde(default)]
+    clear_instagram_access_token: bool,
+    #[serde(default)]
+    instagram_user_id: Option<String>,
+    #[serde(default)]
+    instagram_live_id: Option<String>,
 }
 
 impl SaveSettingsPayload {
@@ -435,6 +475,28 @@ impl SaveSettingsPayload {
             .filter(|m| m == "live" || m == "top")
             .unwrap_or(current.youtube_chat_mode);
 
+        let enable_facebook = self.enable_facebook.unwrap_or(current.enable_facebook);
+        let facebook_access_token = if self.clear_facebook_access_token {
+            String::new()
+        } else {
+            self.facebook_access_token
+                .filter(|k| !k.trim().is_empty())
+                .unwrap_or(current.facebook_access_token)
+        };
+        let facebook_target_id = self.facebook_target_id.unwrap_or(current.facebook_target_id);
+        let facebook_live_id = self.facebook_live_id.or(current.facebook_live_id);
+
+        let enable_instagram = self.enable_instagram.unwrap_or(current.enable_instagram);
+        let instagram_access_token = if self.clear_instagram_access_token {
+            String::new()
+        } else {
+            self.instagram_access_token
+                .filter(|k| !k.trim().is_empty())
+                .unwrap_or(current.instagram_access_token)
+        };
+        let instagram_user_id = self.instagram_user_id.unwrap_or(current.instagram_user_id);
+        let instagram_live_id = self.instagram_live_id.or(current.instagram_live_id);
+
         AppSettings {
             tts_provider,
             azure_speech_key,
@@ -452,8 +514,47 @@ impl SaveSettingsPayload {
             youtube_live_id: self.youtube_live_id,
             enable_youtube: self.enable_youtube,
             youtube_chat_mode,
+            enable_facebook,
+            facebook_access_token,
+            facebook_target_id,
+            facebook_live_id,
+            enable_instagram,
+            instagram_access_token,
+            instagram_user_id,
+            instagram_live_id,
         }
     }
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct TestMetaPayload {
+    token: Option<String>,
+    target_id: Option<String>,
+}
+
+async fn test_facebook_handler(
+    State(state): State<AppState>,
+    Json(payload): Json<TestMetaPayload>,
+) -> Response {
+    let settings = state.db.load_settings().unwrap_or_default();
+    let token = payload.token.filter(|t| !t.trim().is_empty()).unwrap_or(settings.facebook_access_token);
+    let target = payload.target_id.filter(|t| !t.trim().is_empty()).unwrap_or(settings.facebook_target_id);
+    let client = crate::meta_client::MetaClient::new();
+    let result = client.test_facebook_token(&token, &target).await;
+    Json(result).into_response()
+}
+
+async fn test_instagram_handler(
+    State(state): State<AppState>,
+    Json(payload): Json<TestMetaPayload>,
+) -> Response {
+    let settings = state.db.load_settings().unwrap_or_default();
+    let token = payload.token.filter(|t| !t.trim().is_empty()).unwrap_or(settings.instagram_access_token);
+    let user_id = payload.target_id.filter(|t| !t.trim().is_empty()).unwrap_or(settings.instagram_user_id);
+    let client = crate::meta_client::MetaClient::new();
+    let result = client.test_instagram_token(&token, &user_id).await;
+    Json(result).into_response()
 }
 
 #[derive(Deserialize)]
@@ -893,6 +994,14 @@ mod tests {
             youtube_live_id: Some("live123".to_string()),
             enable_youtube: false,
             youtube_chat_mode: "top".to_string(),
+            enable_facebook: false,
+            facebook_access_token: String::new(),
+            facebook_target_id: "me".to_string(),
+            facebook_live_id: None,
+            enable_instagram: false,
+            instagram_access_token: String::new(),
+            instagram_user_id: String::new(),
+            instagram_live_id: None,
         };
         let response = app
             .clone()

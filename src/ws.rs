@@ -134,6 +134,12 @@ pub async fn handle_websocket(
                                 "volume": master_volume,
                                 "isMuted": is_muted
                             }),
+                            WsBroadcastMessage::PlatformStatus { platform, status, message } => serde_json::json!({
+                                "type": "platform_status",
+                                "platform": platform,
+                                "status": status,
+                                "message": message,
+                            }),
                         };
 
                         if !json_val.is_null()

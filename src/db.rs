@@ -304,6 +304,58 @@ impl Db {
             }
         }
 
+        if let Some(val) = self.get_setting("enable_facebook")? {
+            settings.enable_facebook = val == "true" || val == "1";
+        } else if let Ok(env_val) = std::env::var("ENABLE_FACEBOOK") {
+            settings.enable_facebook = env_val == "true" || env_val == "1";
+        }
+
+        if let Some(val) = self.get_setting("facebook_access_token")? {
+            settings.facebook_access_token = val;
+        } else if let Ok(env_val) = std::env::var("FACEBOOK_ACCESS_TOKEN") {
+            settings.facebook_access_token = env_val;
+        }
+
+        if let Some(val) = self.get_setting("facebook_target_id")? {
+            if !val.trim().is_empty() {
+                settings.facebook_target_id = val;
+            }
+        } else if let Ok(env_val) = std::env::var("FACEBOOK_TARGET_ID") {
+            if !env_val.trim().is_empty() {
+                settings.facebook_target_id = env_val;
+            }
+        }
+
+        if let Some(val) = self.get_setting("facebook_live_id")? {
+            settings.facebook_live_id = if val.trim().is_empty() { None } else { Some(val) };
+        } else if let Ok(env_val) = std::env::var("FACEBOOK_LIVE_ID") {
+            settings.facebook_live_id = if env_val.trim().is_empty() { None } else { Some(env_val) };
+        }
+
+        if let Some(val) = self.get_setting("enable_instagram")? {
+            settings.enable_instagram = val == "true" || val == "1";
+        } else if let Ok(env_val) = std::env::var("ENABLE_INSTAGRAM") {
+            settings.enable_instagram = env_val == "true" || env_val == "1";
+        }
+
+        if let Some(val) = self.get_setting("instagram_access_token")? {
+            settings.instagram_access_token = val;
+        } else if let Ok(env_val) = std::env::var("INSTAGRAM_ACCESS_TOKEN") {
+            settings.instagram_access_token = env_val;
+        }
+
+        if let Some(val) = self.get_setting("instagram_user_id")? {
+            settings.instagram_user_id = val;
+        } else if let Ok(env_val) = std::env::var("INSTAGRAM_USER_ID") {
+            settings.instagram_user_id = env_val;
+        }
+
+        if let Some(val) = self.get_setting("instagram_live_id")? {
+            settings.instagram_live_id = if val.trim().is_empty() { None } else { Some(val) };
+        } else if let Ok(env_val) = std::env::var("INSTAGRAM_LIVE_ID") {
+            settings.instagram_live_id = if env_val.trim().is_empty() { None } else { Some(env_val) };
+        }
+
         Ok(settings)
     }
 
@@ -330,6 +382,14 @@ impl Db {
         self.set_setting("youtube_live_id", settings.youtube_live_id.as_deref().unwrap_or(""))?;
         self.set_setting("enable_youtube", if settings.enable_youtube { "true" } else { "false" })?;
         self.set_setting("youtube_chat_mode", &settings.youtube_chat_mode)?;
+        self.set_setting("enable_facebook", if settings.enable_facebook { "true" } else { "false" })?;
+        self.set_setting("facebook_access_token", &settings.facebook_access_token)?;
+        self.set_setting("facebook_target_id", &settings.facebook_target_id)?;
+        self.set_setting("facebook_live_id", settings.facebook_live_id.as_deref().unwrap_or(""))?;
+        self.set_setting("enable_instagram", if settings.enable_instagram { "true" } else { "false" })?;
+        self.set_setting("instagram_access_token", &settings.instagram_access_token)?;
+        self.set_setting("instagram_user_id", &settings.instagram_user_id)?;
+        self.set_setting("instagram_live_id", settings.instagram_live_id.as_deref().unwrap_or(""))?;
         Ok(())
     }
 }
@@ -366,6 +426,14 @@ mod tests {
         settings.azure_speech_key = "test_key_123".to_string();
         settings.enable_youtube = false;
         settings.youtube_chat_mode = "top".to_string();
+        settings.enable_facebook = true;
+        settings.facebook_access_token = "EAAB12345".to_string();
+        settings.facebook_target_id = "page_99".to_string();
+        settings.facebook_live_id = Some("live_fb_123".to_string());
+        settings.enable_instagram = true;
+        settings.instagram_access_token = "IGQVJ123".to_string();
+        settings.instagram_user_id = "ig_user_456".to_string();
+        settings.instagram_live_id = Some("live_ig_789".to_string());
 
         db.save_settings(&settings).unwrap();
 
@@ -373,5 +441,13 @@ mod tests {
         assert_eq!(loaded.azure_speech_key, "test_key_123");
         assert!(!loaded.enable_youtube);
         assert_eq!(loaded.youtube_chat_mode, "top");
+        assert!(loaded.enable_facebook);
+        assert_eq!(loaded.facebook_access_token, "EAAB12345");
+        assert_eq!(loaded.facebook_target_id, "page_99");
+        assert_eq!(loaded.facebook_live_id, Some("live_fb_123".to_string()));
+        assert!(loaded.enable_instagram);
+        assert_eq!(loaded.instagram_access_token, "IGQVJ123");
+        assert_eq!(loaded.instagram_user_id, "ig_user_456");
+        assert_eq!(loaded.instagram_live_id, Some("live_ig_789".to_string()));
     }
 }

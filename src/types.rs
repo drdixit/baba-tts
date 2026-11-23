@@ -1,4 +1,55 @@
 use serde::{Deserialize, Serialize};
+use std::collections::{HashSet, VecDeque};
+
+pub const DEFAULT_SEEN_CACHE_CAPACITY: usize = 4096;
+
+#[derive(Debug)]
+pub struct SeenMessageCache {
+    set: HashSet<String>,
+    queue: VecDeque<String>,
+    capacity: usize,
+}
+
+impl SeenMessageCache {
+    pub fn new(capacity: usize) -> Self {
+        Self {
+            set: HashSet::with_capacity(capacity),
+            queue: VecDeque::with_capacity(capacity),
+            capacity,
+        }
+    }
+
+    /// Inserts a message ID. Returns true if the message was NOT already present (new message).
+    pub fn insert(&mut self, id: String) -> bool {
+        if id.is_empty() {
+            return true;
+        }
+        if self.set.contains(&id) {
+            return false;
+        }
+        if self.queue.len() >= self.capacity {
+            if let Some(oldest) = self.queue.pop_front() {
+                self.set.remove(&oldest);
+            }
+        }
+        self.set.insert(id.clone());
+        self.queue.push_back(id);
+        true
+    }
+
+    #[allow(dead_code)]
+    pub fn contains(&self, id: &str) -> bool {
+        if id.is_empty() {
+            return false;
+        }
+        self.set.contains(id)
+    }
+
+    pub fn clear(&mut self) {
+        self.set.clear();
+        self.queue.clear();
+    }
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -29,6 +80,8 @@ pub struct ChatMessage {
     pub word_boundaries: Option<Vec<WordBoundary>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub is_superchat: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub platform: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -82,6 +135,22 @@ pub struct AppSettings {
     pub enable_youtube: bool,
     #[serde(default = "default_youtube_chat_mode")]
     pub youtube_chat_mode: String,
+    #[serde(default)]
+    pub enable_facebook: bool,
+    #[serde(default)]
+    pub facebook_access_token: String,
+    #[serde(default = "default_facebook_target_id")]
+    pub facebook_target_id: String,
+    #[serde(default)]
+    pub facebook_live_id: Option<String>,
+    #[serde(default)]
+    pub enable_instagram: bool,
+    #[serde(default)]
+    pub instagram_access_token: String,
+    #[serde(default)]
+    pub instagram_user_id: String,
+    #[serde(default)]
+    pub instagram_live_id: Option<String>,
 }
 
 fn default_tts_provider() -> String {
@@ -104,6 +173,10 @@ fn default_youtube_chat_mode() -> String {
     "live".to_string()
 }
 
+fn default_facebook_target_id() -> String {
+    "me".to_string()
+}
+
 impl Default for AppSettings {
     fn default() -> Self {
         Self {
@@ -123,6 +196,14 @@ impl Default for AppSettings {
             youtube_live_id: None,
             enable_youtube: true,
             youtube_chat_mode: "live".to_string(),
+            enable_facebook: false,
+            facebook_access_token: String::new(),
+            facebook_target_id: "me".to_string(),
+            facebook_live_id: None,
+            enable_instagram: false,
+            instagram_access_token: String::new(),
+            instagram_user_id: String::new(),
+            instagram_live_id: None,
         }
     }
 }

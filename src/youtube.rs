@@ -2,13 +2,12 @@ use crate::colors::get_deterministic_color;
 use crate::db::Db;
 use crate::spam_filter::SpamFilter;
 use crate::tts_queue::{TtsHandle, WsBroadcastMessage};
-use crate::types::{ChatMessage, MessageStatus};
+pub use crate::types::{ChatMessage, MessageStatus, SeenMessageCache, DEFAULT_SEEN_CACHE_CAPACITY};
 use anyhow::{bail, Context, Result};
 use regex::Regex;
 use reqwest::header::{HeaderMap, HeaderValue, ACCEPT_LANGUAGE, USER_AGENT};
 use reqwest::Client;
 use serde_json::Value;
-use std::collections::{HashSet, VecDeque};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -16,56 +15,7 @@ use tokio::sync::broadcast;
 use tokio::time::sleep;
 use tracing::{info, warn};
 
-pub const DEFAULT_SEEN_CACHE_CAPACITY: usize = 4096;
 pub const SUPERCHAT_GRACE_WINDOW_USEC: u64 = 60_000_000; // 60 seconds
-
-#[derive(Debug)]
-pub struct SeenMessageCache {
-    set: HashSet<String>,
-    queue: VecDeque<String>,
-    capacity: usize,
-}
-
-impl SeenMessageCache {
-    pub fn new(capacity: usize) -> Self {
-        Self {
-            set: HashSet::with_capacity(capacity),
-            queue: VecDeque::with_capacity(capacity),
-            capacity,
-        }
-    }
-
-    /// Inserts a message ID. Returns true if the message was NOT already present (new message).
-    pub fn insert(&mut self, id: String) -> bool {
-        if id.is_empty() {
-            return true;
-        }
-        if self.set.contains(&id) {
-            return false;
-        }
-        if self.queue.len() >= self.capacity {
-            if let Some(oldest) = self.queue.pop_front() {
-                self.set.remove(&oldest);
-            }
-        }
-        self.set.insert(id.clone());
-        self.queue.push_back(id);
-        true
-    }
-
-    #[allow(dead_code)]
-    pub fn contains(&self, id: &str) -> bool {
-        if id.is_empty() {
-            return false;
-        }
-        self.set.contains(id)
-    }
-
-    pub fn clear(&mut self) {
-        self.set.clear();
-        self.queue.clear();
-    }
-}
 
 pub struct YouTubePoller {
     client: Client,
@@ -435,6 +385,7 @@ impl YouTubePoller {
                         theme: Some(theme),
                         word_boundaries: None,
                         is_superchat: Some(is_superchat),
+                        platform: Some("youtube".to_string()),
                     };
 
                     new_messages.push(chat_msg);

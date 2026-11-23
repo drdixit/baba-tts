@@ -19,4 +19,5 @@ export interface ChatMessage {
   status: MessageStatus;
   theme?: ChatTheme;
   wordBoundaries?: WordBoundary[];
+  platform?: string;
 }
