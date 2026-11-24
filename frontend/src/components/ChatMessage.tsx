@@ -73,20 +73,118 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({ message, currentAu
 
   const authorBoundaries = React.useMemo(() => {
     if (isDirectSpeech || !message.wordBoundaries || message.wordBoundaries.length === 0) return [];
-    if (message.wordBoundaries[0].textOffset === undefined) {
-      return message.wordBoundaries.length > numAuthorWords ? message.wordBoundaries.slice(0, numAuthorWords) : [];
+    if (message.wordBoundaries[0]?.textOffset !== undefined) {
+      return message.wordBoundaries.filter(w => (w.textOffset ?? 0) < prefixLength);
     }
-    return message.wordBoundaries.filter(w => w.textOffset !== undefined && w.textOffset < prefixLength);
+    const saysIndex = message.wordBoundaries.findIndex(
+      (w, idx) => idx < 8 && w.text.trim().toLowerCase().replace(/[^\w]/g, '') === 'says'
+    );
+    if (saysIndex !== -1) {
+      return message.wordBoundaries.slice(0, saysIndex + 1);
+    }
+    return message.wordBoundaries.length > numAuthorWords ? message.wordBoundaries.slice(0, numAuthorWords) : [];
   }, [message.wordBoundaries, prefixLength, numAuthorWords, isDirectSpeech]);
 
   const messageBoundaries = React.useMemo(() => {
     if (!message.wordBoundaries || message.wordBoundaries.length === 0) return boundaries;
     if (isDirectSpeech) return message.wordBoundaries;
-    if (message.wordBoundaries[0].textOffset === undefined) {
-      return message.wordBoundaries.length > numAuthorWords ? message.wordBoundaries.slice(numAuthorWords) : boundaries;
+
+    let sliced = message.wordBoundaries;
+    const hasOffset = message.wordBoundaries[0]?.textOffset !== undefined;
+
+    // 1. If text offset is available from Azure or SAPI5, filter by prefixLength
+    if (hasOffset) {
+      sliced = message.wordBoundaries.filter(w => (w.textOffset ?? 0) >= prefixLength);
+    } else {
+      // 2. Token-based exact matching: locate the word "says" in the first 8 tokens
+      const saysIndex = message.wordBoundaries.findIndex(
+        (w, idx) => idx < 8 && w.text.trim().toLowerCase().replace(/[^\w]/g, '') === 'says'
+      );
+
+      if (saysIndex !== -1 && saysIndex + 1 < message.wordBoundaries.length) {
+        sliced = message.wordBoundaries.slice(saysIndex + 1);
+      } else if (message.wordBoundaries.length > numAuthorWords) {
+        sliced = message.wordBoundaries.slice(numAuthorWords);
+      }
+
+      // Safety guard in fallback mode: Never allow a leading "says" token to leak into message display
+      while (sliced.length > 0 && sliced[0].text.trim().toLowerCase().replace(/[^\w]/g, '') === 'says') {
+        sliced = sliced.slice(1);
+      }
     }
-    return message.wordBoundaries.filter(w => w.textOffset === undefined || w.textOffset >= prefixLength);
+
+    return sliced.length > 0 ? sliced : boundaries;
   }, [message.wordBoundaries, boundaries, prefixLength, numAuthorWords, isDirectSpeech]);
+
+  const isPureEmoji = React.useMemo(() => {
+    return !/[a-zA-Z0-9\p{L}\p{N}]/u.test(message.text);
+  }, [message.text]);
+
+  interface DisplayToken {
+    text: string;
+    word?: typeof boundaries[0];
+    anchorIndex: number;
+    isEmoji: boolean;
+  }
+
+  const displayTokens = React.useMemo<DisplayToken[]>(() => {
+    const rawTokens = message.text.trim().split(/\s+/).filter(Boolean);
+    if (rawTokens.length === 0) return [];
+
+    if (isPureEmoji) {
+      return rawTokens.map(t => ({
+        text: t,
+        anchorIndex: 0,
+        isEmoji: true,
+      }));
+    }
+
+    // Align visual tokens from message.text with spoken messageBoundaries
+    let boundIdx = 0;
+    let lastAnchor = 0;
+    const tokens: DisplayToken[] = [];
+
+    for (const token of rawTokens) {
+      const normToken = token.toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
+      if (normToken.length === 0) {
+        tokens.push({
+          text: token,
+          anchorIndex: lastAnchor,
+          isEmoji: true,
+        });
+        continue;
+      }
+
+      let matchIdx = -1;
+      for (let j = boundIdx; j < Math.min(boundIdx + 4, messageBoundaries.length); j++) {
+        const normBound = messageBoundaries[j].text.toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
+        if (normBound && (normToken.includes(normBound) || normBound.includes(normToken))) {
+          matchIdx = j;
+          break;
+        }
+      }
+
+      if (matchIdx !== -1) {
+        boundIdx = matchIdx;
+        lastAnchor = boundIdx;
+        tokens.push({
+          text: token,
+          word: messageBoundaries[boundIdx],
+          anchorIndex: boundIdx,
+          isEmoji: false,
+        });
+        boundIdx++;
+      } else {
+        tokens.push({
+          text: token,
+          anchorIndex: lastAnchor,
+          isEmoji: false,
+        });
+      }
+    }
+
+    return tokens;
+  }, [message.text, isPureEmoji, messageBoundaries]);
 
   const isAuthorSpeaking = React.useMemo(() => {
     return authorBoundaries.some(word =>
@@ -172,17 +270,40 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({ message, currentAu
                 {(() => {
                     let activeWordIndex = -1;
                     if (message.status === 'speaking' && currentAudioTime !== undefined) {
-                      for (let i = messageBoundaries.length - 1; i >= 0; i--) {
-                        if (currentAudioTime >= messageBoundaries[i].audioOffset) {
+                      const HOLD_CUSHION_SECS = 0.08; // 80ms cushion prevents dropped rAF frames from skipping short words
+                      for (let i = 0; i < messageBoundaries.length; i++) {
+                        const word = messageBoundaries[i];
+                        const wordStart = word.audioOffset;
+                        const wordEnd = wordStart + (word.duration || 0.25) + HOLD_CUSHION_SECS;
+                        if (currentAudioTime >= wordStart && currentAudioTime <= wordEnd) {
                           activeWordIndex = i;
                           break;
                         }
                       }
                     }
 
-                    return messageBoundaries.map((word, i) => {
-                      const isHighlighted = i === activeWordIndex;
-                      const isPast = i < activeWordIndex;
+                    const isDone = message.status === 'done' || message.status === 'skipped';
+                    const itemsToRender = displayTokens.length > 0
+                      ? displayTokens
+                      : messageBoundaries.map((w, idx) => ({ text: w.text, word: w, anchorIndex: idx, isEmoji: false }));
+
+                    return itemsToRender.map((item, i) => {
+                      let isHighlighted: boolean;
+                      let isPast: boolean;
+
+                      if (isPureEmoji) {
+                        isHighlighted = message.status === 'speaking';
+                        isPast = isDone;
+                      } else if (item.word) {
+                        isHighlighted = activeWordIndex === item.anchorIndex;
+                        isPast = isDone || (activeWordIndex !== -1
+                          ? item.anchorIndex < activeWordIndex
+                          : (message.status === 'speaking' && currentAudioTime !== undefined && currentAudioTime > (item.word.audioOffset + (item.word.duration || 0.25))));
+                      } else {
+                        isHighlighted = activeWordIndex === item.anchorIndex;
+                        isPast = isDone || (activeWordIndex !== -1 && activeWordIndex > item.anchorIndex);
+                      }
+
                       const isRead = isHighlighted || isPast;
 
                       let content: React.ReactNode;
@@ -198,7 +319,7 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({ message, currentAu
                               color: isRead ? authorColor : undefined,
                             } as React.CSSProperties}
                           >
-                            {word.text}
+                            {item.text}
                           </span>
                         );
                       } else if (message.theme === 'subtitle-words') {
@@ -207,14 +328,14 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({ message, currentAu
                             className={`inline-block px-1.5 py-0.5 mx-0.5 rounded-md transition-all ${
                               isHighlighted
                                 ? 'scale-105 font-bold shadow-xs'
-                                : 'scale-100 ' + (isPast || message.status === 'done' || message.status === 'skipped' ? (variant === 'inline' ? 'text-slate-800' : 'text-[#f0fdf4]') : (variant === 'inline' ? 'text-slate-500' : 'text-gray-500'))
+                                : 'scale-100 ' + (isPast || isDone ? (variant === 'inline' ? 'text-slate-800' : 'text-[#f0fdf4]') : (variant === 'inline' ? 'text-slate-500' : 'text-gray-500'))
                             }`}
                             style={{
                               backgroundColor: isHighlighted ? authorColor : 'transparent',
                               color: isHighlighted ? (variant === 'inline' ? '#ffffff' : '#000') : undefined,
                             } as React.CSSProperties}
                           >
-                            {word.text}
+                            {item.text}
                           </span>
                         );
                       } else if (message.theme === 'pro-clean') {
@@ -227,7 +348,7 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({ message, currentAu
                               textShadow: isHighlighted ? (variant === 'inline' ? 'none' : `0 0 12px ${authorColor}`) : 'none'
                             } as React.CSSProperties}
                           >
-                            {word.text}
+                            {item.text}
                           </span>
                         );
                       } else if (message.theme === 'subtitle-sweep') {
@@ -235,17 +356,17 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({ message, currentAu
                           <span
                             className={isRead ? (variant === 'inline' ? 'text-slate-900 font-bold' : 'text-white') : (variant === 'inline' ? 'text-slate-400' : 'text-gray-500')}
                           >
-                            {word.text}
+                            {item.text}
                           </span>
                         );
                       } else {
-                        content = <span className={variant === 'inline' ? 'text-slate-900' : 'text-white'}>{word.text}</span>;
+                        content = <span className={variant === 'inline' ? 'text-slate-900' : 'text-white'}>{item.text}</span>;
                       }
 
                       return (
                         <React.Fragment key={i}>
                           {content}
-                          {variant === 'inline' && i < messageBoundaries.length - 1 ? ' ' : ''}
+                          {variant === 'inline' && i < itemsToRender.length - 1 ? ' ' : ''}
                         </React.Fragment>
                       );
                     });

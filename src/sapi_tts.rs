@@ -53,17 +53,24 @@ pub fn estimate_word_boundaries(text: &str, duration_secs: f64) -> Vec<WordBound
 
     let mut boundaries = Vec::with_capacity(words.len());
     let mut current_offset = 0.0;
+    let mut search_start = 0;
 
     for word in words.iter() {
         let count = word.chars().count();
         let fraction = count as f64 / total_chars as f64;
         let word_dur = fraction * duration_secs;
 
+        let char_offset = text[search_start..].find(word).map(|pos| {
+            let abs_pos = search_start + pos;
+            search_start = abs_pos + word.len();
+            text[..abs_pos].chars().count()
+        });
+
         boundaries.push(WordBoundary {
             text: word.to_string(),
             audio_offset: (current_offset * 1000.0f64).round() / 1000.0f64,
             duration: (word_dur * 1000.0f64).round() / 1000.0f64,
-            text_offset: None,
+            text_offset: char_offset,
         });
 
         current_offset += word_dur;
@@ -423,8 +430,26 @@ mod tests {
         assert_eq!(boundaries.len(), 4);
         assert_eq!(boundaries[0].text, "Hello");
         assert_eq!(boundaries[3].text, "SAPI");
-        assert!(boundaries[0].text_offset.is_none());
+        assert_eq!(boundaries[0].text_offset, Some(0));
+        assert_eq!(boundaries[1].text_offset, Some(6));
+        assert_eq!(boundaries[3].text_offset, Some(17));
         assert!(boundaries.last().unwrap().audio_offset < 2.0);
+    }
+
+    #[test]
+    fn test_estimate_word_boundaries_multibyte() {
+        // "Bábá" has 4 characters but 6 bytes (á is 2 bytes: 0xC3 0xA1)
+        let text = "Bábá says hello";
+        let boundaries = estimate_word_boundaries(text, 1.5);
+        assert_eq!(boundaries.len(), 3);
+        assert_eq!(boundaries[0].text, "Bábá");
+        assert_eq!(boundaries[0].text_offset, Some(0));
+        assert_eq!(boundaries[1].text, "says");
+        // Byte index of "says" would be 6 + 1 = 7, but character index is 4 + 1 = 5
+        assert_eq!(boundaries[1].text_offset, Some(5));
+        assert_eq!(boundaries[2].text, "hello");
+        // Character index of "hello" is 5 + 4 + 1 = 10
+        assert_eq!(boundaries[2].text_offset, Some(10));
     }
 
     #[tokio::test]

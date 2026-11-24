@@ -68,7 +68,11 @@ export function useAppWebSocket(playAudio: boolean = false) {
                 cancelAnimationFrame(rafRef.current);
                 rafRef.current = null;
               }
-              setCurrentAudioTime(0);
+              // Do not immediately reset time to 0 on 'done' so the final highlighted words
+              // don't flicker back to unread state while animating out.
+              if (data.state !== 'done') {
+                setCurrentAudioTime(0);
+              }
             }
           } else if (data.type === 'tts_error') {
             useStore.getState().updateMessageStatus(data.messageId, 'error');
@@ -115,9 +119,11 @@ export function useAppWebSocket(playAudio: boolean = false) {
                 const last = boundaries[boundaries.length - 1];
                 totalDuration = (last.audioOffset || 0) + (last.duration || 0) + 0.2;
               }
+              // Compensate for ~85ms Windows WASAPI buffer pre-roll & decoding latency
+              const WASAPI_LATENCY_DELAY_SEC = 0.085;
               const startTime = performance.now();
               const virtualLoop = (now: number) => {
-                const elapsed = (now - startTime) / 1000;
+                const elapsed = Math.max(0, (now - startTime) / 1000 - WASAPI_LATENCY_DELAY_SEC);
                 if (elapsed < totalDuration) {
                   setCurrentAudioTime(elapsed);
                   rafRef.current = requestAnimationFrame(virtualLoop);

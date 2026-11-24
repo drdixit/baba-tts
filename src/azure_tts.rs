@@ -30,6 +30,8 @@ struct AzureWordBoundaryData {
     offset_ticks: u64,
     #[serde(rename = "Duration")]
     duration_ticks: u64,
+    #[serde(rename = "textOffset", alias = "TextOffset")]
+    text_offset: Option<usize>,
     text: Option<AzureWordText>,
 }
 
@@ -175,7 +177,7 @@ impl AzureTtsClient {
                                                         // 10,000,000 ticks per second = 10,000 ticks per millisecond
                                                         audio_offset: data.offset_ticks as f64 / 10_000_000.0,
                                                         duration: data.duration_ticks as f64 / 10_000_000.0,
-                                                        text_offset: None,
+                                                        text_offset: data.text_offset,
                                                     });
                                                 }
                                             }

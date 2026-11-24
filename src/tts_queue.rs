@@ -32,6 +32,74 @@ pub enum WsBroadcastMessage {
     },
 }
 
+pub fn sanitize_text_for_speech(text: &str) -> String {
+    // 1. Remove shortcodes e.g. :smile: or :heart:
+    let without_shortcodes = {
+        let mut result = String::with_capacity(text.len());
+        let mut chars = text.chars().peekable();
+        while let Some(c) = chars.next() {
+            if c == ':' {
+                let mut candidate = String::new();
+                let mut found_end = false;
+                for next_c in chars.by_ref() {
+                    if next_c == ':' {
+                        found_end = true;
+                        break;
+                    } else if next_c.is_alphanumeric() || next_c == '_' || next_c == '+' || next_c == '-' {
+                        candidate.push(next_c);
+                        if candidate.len() > 32 {
+                            break;
+                        }
+                    } else {
+                        candidate.push(next_c);
+                        break;
+                    }
+                }
+                if !found_end || candidate.is_empty() || candidate.contains(' ') {
+                    result.push(':');
+                    result.push_str(&candidate);
+                } else {
+                    result.push(' ');
+                }
+            } else {
+                result.push(c);
+            }
+        }
+        result
+    };
+
+    // 2. Remove Unicode emojis so Azure/SAPI does not pronounce "grinning face with smiling eyes"
+    let without_emojis: String = without_shortcodes
+        .chars()
+        .filter(|&c| {
+            let u = c as u32;
+            !(0x1F300..=0x1FAFF).contains(&u)
+                && !(0x2600..=0x27BF).contains(&u)
+                && !(0x1F600..=0x1F64F).contains(&u)
+                && !(0x1F680..=0x1F6FF).contains(&u)
+                && !(0xFE00..=0xFE0F).contains(&u)
+                && u != 0x200D
+        })
+        .collect();
+
+    without_emojis.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+pub fn build_speech_text(author_name: &str, raw_text: &str) -> String {
+    let clean_body = sanitize_text_for_speech(raw_text);
+    if author_name.eq_ignore_ascii_case("BABA") {
+        if clean_body.is_empty() {
+            raw_text.to_string()
+        } else {
+            clean_body
+        }
+    } else if clean_body.is_empty() {
+        format!("{} sent emojis", author_name)
+    } else {
+        format!("{} says {}", author_name, clean_body)
+    }
+}
+
 pub const MAX_TTS_QUEUE_SIZE: usize = 200;
 
 #[derive(Clone, Debug)]
@@ -589,11 +657,7 @@ impl TtsActor {
                                         let sapi_rate = self.settings.sapi_rate;
                                         let sapi_volume = self.settings.sapi_volume;
                                         let self_handle = self.self_handle.clone();
-                                        let text_to_speak = if curr.author_name.eq_ignore_ascii_case("BABA") {
-                                            curr.text.clone()
-                                        } else {
-                                            format!("{} says {}", curr.author_name, curr.text)
-                                        };
+                                        let text_to_speak = build_speech_text(&curr.author_name, &curr.text);
                                         let mid = message_id.clone();
                                         tokio::spawn(async move {
                                             let res = match tokio::time::timeout(
@@ -658,11 +722,7 @@ impl TtsActor {
         });
 
         let self_handle = self.self_handle.clone();
-        let text_to_speak = if msg.author_name.eq_ignore_ascii_case("BABA") {
-            msg.text.clone()
-        } else {
-            format!("{} says {}", msg.author_name, msg.text)
-        };
+        let text_to_speak = build_speech_text(&msg.author_name, &msg.text);
 
         if self.settings.tts_provider == "sapi5" {
             let sapi_voice = if self.settings.sapi_voice_rotation {
@@ -797,6 +857,17 @@ mod tests {
             is_superchat: None,
             platform: None,
         }
+    }
+
+    #[test]
+    fn test_sanitize_text_for_speech_and_build_speech() {
+        assert_eq!(sanitize_text_for_speech("Hello world :fire: :smile:!"), "Hello world !");
+        assert_eq!(sanitize_text_for_speech("Great job ❤️🔥🎉!"), "Great job !");
+        assert_eq!(sanitize_text_for_speech("🔥❤️"), "");
+
+        assert_eq!(build_speech_text("Alice", "Hello there!"), "Alice says Hello there!");
+        assert_eq!(build_speech_text("BABA", "Quick prompt"), "Quick prompt");
+        assert_eq!(build_speech_text("Bob", "🔥❤️"), "Bob sent emojis");
     }
 
     #[tokio::test]

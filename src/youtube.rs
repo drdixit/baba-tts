@@ -616,6 +616,82 @@ pub struct ParsedChatAction {
     pub timestamp_usec: u64,
 }
 
+pub fn shortcode_to_unicode(shortcut: &str) -> &str {
+    match shortcut {
+        ":smile:" | ":-)" | ":)" => "😄",
+        ":grinning:" | ":D" | ":-D" => "😀",
+        ":joy:" => "😂",
+        ":rofl:" => "🤣",
+        ":heart:" | "<3" => "❤️",
+        ":fire:" => "🔥",
+        ":thumbsup:" | ":+1:" => "👍",
+        ":thumbsdown:" | ":-1:" => "👎",
+        ":clap:" => "👏",
+        ":pray:" => "🙏",
+        ":eyes:" => "👀",
+        ":thinking:" => "🤔",
+        ":sob:" | ":'(" => "😭",
+        ":skull:" => "💀",
+        ":100:" => "💯",
+        ":tada:" | ":party:" => "🎉",
+        ":partying_face:" => "🥳",
+        ":sparkles:" => "✨",
+        ":star:" => "⭐",
+        ":wave:" => "👋",
+        ":wink:" | ";)" | ";-)" => "😉",
+        ":sunglasses:" | "B)" | "B-)" => "😎",
+        ":heart_eyes:" => "😍",
+        ":kissing_heart:" | ":*" => "😘",
+        ":neutral_face:" | ":|" => "😐",
+        ":rolling_eyes:" => "🙄",
+        ":sweat_smile:" => "😅",
+        ":cry:" => "😢",
+        ":angry:" | ">:(" => "😠",
+        ":rage:" => "😡",
+        ":scream:" => "😱",
+        ":flushed:" => "😳",
+        ":raised_hands:" => "🙌",
+        ":muscle:" => "💪",
+        ":ok_hand:" => "👌",
+        ":peace:" | ":v:" => "✌️",
+        ":salute:" => "🫡",
+        ":point_up:" => "☝️",
+        ":cat:" | ":cat_face:" => "🐱",
+        ":dog:" | ":dog_face:" => "🐶",
+        ":check:" | ":heavy_check_mark:" => "✅",
+        ":x:" | ":cross_mark:" => "❌",
+        _ => shortcut,
+    }
+}
+
+pub fn extract_run_text_or_emoji(r: &Value) -> Option<String> {
+    if let Some(t) = r.get("text").and_then(|v| v.as_str()) {
+        return Some(t.to_string());
+    }
+
+    // 1. Direct Unicode emoji from emojiId (standard emojis on YouTube have the Unicode char here)
+    if let Some(emoji_id) = r.pointer("/emoji/emojiId").and_then(|v| v.as_str()) {
+        if !emoji_id.starts_with("UC") && emoji_id.chars().any(|c| c as u32 > 0x7F) {
+            return Some(emoji_id.to_string());
+        }
+    }
+
+    // 2. Direct Unicode emoji from image accessibility label
+    if let Some(label) = r.pointer("/emoji/image/accessibility/accessibilityData/label").and_then(|v| v.as_str()) {
+        if label.chars().any(|c| c as u32 > 0x7F) && label.chars().count() <= 2 {
+            return Some(label.to_string());
+        }
+    }
+
+    // 3. Map shortcodes e.g. :smile: to real Unicode glyphs
+    if let Some(shortcut) = r.pointer("/emoji/shortcuts/0").and_then(|v| v.as_str()) {
+        let mapped = shortcode_to_unicode(shortcut);
+        return Some(mapped.to_string());
+    }
+
+    None
+}
+
 pub fn parse_chat_action(action: &Value) -> Option<ParsedChatAction> {
     let text_renderer = action.pointer("/addChatItemAction/item/liveChatTextMessageRenderer");
     let paid_renderer = action.pointer("/addChatItemAction/item/liveChatPaidMessageRenderer");
@@ -650,10 +726,8 @@ pub fn parse_chat_action(action: &Value) -> Option<ParsedChatAction> {
         let mut text = String::new();
         if let Some(runs) = renderer.pointer("/message/runs").and_then(|v| v.as_array()) {
             for r in runs {
-                if let Some(t) = r.get("text").and_then(|v| v.as_str()) {
-                    text.push_str(t);
-                } else if let Some(e) = r.pointer("/emoji/shortcuts/0").and_then(|v| v.as_str()) {
-                    text.push_str(e);
+                if let Some(chunk) = extract_run_text_or_emoji(r) {
+                    text.push_str(&chunk);
                 }
             }
         }
@@ -710,10 +784,8 @@ pub fn parse_chat_action(action: &Value) -> Option<ParsedChatAction> {
         let mut user_text = String::new();
         if let Some(runs) = renderer.pointer("/message/runs").and_then(|v| v.as_array()) {
             for r in runs {
-                if let Some(t) = r.get("text").and_then(|v| v.as_str()) {
-                    user_text.push_str(t);
-                } else if let Some(e) = r.pointer("/emoji/shortcuts/0").and_then(|v| v.as_str()) {
-                    user_text.push_str(e);
+                if let Some(chunk) = extract_run_text_or_emoji(r) {
+                    user_text.push_str(&chunk);
                 }
             }
         }
@@ -1011,6 +1083,31 @@ mod tests {
         assert_eq!(parsed_paid.text, "Super Chat (₹500): Keep up the awesome streams!");
         assert_eq!(parsed_paid.timestamp_usec, 1710000005000000);
         assert!(parsed_paid.is_superchat);
+
+        // 3. Text message with standard Unicode emoji and shortcode emoji
+        let emoji_action = json!({
+            "addChatItemAction": {
+                "item": {
+                    "liveChatTextMessageRenderer": {
+                        "id": "msg-emoji",
+                        "authorName": { "simpleText": "EmojiFan" },
+                        "timestampUsec": "1710000000000000",
+                        "message": {
+                            "runs": [
+                                { "text": "GG " },
+                                { "emoji": { "shortcuts": [":fire:"] } },
+                                { "text": " and " },
+                                { "emoji": { "emojiId": "❤️" } },
+                                { "text": "!" }
+                            ]
+                        }
+                    }
+                }
+            }
+        });
+
+        let parsed_emoji = parse_chat_action(&emoji_action).expect("should parse emoji message");
+        assert_eq!(parsed_emoji.text, "GG 🔥 and ❤️!");
     }
 
     #[test]
