@@ -28,7 +28,18 @@
 
 ---
 
-## 4. Build & Distribution
+## 4. Android App Isolation (MANDATORY)
+
+> [!IMPORTANT]
+> **The Android app lives strictly inside `android/`. Never mix it with the desktop (Rust/Tauri + React) project.**
+> - All Android source, resources, Gradle files, tests, docs, and build outputs (APKs, AABs) stay under `android/`. Never place Android files (e.g. `app-release.apk`) at the repo root or in `src/`, `frontend/`, `assets/`, `dist/`, `scripts/`, or `installer/`.
+> - The desktop project must not reference, import, or build anything from `android/`, and the Android project must not reference files outside `android/` (no shared source sets, relative `../` paths, or symlinks into the desktop tree).
+> - Keep changes scoped: a task about the Android app touches only `android/` (plus this file when rules change); a desktop task never edits `android/`. Don't combine both in one commit unless the user explicitly asks.
+> - Android-specific rules, versions, and docs belong in `android/README.md`, not in the desktop README or Cargo/npm configs.
+
+---
+
+## 5. Build & Distribution
 
 - **Windows Cross-Compilation:** Built using `cargo-xwin` targeting `x86_64-pc-windows-msvc`.
 - **Portable Distribution Archive:** Packaged in `dist/baba-tts-portable.zip` containing:
