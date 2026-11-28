@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Baba TTS</string>
+    <string name="app_subtitle">Floating Overlay &amp; Streamlabs HUD</string>
+    <string name="cd_baba_mascot">Baba TTS mascot</string>
+
+    <string name="overlay_service_title">Baba TTS Floating Overlay</string>
+    <string name="overlay_service_desc">Streaming HUD active with Streamlabs audio capture</string>
+
+    <string name="status_pill_live">Live</string>
+    <string name="status_pill_idle">Idle</string>
+    <string name="capture_pill_ready">Streamlabs Audio Ready</string>
+
+    <string name="permission_required_title">Display Over Other Apps Required</string>
+    <string name="permission_required_desc">Grant overlay permission so Baba TTS can float above mobile games and Streamlabs.</string>
+    <string name="btn_grant_permission">Grant Overlay Permission</string>
+
+    <string name="hero_title">Floating HUD Control</string>
+    <string name="hero_status_running">Overlay is live on screen</string>
+    <string name="hero_status_stopped">Overlay is currently stopped</string>
+    <string name="hero_hint">Drag anywhere on screen. Tap the overlay to reveal Skip, Ban, and Mute.</string>
+    <string name="btn_start_overlay">Start Floating Overlay</string>
+    <string name="btn_stop_overlay">Stop Floating Overlay</string>
+
+    <string name="appearance_title">Overlay Preview &amp; Style</string>
+    <string name="appearance_subtitle">Tap the preview card to cycle chatter glass colors.</string>
+    <string name="preview_author">@BabaFan99</string>
+    <string name="preview_message">Hello chat! Watch the rounded highlight pill in action.</string>
+    <string name="label_font_size">Subtitle Size</string>
+    <string name="size_small">Small · 12sp</string>
+    <string name="size_medium">Medium · 15sp</string>
+    <string name="size_large">Large · 19sp</string>
+    <string name="label_font_style">Typeface</string>
+    <string name="font_plus_jakarta">Plus Jakarta</string>
+    <string name="font_inter">Inter</string>
+    <string name="font_nunito">Nunito</string>
+    <string name="font_mono">JetBrains Mono</string>
+
+    <string name="simulator_title">Live Chat Simulator</string>
+    <string name="simulator_subtitle">Send test messages to verify speech and word highlighting.</string>
+    <string name="btn_sim_greeting">Greeting</string>
+    <string name="btn_sim_long">Long Subtitle</string>
+    <string name="btn_sim_burst">3x Burst</string>
+    <string name="hint_custom_text">Type a test chat message…</string>
+    <string name="btn_speak_custom">Speak with Karaoke Fill</string>
+
+    <string name="speech_title">Speech Engine</string>
+    <string name="engine_azure">Azure Neural</string>
+    <string name="engine_system">System TTS</string>
+    <string name="label_system_tts_lang">System TTS Voice Mode</string>
+    <string name="btn_install_tts_voices">Install Voices</string>
+    <string name="helper_system_tts_hinglish">Hinglish Auto switches between Hindi (hi-IN) &amp; Indian English (en-IN) per message even when Android Settings picks one default.</string>
+    <string name="lang_hinglish">Hinglish Auto</string>
+    <string name="lang_hinglish_sub">hi-IN + en-IN</string>
+    <string name="lang_hi_in">Hindi</string>
+    <string name="lang_hi_in_sub">hi-IN</string>
+    <string name="lang_en_in">English (India)</string>
+    <string name="lang_en_in_sub">en-IN</string>
+    <string name="lang_en_us">English (US)</string>
+    <string name="lang_en_us_sub">en-US</string>
+    <string name="btn_configure_azure">Configure</string>
+    <string name="btn_hide_azure">Hide</string>
+    <string name="label_azure_region">Azure Region</string>
+    <string name="label_azure_voice">Azure Voice Name</string>
+    <string name="label_azure_key">Azure Subscription Key</string>
+    <string name="hint_azure_key">Enter Azure Speech subscription key</string>
+    <string name="helper_azure_key">Paste your Azure Speech subscription key (uses System TTS if empty).</string>
+    <string name="btn_save_config">Save Speech Config</string>
+
+    <string name="youtube_title">YouTube Live Chat</string>
+    <string name="youtube_status_off">YouTube Live Chat is off</string>
+    <string name="youtube_pill_off">Off</string>
+    <string name="youtube_pill_connecting">Connecting</string>
+    <string name="youtube_pill_live">Live</string>
+    <string name="youtube_pill_offline">Offline</string>
+    <string name="youtube_pill_error">Setup</string>
+    <string name="label_yt_channel">Channel Username, @handle, or ID</string>
+    <string name="hint_yt_channel">@username, username, or UC…</string>
+    <string name="label_yt_chat_mode">Chat Mode</string>
+    <string name="yt_mode_live">Live Chat (All)</string>
+    <string name="yt_mode_top">Top Chat</string>
+    <string name="btn_apply_youtube">Connect &amp; Save YouTube</string>
+    <string name="cd_yt_switch">Enable YouTube Live Chat listener</string>
+</resources>

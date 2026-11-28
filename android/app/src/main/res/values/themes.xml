@@ -1,0 +1,44 @@
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!-- Pure Light Mode Material 3 Theme aligned with Baba TTS Rose & Sky palette -->
+    <style name="Theme.BabaTTS" parent="Theme.Material3.Light.NoActionBar">
+        <item name="android:fontFamily">@font/font_plus_jakarta</item>
+        <item name="fontFamily">@font/font_plus_jakarta</item>
+
+        <item name="colorPrimary">@color/baba_primary</item>
+        <item name="colorOnPrimary">@android:color/white</item>
+        <item name="colorPrimaryContainer">@color/baba_primary_soft</item>
+        <item name="colorOnPrimaryContainer">@color/baba_primary_dark</item>
+
+        <item name="colorSecondary">@color/baba_accent</item>
+        <item name="colorOnSecondary">@android:color/white</item>
+        <item name="colorSecondaryContainer">@color/baba_accent_soft</item>
+        <item name="colorOnSecondaryContainer">@color/baba_accent_text</item>
+
+        <item name="colorSurface">@color/baba_card_light</item>
+        <item name="colorOnSurface">@color/baba_text_primary</item>
+        <item name="colorSurfaceVariant">@color/baba_surface_subtle</item>
+        <item name="colorOnSurfaceVariant">@color/baba_text_secondary</item>
+        <item name="colorOutline">@color/baba_outline_input</item>
+        <item name="colorOutlineVariant">@color/baba_card_border</item>
+
+        <item name="android:windowBackground">@color/baba_bg_light</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightNavigationBar" tools:targetApi="o_mr1">true</item>
+    </style>
+
+    <style name="Widget.BabaTTS.SegmentedButton" parent="Widget.Material3.Button.OutlinedButton">
+        <item name="android:minHeight">44dp</item>
+        <item name="android:insetTop">0dp</item>
+        <item name="android:insetBottom">0dp</item>
+        <item name="android:paddingStart">6dp</item>
+        <item name="android:paddingEnd">6dp</item>
+        <item name="android:textSize">12sp</item>
+        <item name="android:maxLines">1</item>
+        <item name="cornerRadius">10dp</item>
+        <item name="strokeColor">@color/baba_segmented_stroke</item>
+        <item name="backgroundTint">@color/baba_segmented_bg</item>
+        <item name="android:textColor">@color/baba_segmented_text</item>
+    </style>
+</resources>

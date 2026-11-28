@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/overlay_root"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:minWidth="48dp"
+    android:minHeight="48dp"
+    android:background="@drawable/bg_overlay_pill"
+    android:gravity="center"
+    android:orientation="vertical"
+    android:paddingStart="12dp"
+    android:paddingTop="8dp"
+    android:paddingEnd="12dp"
+    android:paddingBottom="8dp">
+
+    <!-- Header Row: Speaking Wave + Username in one line -->
+    <LinearLayout
+        android:id="@+id/header_row"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <!-- Animated Equalizer Wave Bars (also acts as compact stealth badge when idle) -->
+        <LinearLayout
+            android:id="@+id/wave_container"
+            android:layout_width="wrap_content"
+            android:layout_height="18dp"
+            android:gravity="bottom"
+            android:orientation="horizontal">
+
+            <View
+                android:id="@+id/wave_bar_1"
+                android:layout_width="3dp"
+                android:layout_height="16dp"
+                android:layout_marginEnd="2dp"
+                android:background="@drawable/bg_wave_bar" />
+
+            <View
+                android:id="@+id/wave_bar_2"
+                android:layout_width="3dp"
+                android:layout_height="16dp"
+                android:layout_marginEnd="2dp"
+                android:background="@drawable/bg_wave_bar" />
+
+            <View
+                android:id="@+id/wave_bar_3"
+                android:layout_width="3dp"
+                android:layout_height="16dp"
+                android:background="@drawable/bg_wave_bar" />
+        </LinearLayout>
+
+        <!-- Username (100% opaque white text on dark-mode composite glass; no box) -->
+        <TextView
+            android:id="@+id/text_author"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:ellipsize="end"
+            android:fontFamily="@font/font_plus_jakarta"
+            android:letterSpacing="0.01"
+            android:maxLines="1"
+            android:paddingStart="4dp"
+            android:paddingEnd="4dp"
+            android:text=""
+            android:textColor="@android:color/white"
+            android:textSize="13sp"
+            android:textStyle="bold"
+            tools:text="@Baba" />
+    </LinearLayout>
+
+    <!-- Subtitle Text below header row (100% opaque white, rounded highlight pill,
+         capped maxLines so controls always stay reachable on-screen). -->
+    <com.babatts.overlay.ui.RoundedHighlightTextView
+        android:id="@+id/text_subtitles"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="3dp"
+        android:ellipsize="end"
+        android:fontFamily="@font/font_plus_jakarta"
+        android:letterSpacing="0.01"
+        android:lineSpacingExtra="2dp"
+        android:maxLines="8"
+        android:maxWidth="280dp"
+        android:paddingStart="4dp"
+        android:paddingTop="1dp"
+        android:paddingEnd="4dp"
+        android:paddingBottom="1dp"
+        android:text=""
+        android:textColor="@android:color/white"
+        android:textSize="15sp"
+        tools:text="Welcome to Baba TTS Android live overlay!" />
+
+    <!-- Quick Control Buttons (Hidden by default, tap overlay to reveal) -->
+    <LinearLayout
+        android:id="@+id/controls_container"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        android:orientation="horizontal">
+
+        <TextView
+            android:id="@+id/btn_overlay_skip"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="@drawable/bg_overlay_action_btn"
+            android:fontFamily="@font/font_plus_jakarta"
+            android:text="⏭️ Skip"
+            android:textColor="@android:color/white"
+            android:textSize="10sp" />
+
+        <TextView
+            android:id="@+id/btn_overlay_ban"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="6dp"
+            android:background="@drawable/bg_overlay_action_btn"
+            android:fontFamily="@font/font_plus_jakarta"
+            android:text="🚫 Ban"
+            android:textColor="@android:color/white"
+            android:textSize="10sp" />
+
+        <TextView
+            android:id="@+id/btn_overlay_mute"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="6dp"
+            android:background="@drawable/bg_overlay_action_btn"
+            android:fontFamily="@font/font_plus_jakarta"
+            android:text="🔇 Mute"
+            android:textColor="@android:color/white"
+            android:textSize="10sp" />
+    </LinearLayout>
+
+</LinearLayout>
